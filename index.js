@@ -49,8 +49,7 @@ function analisarMensagem(user, texto) {
 
   texto = texto.toLowerCase();
 
-  // ===== RPG / ANIME =====
-
+  // RPG / Anime
   if (
     texto.includes("rpg") ||
     texto.includes("anime") ||
@@ -62,8 +61,7 @@ function analisarMensagem(user, texto) {
     }
   }
 
-  // ===== TECNOLOGIA =====
-
+  // Tecnologia
   if (
     texto.includes("ia") ||
     texto.includes("bot") ||
@@ -76,8 +74,7 @@ function analisarMensagem(user, texto) {
     }
   }
 
-  // ===== HUMOR =====
-
+  // Humor
   if (
     texto.includes("kkkk") ||
     texto.includes("kk") ||
@@ -89,8 +86,7 @@ function analisarMensagem(user, texto) {
     }
   }
 
-  // ===== CYBERPUNK =====
-
+  // Cyberpunk
   if (texto.includes("cyberpunk")) {
 
     if (!user.perfil.gostos.includes("Cyberpunk")) {
@@ -338,7 +334,7 @@ client.once("clientReady", async () => {
   console.log("🟢 Neon Social online.");
 });
 
-// ================= PREFIXO =================
+// ================= MESSAGE EVENT =================
 
 client.on("messageCreate", async (message) => {
 
@@ -346,13 +342,12 @@ client.on("messageCreate", async (message) => {
 
   const content = message.content;
 
-  // EVITA DUPLICAÇÃO
+  // PREFIXO
   if (!content.toLowerCase().startsWith("neon,")) {
     return;
   }
 
-  const userInput =
-    content.slice(5).trim();
+  const userInput = content.slice(5).trim();
 
   if (!userInput) return;
 
@@ -539,16 +534,6 @@ ${user?.afinidade || 0}
 
     const alvo =
       interaction.options.getUser("usuario");
-
-    const data =
-      db.data.users[alvo.id];
-
-    if (!data) {
-
-      return interaction.reply(
-        "❌ usuário sem dados"
-      );
-    }
 
     const afinidade =
       Math.floor(Math.random() * 100);
