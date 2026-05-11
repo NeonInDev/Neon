@@ -342,12 +342,62 @@ client.on("messageCreate", async (message) => {
 
   const content = message.content;
 
-  // PREFIXO
-  if (!content.toLowerCase().startsWith("neon,")) {
-    return;
+  let ativar = false;
+
+  let userInput = content;
+
+  // ================= PREFIXO =================
+
+  if (
+    content.toLowerCase().startsWith("neon,")
+  ) {
+
+    ativar = true;
+
+    userInput = content.slice(5).trim();
   }
 
-  const userInput = content.slice(5).trim();
+  // ================= RESPONDER A NEON =================
+
+  if (
+    message.reference &&
+    !ativar
+  ) {
+
+    try {
+
+      const repliedMessage =
+        await message.channel.messages.fetch(
+          message.reference.messageId
+        );
+
+      if (
+        repliedMessage.author.id ===
+        client.user.id
+      ) {
+
+        ativar = true;
+      }
+
+    } catch (err) {
+
+      console.log(err);
+    }
+  }
+
+  // ================= DM =================
+
+  if (
+    message.channel.type === 1 &&
+    !ativar
+  ) {
+
+    ativar = true;
+  }
+
+  // ================= FINAL =================
+
+  if (!ativar) return;
 
   if (!userInput) return;
 
