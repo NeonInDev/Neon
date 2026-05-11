@@ -1,0 +1,4 @@
+node_modules
+.env
+neon-db.json
+memory.json
