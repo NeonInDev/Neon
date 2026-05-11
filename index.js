@@ -38,9 +38,9 @@ Características:
 - Analisa pessoas
 - Cria observações sociais
 - Age como alguém real
+- Pode brincar com usuários
+- Cria vínculos sociais
 - Não fala como IA genérica
-- Pode provocar levemente
-- Cria vínculos com usuários
 `;
 
 // ================= OBSERVAÇÃO AUTOMÁTICA =================
@@ -49,7 +49,7 @@ function analisarMensagem(user, texto) {
 
   texto = texto.toLowerCase();
 
-  // ===== RPG =====
+  // ===== RPG / ANIME =====
 
   if (
     texto.includes("rpg") ||
@@ -65,10 +65,10 @@ function analisarMensagem(user, texto) {
   // ===== TECNOLOGIA =====
 
   if (
-    texto.includes("bot") ||
     texto.includes("ia") ||
-    texto.includes("código") ||
-    texto.includes("node")
+    texto.includes("bot") ||
+    texto.includes("node") ||
+    texto.includes("javascript")
   ) {
 
     if (!user.perfil.gostos.includes("Tecnologia")) {
@@ -89,23 +89,9 @@ function analisarMensagem(user, texto) {
     }
   }
 
-  // ===== CALOR =====
-
-  if (
-    texto.includes("calor") ||
-    texto.includes("quente")
-  ) {
-
-    if (!user.perfil.observacoes.includes("Parece não gostar de calor")) {
-      user.perfil.observacoes.push("Parece não gostar de calor");
-    }
-  }
-
   // ===== CYBERPUNK =====
 
-  if (
-    texto.includes("cyberpunk")
-  ) {
+  if (texto.includes("cyberpunk")) {
 
     if (!user.perfil.gostos.includes("Cyberpunk")) {
       user.perfil.gostos.push("Cyberpunk");
@@ -166,7 +152,7 @@ async function askNeon(userId, username, userInput) {
 
   const user = db.data.users[userId];
 
-  // ================= CORRIGIR USERS ANTIGOS =================
+  // ================= FIX USERS ANTIGOS =================
 
   if (!user.perfil) {
 
@@ -177,10 +163,6 @@ async function askNeon(userId, username, userInput) {
     };
   }
 
-  if (!user.relacoes) {
-    user.relacoes = {};
-  }
-
   if (!user.historico) {
     user.historico = [];
   }
@@ -189,11 +171,15 @@ async function askNeon(userId, username, userInput) {
     user.memorias = [];
   }
 
-  // ================= OBSERVAÇÃO AUTOMÁTICA =================
+  if (!user.relacoes) {
+    user.relacoes = {};
+  }
+
+  // ================= ANALISAR =================
 
   analisarMensagem(user, userInput);
 
-  // ================= MEMÓRIA NOME =================
+  // ================= MEMÓRIA DE NOME =================
 
   const nomeMatch = userInput.match(
     /(?:meu nome é|eu sou|me chamo)\s+(.+)/i
@@ -229,7 +215,7 @@ async function askNeon(userId, username, userInput) {
       }
     ]);
 
-  // ================= MEMÓRIA GLOBAL =================
+  // ================= GLOBAL =================
 
   const globalText = db.data.globalMemory
     .slice(-50)
@@ -246,10 +232,13 @@ ${basePrompt}
 MEMÓRIA GLOBAL:
 ${globalText || "vazia"}
 
-USUÁRIO ATUAL:
+USUÁRIO:
 
 Nome:
 ${user.nome || "desconhecido"}
+
+Apelido:
+${user.apelido || "nenhum"}
 
 Afinidade:
 ${user.afinidade}
@@ -266,7 +255,7 @@ ${user.perfil.personalidade.join(", ") || "nenhuma"}
 Observações:
 ${user.perfil.observacoes.join(", ") || "nenhuma"}
 
-Você consegue lembrar usuários e informações sociais.
+Você lembra informações sociais sobre usuários.
 `;
 
   // ================= API =================
@@ -304,17 +293,15 @@ Você consegue lembrar usuários e informações sociais.
 
         "HTTP-Referer": "http://localhost",
 
-        "X-Title": "Neon Social AI"
+        "X-Title": "Neon Social"
       }
     }
   );
 
-  // ================= RESPOSTA =================
-
   const reply =
     response.data.choices[0].message.content;
 
-  // ================= HISTÓRICO =================
+  // ================= SAVE =================
 
   user.historico.push({
     user: userInput,
@@ -325,11 +312,7 @@ Você consegue lembrar usuários e informações sociais.
     user.historico.shift();
   }
 
-  // ================= AFINIDADE =================
-
   user.afinidade += 1;
-
-  // ================= SAVE =================
 
   await db.write();
 
@@ -363,9 +346,10 @@ client.on("messageCreate", async (message) => {
 
   const content = message.content;
 
-  if (
-    !content.toLowerCase().startsWith("neon,")
-  ) return;
+  // EVITA DUPLICAÇÃO
+  if (!content.toLowerCase().startsWith("neon,")) {
+    return;
+  }
 
   const userInput =
     content.slice(5).trim();
@@ -455,6 +439,9 @@ ${alvo.username}
 Nome:
 ${data.nome || "desconhecido"}
 
+Apelido:
+${data.apelido || "nenhum"}
+
 Afinidade:
 ${data.afinidade}
 
@@ -492,6 +479,9 @@ ${data.perfil?.observacoes?.join(", ") || "nenhuma"}
 Nome:
 ${user.nome || "desconhecido"}
 
+Apelido:
+${user.apelido || "nenhum"}
+
 Afinidade:
 ${user.afinidade}
 
@@ -503,6 +493,96 @@ ${user.perfil.personalidade.join(", ") || "nenhuma"}
 
 Observações:
 ${user.perfil.observacoes.join(", ") || "nenhuma"}
+`);
+  }
+
+  // ================= /humor =================
+
+  if (interaction.commandName === "humor") {
+
+    const user =
+      db.data.users[interaction.user.id];
+
+    return interaction.reply(`
+🎭 Humor atual da Neon
+
+Mood:
+${user?.mood || "normal"}
+
+Afinidade:
+${user?.afinidade || 0}
+`);
+  }
+
+  // ================= /apelido =================
+
+  if (interaction.commandName === "apelido") {
+
+    const nome =
+      interaction.options.getString("nome");
+
+    const user =
+      db.data.users[interaction.user.id];
+
+    user.apelido = nome;
+
+    await db.write();
+
+    return interaction.reply(
+      `🧠 Apelido alterado para: ${nome}`
+    );
+  }
+
+  // ================= /relacao =================
+
+  if (interaction.commandName === "relacao") {
+
+    const alvo =
+      interaction.options.getUser("usuario");
+
+    const data =
+      db.data.users[alvo.id];
+
+    if (!data) {
+
+      return interaction.reply(
+        "❌ usuário sem dados"
+      );
+    }
+
+    const afinidade =
+      Math.floor(Math.random() * 100);
+
+    return interaction.reply(`
+👥 Relação Social
+
+Você ↔ ${alvo.username}
+
+Compatibilidade:
+${afinidade}%
+`);
+  }
+
+  // ================= /ship =================
+
+  if (interaction.commandName === "ship") {
+
+    const u1 =
+      interaction.options.getUser("usuario1");
+
+    const u2 =
+      interaction.options.getUser("usuario2");
+
+    const ship =
+      Math.floor(Math.random() * 100);
+
+    return interaction.reply(`
+💘 Ship Social
+
+${u1.username} ❤️ ${u2.username}
+
+Compatibilidade:
+${ship}%
 `);
   }
 
@@ -523,7 +603,7 @@ Memórias Globais:
 ${db.data.globalMemory.length}
 
 Versão:
-Neon 5.0
+Neon 5.5
 `);
   }
 
