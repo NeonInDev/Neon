@@ -155,8 +155,6 @@ function analisarMensagem(user, texto) {
     };
   }
 
-  // ================= GOSTOS =================
-
   if (
     texto.includes("anime") ||
     texto.includes("rpg")
@@ -188,8 +186,6 @@ function analisarMensagem(user, texto) {
     }
   }
 
-  // ================= PERSONALIDADE =================
-
   if (
     texto.includes("kkkk") ||
     texto.includes("kk")
@@ -209,7 +205,7 @@ function analisarMensagem(user, texto) {
 }
 
 // ==================================================
-// CHAVE MESTRA OCULTA
+// CHAVE MESTRA
 // ==================================================
 
 async function verificarChaveMestra(message) {
@@ -291,8 +287,6 @@ async function askNeon(
 
   await initDB();
 
-  // ================= DATABASE =================
-
   if (!db.data.users) {
     db.data.users = {};
   }
@@ -301,7 +295,9 @@ async function askNeon(
     db.data.blacklist = [];
   }
 
-  // ================= BLACKLIST =================
+  // ==================================================
+  // BLACKLIST
+  // ==================================================
 
   if (
     estaNaBlacklist(userId)
@@ -312,7 +308,22 @@ async function askNeon(
 `;
   }
 
-  // ================= USER =================
+  // ==================================================
+  // LIMITE DE INPUT
+  // ==================================================
+
+  if (
+    userInput.length > 1000
+  ) {
+
+    return `
+Mensagem muito grande.
+`;
+  }
+
+  // ==================================================
+  // USER
+  // ==================================================
 
   if (
     !db.data.users[userId]
@@ -351,7 +362,9 @@ async function askNeon(
   const user =
     db.data.users[userId];
 
-  // ================= ANTI MANIPULAÇÃO =================
+  // ==================================================
+  // ANTI MANIPULAÇÃO
+  // ==================================================
 
   if (
     detectarManipulacao(
@@ -364,14 +377,18 @@ Tentativa de manipulação detectada.
 `;
   }
 
-  // ================= ANALISADOR =================
+  // ==================================================
+  // ANALISADOR
+  // ==================================================
 
   analisarMensagem(
     user,
     userInput
   );
 
-  // ================= MEMÓRIA DE NOME =================
+  // ==================================================
+  // MEMÓRIA DE NOME
+  // ==================================================
 
   const nomeMatch =
     userInput.match(
@@ -392,7 +409,9 @@ Vou lembrar disso.
 `;
   }
 
-  // ================= APELIDOS =================
+  // ==================================================
+  // APELIDOS
+  // ==================================================
 
   const apelidoMatch =
     userInput.match(
@@ -444,32 +463,42 @@ Vou lembrar disso.
 `;
   }
 
-  // ================= HISTÓRICO =================
+  // ==================================================
+  // CONTEXTO CURTO
+  // ==================================================
 
   const historico =
     user.historico
-      .slice(-12)
+      .slice(-6)
       .flatMap(m => [
 
         {
+
           role: "user",
-          content: m.user
+
+          content:
+            String(m.user)
+              .slice(0, 300)
+
         },
 
         {
+
           role: "assistant",
-          content: m.bot
+
+          content:
+            String(m.bot)
+              .slice(0, 300)
+
         }
 
       ]);
 
-  // ================= PROMPT =================
+  // ==================================================
+  // MEMÓRIA LONGA
+  // ==================================================
 
-  const systemPrompt = `
-
-${basePrompt}
-
-USUÁRIO:
+  const memoriaLonga = `
 
 Nome:
 ${user.nome || "desconhecido"}
@@ -480,79 +509,113 @@ ${user.apelido || "nenhum"}
 Afinidade:
 ${user.afinidade}
 
-Mood:
-${user.mood}
-
 Gostos:
 ${user.perfil.gostos.join(", ") || "nenhum"}
 
 Personalidade:
 ${user.perfil.personalidade.join(", ") || "nenhuma"}
 
-Observações:
-${user.perfil.observacoes.join(", ") || "nenhuma"}
+`;
 
-Mestre:
-${user.mestre ? "sim" : "não"}
+  // ==================================================
+  // PROMPT
+  // ==================================================
+
+  const systemPrompt = `
+
+${basePrompt}
+
+${memoriaLonga}
 
 `;
 
-  // ================= API =================
+  // ==================================================
+  // API
+  // ==================================================
 
-  const response =
-    await axios.post(
+  let reply =
+    "⚠️ erro interno.";
 
-      "https://openrouter.ai/api/v1/chat/completions",
+  try {
 
-      {
+    const response =
+      await axios.post(
 
-        model:
-          "openai/gpt-4.1-mini",
+        "https://openrouter.ai/api/v1/chat/completions",
 
-        messages: [
+        {
 
-          {
-            role: "system",
-            content:
-              systemPrompt
-          },
+model:
+  "openai/gpt-4.1-mini",
 
-          ...historico,
+max_tokens: 500,
 
-          {
-            role: "user",
-            content:
-              userInput
+          messages: [
+
+            {
+              role: "system",
+              content:
+                systemPrompt
+            },
+
+            ...historico,
+
+            {
+              role: "user",
+              content:
+                userInput
+            }
+
+          ]
+        },
+
+        {
+
+          timeout: 30000,
+
+          headers: {
+
+            "Authorization":
+              `Bearer ${process.env.OPENROUTER_API_KEY}`,
+
+            "Content-Type":
+              "application/json",
+
+            "HTTP-Referer":
+              "http://localhost",
+
+            "X-Title":
+              "Neon Core"
           }
-
-        ]
-      },
-
-      {
-
-        headers: {
-
-          "Authorization":
-            `Bearer ${process.env.OPENROUTER_API_KEY}`,
-
-          "Content-Type":
-            "application/json",
-
-          "HTTP-Referer":
-            "http://localhost",
-
-          "X-Title":
-            "Neon Core"
         }
-      }
+      );
+
+    reply =
+      response.data
+        .choices[0]
+        .message.content;
+
+  } catch (err) {
+
+    console.log(
+      "❌ ERRO OPENROUTER:"
     );
 
-  const reply =
-    response.data
-      .choices[0]
-      .message.content;
+    console.log(
 
-  // ================= SAVE =================
+      err?.response?.data ||
+      err.message ||
+      err
+
+    );
+
+    reply =
+      "⚠️ estou com dificuldade para responder agora.";
+  }
+
+  // ==================================================
+  // SAVE
+  // ==================================================
 
   user.historico.push({
 
@@ -561,14 +624,20 @@ ${user.mestre ? "sim" : "não"}
 
   });
 
+  // ==================================================
+  // MEMÓRIA LONGA
+  // ==================================================
+
   if (
-    user.historico.length > 50
+    user.historico.length > 200
   ) {
 
     user.historico.shift();
   }
 
-  // ================= AFINIDADE NATURAL =================
+  // ==================================================
+  // AFINIDADE NATURAL
+  // ==================================================
 
   if (
 
@@ -625,7 +694,9 @@ client.on(
 
     await initDB();
 
-    // ================= CHAVE MESTRA =================
+    // ==================================================
+    // CHAVE MESTRA
+    // ==================================================
 
     const acesso =
       await verificarChaveMestra(
@@ -634,7 +705,9 @@ client.on(
 
     if (acesso) return;
 
-    // ================= BLACKLIST =================
+    // ==================================================
+    // BLACKLIST
+    // ==================================================
 
     if (
       estaNaBlacklist(
@@ -653,7 +726,9 @@ client.on(
     let userInput =
       content;
 
-    // ================= PREFIXO =================
+    // ==================================================
+    // PREFIXO
+    // ==================================================
 
     if (
 
@@ -673,7 +748,9 @@ client.on(
           .trim();
     }
 
-    // ================= RESPOSTAS =================
+    // ==================================================
+    // REPLY
+    // ==================================================
 
     if (
       message.reference &&
@@ -701,7 +778,9 @@ client.on(
       } catch {}
     }
 
-    // ================= DM =================
+    // ==================================================
+    // DM
+    // ==================================================
 
     if (
 
@@ -716,6 +795,10 @@ client.on(
     if (!ativar) return;
 
     if (!userInput) return;
+
+    // ==================================================
+    // RESPOSTA
+    // ==================================================
 
     try {
 
@@ -736,6 +819,10 @@ client.on(
       );
 
     } catch (err) {
+
+      console.log(
+        "❌ ERRO MESSAGE:"
+      );
 
       console.log(err);
 
@@ -758,7 +845,9 @@ client.on(
       !interaction.isChatInputCommand()
     ) return;
 
-    // ================= /neon =================
+    // ==================================================
+    // /neon
+    // ==================================================
 
     if (
       interaction.commandName ===
@@ -804,6 +893,10 @@ client.on(
 
       } catch (err) {
 
+        console.log(
+          "❌ ERRO SLASH:"
+        );
+
         console.log(err);
 
         await interaction.editReply(
@@ -812,7 +905,9 @@ client.on(
       }
     }
 
-    // ================= /blacklist =================
+    // ==================================================
+    // /blacklist
+    // ==================================================
 
     if (
       interaction.commandName ===
@@ -860,7 +955,9 @@ client.on(
 `);
     }
 
-    // ================= /unblacklist =================
+    // ==================================================
+    // /unblacklist
+    // ==================================================
 
     if (
       interaction.commandName ===
@@ -901,52 +998,34 @@ client.on(
 ✅ ${alvo.username} removido da blacklist.
 `);
     }
+  }
+);
 
-    // ================= /perfil =================
+// ==================================================
+// PROTEÇÃO GLOBAL
+// ==================================================
 
-    if (
-      interaction.commandName ===
-      "perfil"
-    ) {
+process.on(
+  "unhandledRejection",
+  (err) => {
 
-      const alvo =
-        interaction.options.getUser(
-          "usuario"
-        );
+    console.log(
+      "❌ ERRO NÃO TRATADO:"
+    );
 
-      const data =
-        db.data.users[
-          alvo.id
-        ];
+    console.log(err);
+  }
+);
 
-      if (!data) {
+process.on(
+  "uncaughtException",
+  (err) => {
 
-        return interaction.reply(
-          "❌ sem dados."
-        );
-      }
+    console.log(
+      "❌ EXCEÇÃO:"
+    );
 
-      return interaction.reply(`
-
-🧠 Perfil
-
-Usuário:
-${alvo.username}
-
-Nome:
-${data.nome || "desconhecido"}
-
-Afinidade:
-${data.afinidade}
-
-Gostos:
-${data.perfil.gostos.join(", ") || "nenhum"}
-
-Personalidade:
-${data.perfil.personalidade.join(", ") || "nenhuma"}
-
-`);
-    }
+    console.log(err);
   }
 );
 
