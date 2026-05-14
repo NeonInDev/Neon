@@ -189,7 +189,8 @@ async function verificarChaveMestra(message) {
 async function askNeon(
   userId,
   username,
-  userInput
+  userInput,
+imageUrl = null
 ) {
 
   await initDB();
@@ -354,8 +355,8 @@ ${memoriaLonga}
 
         {
 
-          model:
-            "openai/gpt-4.1-mini",
+  model:
+"openai/gpt-4o-mini",
 
           max_tokens: 500,
 
@@ -369,11 +370,30 @@ ${memoriaLonga}
 
             ...historico,
 
-            {
-              role: "user",
-              content:
-                userInput
-            }
+  {
+  role: "user",
+
+  content: imageUrl
+
+  ? [
+
+      {
+        type: "text",
+        text: userInput
+      },
+
+      {
+        type: "image_url",
+
+        image_url: {
+          url: imageUrl
+        }
+      }
+
+    ]
+
+  : userInput
+}
 
           ]
         },
@@ -519,6 +539,8 @@ client.on(
       message.content;
 
     let ativar = false;
+    if (message._neonResponded) return;
+message._neonResponded = true;
 
     let userInput =
       content;
@@ -595,19 +617,31 @@ client.on(
 
       await message.channel
         .sendTyping();
+const image =
+message.attachments.first();
+
+let imageUrl = null;
+
+if (image) {
+
+  imageUrl = image.url;
+}
 
       const reply =
         await askNeon(
 
-          message.author.id,
-          message.author.username,
-          userInput
+  message.author.id,
+message.author.username,
+userInput,
+imageUrl
 
         );
 
-      await message.reply(
-        reply
-      );
+if (!message.replied) {
+
+  await message.reply(reply);
+
+}
 
     } catch (err) {
 
