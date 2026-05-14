@@ -4,9 +4,15 @@
   "description": "um bot inteligente pra me ajudar ",
   "main": "index.js",
   "scripts": {
-    "test": "start" ,
+    "test": "start",
     "start": "node index.js"
   },
   "author": "Neon",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.16.1",
+    "discord.js": "^14.26.4",
+    "dotenv": "^17.4.2",
+    "lowdb": "^7.0.1"
+  }
 }
