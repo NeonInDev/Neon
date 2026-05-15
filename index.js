@@ -4,6 +4,7 @@ const { client } = require("./src/client");
 const { db } = require("./src/db");
 const { TOKEN } = require("./src/config");
 const { log } = require("./src/logger");
+const { stopDocsServer } = require("./src/docs/server");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
@@ -12,6 +13,7 @@ async function desligar(sinal) {
   } catch (err) {
     log("ERROR", "Erro ao salvar dados", { erro: err.message });
   }
+  stopDocsServer();
   client.destroy();
   process.exit(0);
 }

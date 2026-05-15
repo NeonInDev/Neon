@@ -8,10 +8,16 @@ module.exports = {
   async execute(c) {
     await initDB();
 
-    const port = await startDocsServer();
-    const url = getUrl(port);
+    try {
+      const port = await startDocsServer();
+      log("INFO", `Documentação disponível em ${getUrl(port)}`);
+    } catch (err) {
+      log("WARN", "Servidor de documentação não iniciou", { erro: err.message });
+    }
 
-    log("INFO", `Documentação disponível em ${url}`);
-    log("INFO", "Client conectado", { tag: c.user.tag, guilds: c.guilds.cache.size });
+    log("INFO", "Client conectado", {
+      tag: c.user.tag,
+      guilds: c.guilds.cache.size,
+    });
   },
 };

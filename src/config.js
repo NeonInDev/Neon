@@ -13,4 +13,5 @@ module.exports = {
   ...required,
   CLIENT_ID: process.env.CLIENT_ID,
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+  DOCS_PORT: parseInt(process.env.DOCS_PORT, 10) || 3000,
 };

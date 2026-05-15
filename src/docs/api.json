@@ -3,12 +3,35 @@
   "info": {
     "title": "Neon Bot",
     "version": "1.0.0",
-    "description": "Bot de IA para Discord com personalidade própria, memória de longo prazo, sistema de afinidade e processamento de imagens.\n\n**Stack:** Node.js, discord.js v14, OpenRouter (GPT-4o-mini), LowDB\n\n**Repo:** [github.com/NeonInDev/Neon](https://github.com/NeonInDev/Neon)"
+    "description": "Bot de IA para Discord com personalidade própria, memória de longo prazo, sistema de afinidade e processamento de imagens.",
+    "contact": {
+      "name": "NeonInDev",
+      "url": "https://github.com/NeonInDev/Neon"
+    },
+    "license": {
+      "name": "ISC",
+      "url": "https://opensource.org/licenses/ISC"
+    }
   },
-  "servers": [],
+  "externalDocs": {
+    "description": "README com setup e arquitetura",
+    "url": "https://github.com/NeonInDev/Neon/blob/main/README.md"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Servidor local da documentação"
+    }
+  ],
   "tags": [
-    { "name": "Público", "description": "Comandos disponíveis para qualquer usuário" },
-    { "name": "Admin", "description": "Comandos exclusivos para mestres (requer `MASTER_KEY`)" }
+    {
+      "name": "Público",
+      "description": "Comandos disponíveis para qualquer usuário no Discord"
+    },
+    {
+      "name": "Admin",
+      "description": "Comandos exclusivos para mestres. Execute `/chave-mestra` via DM para ativar."
+    }
   ],
   "paths": {
     "/neon": {
@@ -27,8 +50,12 @@
         ],
         "responses": {
           "200": {
-            "description": "Resposta da IA",
-            "content": { "text/plain": { "schema": { "type": "string" } } }
+            "description": "Resposta gerada pela IA",
+            "content": {
+              "text/plain": {
+                "schema": { "type": "string", "example": "Olá! Como você está hoje?" }
+              }
+            }
           },
           "500": { "description": "Erro interno ou falha na OpenRouter" }
         }
@@ -78,7 +105,7 @@
       "post": {
         "tags": ["Admin"],
         "summary": "Alterar afinidade",
-        "description": "Define o nível de afinidade de um usuário. Valores negativos indicam relação desgastada, positivos indicam proximidade.",
+        "description": "Define o nível de afinidade de um usuário. Valores negativos indicam relação desgastada, positivos indicam proximidade. A afinidade naturalmente aumenta com interações frequentes.",
         "parameters": [
           {
             "name": "usuario",
@@ -97,6 +124,7 @@
         ],
         "responses": {
           "200": { "description": "Afinidade alterada com sucesso" },
+          "400": { "description": "Valor fora do range permitido" },
           "403": { "description": "Acesso negado (não é mestre)" }
         }
       }
@@ -111,8 +139,8 @@
             "name": "tipo",
             "in": "query",
             "required": true,
-            "schema": { "type": "string" },
-            "description": "Novo estado de humor (ex: feliz, reflexivo, irritado)"
+            "schema": { "type": "string", "example": "reflexivo" },
+            "description": "Novo estado de humor (ex: feliz, reflexivo, irritado, animado)"
           }
         ],
         "responses": {
@@ -125,7 +153,7 @@
       "post": {
         "tags": ["Admin"],
         "summary": "Definir apelido",
-        "description": "Atribui um apelido a um usuário, que será usado pela IA para se referir a ele.",
+        "description": "Atribui um apelido a um usuário, que será usado pela IA para se referir a ele no lugar do nome de usuário do Discord.",
         "parameters": [
           {
             "name": "usuario",
@@ -138,12 +166,13 @@
             "name": "apelido",
             "in": "query",
             "required": true,
-            "schema": { "type": "string", "maxLength": 50 },
+            "schema": { "type": "string", "maxLength": 50, "example": "Fulano" },
             "description": "Novo apelido (máx 50 caracteres)"
           }
         ],
         "responses": {
           "200": { "description": "Apelido alterado com sucesso" },
+          "400": { "description": "Apelido muito longo" },
           "403": { "description": "Acesso negado (não é mestre)" }
         }
       }
@@ -152,7 +181,7 @@
       "post": {
         "tags": ["Admin"],
         "summary": "Adicionar memória",
-        "description": "Adiciona uma observação ao perfil do usuário. A IA utiliza essas memórias como contexto. Limitado a 200 memórias (FIFO).",
+        "description": "Adiciona uma observação ao perfil do usuário. A IA utiliza essas memórias como contexto nas interações. Limitado a 200 memórias (FIFO).",
         "parameters": [
           {
             "name": "usuario",
@@ -165,7 +194,7 @@
             "name": "texto",
             "in": "query",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": { "type": "string", "example": "Medo de altura" },
             "description": "Texto da memória/observação"
           }
         ],
@@ -220,7 +249,7 @@
       "post": {
         "tags": ["Admin"],
         "summary": "Registrar gosto",
-        "description": "Adiciona um interesse ao perfil do usuário. A IA considera esses gostos ao interagir.",
+        "description": "Adiciona um interesse ao perfil do usuário. A IA considera esses gostos ao interagir. Não permite duplicatas.",
         "parameters": [
           {
             "name": "usuario",
@@ -233,7 +262,7 @@
             "name": "texto",
             "in": "query",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": { "type": "string", "example": "Jogos de estratégia" },
             "description": "O que o usuário gosta"
           }
         ],
@@ -248,7 +277,7 @@
       "post": {
         "tags": ["Admin"],
         "summary": "Registrar traço de personalidade",
-        "description": "Adiciona um traço de personalidade ao perfil do usuário.",
+        "description": "Adiciona um traço de personalidade ao perfil do usuário. Não permite duplicatas.",
         "parameters": [
           {
             "name": "usuario",
@@ -261,7 +290,7 @@
             "name": "texto",
             "in": "query",
             "required": true,
-            "schema": { "type": "string" },
+            "schema": { "type": "string", "example": "Introvertido" },
             "description": "Traço de personalidade"
           }
         ],
@@ -297,7 +326,7 @@
       "post": {
         "tags": ["Admin"],
         "summary": "Ativar modo mestre",
-        "description": "Envia a `MASTER_KEY` configurada no `.env` em uma DM para o bot. Após ativado, todos os comandos admin ficam disponíveis. **Só funciona em DM.**",
+        "description": "Envia a `MASTER_KEY` configurada no `.env` em uma DM para o bot. Após ativado, todos os comandos admin ficam disponíveis.\n\n**Restrição:** Só funciona em DM, nunca em canais públicos.",
         "parameters": [
           {
             "name": "MASTER_KEY",
@@ -320,10 +349,27 @@
       "Erro": {
         "type": "object",
         "properties": {
-          "codigo": { "type": "string" },
-          "mensagem": { "type": "string" }
+          "codigo": {
+            "type": "string",
+            "description": "Código do erro"
+          },
+          "mensagem": {
+            "type": "string",
+            "description": "Descrição do erro"
+          }
         }
       }
+    },
+    "securitySchemes": {
+      "masterKey": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "MASTER_KEY",
+        "description": "Envie a MASTER_KEY em uma DM para o bot para ativar o modo administrador."
+      }
     }
-  }
+  },
+  "security": [
+    { "masterKey": [] }
+  ]
 }
