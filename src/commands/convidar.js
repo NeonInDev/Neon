@@ -22,9 +22,11 @@ module.exports = {
 
     await interaction.reply({
       content:
-        `📦 **Adicionar a Neon**\n\n` +
-        `🏰 **Em servidor** (precisa de "Gerenciar Servidor")\n${guildUrl}\n\n` +
-        `👤 **No seu perfil** (usa em qualquer DM)\n${userUrl}`,
+        `> **📦 Adicionar a Neon**\n\n` +
+        `**🏰 Servidor** — requer "Gerenciar Servidor"\n` +
+        `${guildUrl}\n\n` +
+        `**👤 Perfil** — instala como app de usuário, usa \`/neon\` em qualquer DM\n` +
+        `${userUrl}`,
       ephemeral: true,
     });
   },
