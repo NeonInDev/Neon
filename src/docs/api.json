@@ -1,0 +1,329 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Neon Bot",
+    "version": "1.0.0",
+    "description": "Bot de IA para Discord com personalidade própria, memória de longo prazo, sistema de afinidade e processamento de imagens.\n\n**Stack:** Node.js, discord.js v14, OpenRouter (GPT-4o-mini), LowDB\n\n**Repo:** [github.com/NeonInDev/Neon](https://github.com/NeonInDev/Neon)"
+  },
+  "servers": [],
+  "tags": [
+    { "name": "Público", "description": "Comandos disponíveis para qualquer usuário" },
+    { "name": "Admin", "description": "Comandos exclusivos para mestres (requer `MASTER_KEY`)" }
+  ],
+  "paths": {
+    "/neon": {
+      "post": {
+        "tags": ["Público"],
+        "summary": "Conversar com a Neon",
+        "description": "Envia uma mensagem para a IA e recebe uma resposta com contexto, memória e personalidade.",
+        "parameters": [
+          {
+            "name": "mensagem",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "maxLength": 2000 },
+            "description": "Texto da pergunta ou conversa"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Resposta da IA",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          },
+          "500": { "description": "Erro interno ou falha na OpenRouter" }
+        }
+      }
+    },
+    "/blacklist": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Bloquear usuário",
+        "description": "Adiciona um usuário à blacklist. Usuários bloqueados não podem interagir com o bot.",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Usuário bloqueado com sucesso" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/unblacklist": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Desbloquear usuário",
+        "description": "Remove um usuário da blacklist.",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Usuário desbloqueado com sucesso" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/afinidade": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Alterar afinidade",
+        "description": "Define o nível de afinidade de um usuário. Valores negativos indicam relação desgastada, positivos indicam proximidade.",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          },
+          {
+            "name": "valor",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer", "minimum": -1000, "maximum": 1000 },
+            "description": "Novo valor de afinidade"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Afinidade alterada com sucesso" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/mood": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Alterar mood global",
+        "description": "Define o humor global do bot, influenciando o tom das respostas para todos os usuários.",
+        "parameters": [
+          {
+            "name": "tipo",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Novo estado de humor (ex: feliz, reflexivo, irritado)"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Mood alterado com sucesso" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/apelido": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Definir apelido",
+        "description": "Atribui um apelido a um usuário, que será usado pela IA para se referir a ele.",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          },
+          {
+            "name": "apelido",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "maxLength": 50 },
+            "description": "Novo apelido (máx 50 caracteres)"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Apelido alterado com sucesso" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/memoria": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Adicionar memória",
+        "description": "Adiciona uma observação ao perfil do usuário. A IA utiliza essas memórias como contexto. Limitado a 200 memórias (FIFO).",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          },
+          {
+            "name": "texto",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Texto da memória/observação"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Memória adicionada com sucesso" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/limparmemoria": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Limpar memórias",
+        "description": "Remove todas as observações do perfil de um usuário.",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Memórias limpas com sucesso" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/perfil": {
+      "get": {
+        "tags": ["Admin"],
+        "summary": "Visualizar perfil",
+        "description": "Exibe todas as informações armazenadas sobre um usuário: afinidade, apelido, gostos, personalidade e memórias.",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Perfil exibido com sucesso" },
+          "404": { "description": "Usuário sem dados cadastrados" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/gostos": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Registrar gosto",
+        "description": "Adiciona um interesse ao perfil do usuário. A IA considera esses gostos ao interagir.",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          },
+          {
+            "name": "texto",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "O que o usuário gosta"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Gosto registrado com sucesso" },
+          "409": { "description": "Gosto já registrado anteriormente" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/personalidade": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Registrar traço de personalidade",
+        "description": "Adiciona um traço de personalidade ao perfil do usuário.",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          },
+          {
+            "name": "texto",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Traço de personalidade"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Traço registrado com sucesso" },
+          "409": { "description": "Traço já registrado anteriormente" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/revogar": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Revogar acesso mestre",
+        "description": "Remove o status de mestre de outro administrador. Não é possível revogar o próprio acesso.",
+        "parameters": [
+          {
+            "name": "usuario",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "discord-user-id" },
+            "description": "Mensão ou ID do usuário"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Acesso revogado com sucesso" },
+          "400": { "description": "Não é possível revogar o próprio acesso" },
+          "403": { "description": "Acesso negado (não é mestre)" }
+        }
+      }
+    },
+    "/chave-mestra": {
+      "post": {
+        "tags": ["Admin"],
+        "summary": "Ativar modo mestre",
+        "description": "Envia a `MASTER_KEY` configurada no `.env` em uma DM para o bot. Após ativado, todos os comandos admin ficam disponíveis. **Só funciona em DM.**",
+        "parameters": [
+          {
+            "name": "MASTER_KEY",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Chave mestra definida no .env"
+          }
+        ],
+        "responses": {
+          "200": { "description": "Acesso mestre concedido" },
+          "401": { "description": "Chave inválida" },
+          "403": { "description": "Comando só funciona em DM" }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Erro": {
+        "type": "object",
+        "properties": {
+          "codigo": { "type": "string" },
+          "mensagem": { "type": "string" }
+        }
+      }
+    }
+  }
+}
