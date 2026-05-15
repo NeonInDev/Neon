@@ -44,6 +44,7 @@ Assistente social com personalidade própria, memória de longo prazo, sistema d
         ├── perfil.js         # /perfil — visualizar dados
         ├── gostos.js         # /gostos — registrar interesse
         ├── personalidade.js  # /personalidade — registrar traço
+        ├── convidar.js       # /convidar — link de invite do bot
         └── revogar.js        # /revogar — remover acesso mestre
 ```
 
@@ -78,6 +79,7 @@ MASTER_KEY=senha_secreta_mestra
 | `CLIENT_ID` | Sim | ID numérico do bot |
 | `OPENROUTER_API_KEY` | Sim | Chave da API OpenRouter |
 | `MASTER_KEY` | Sim | Senha para ativar modo administrador |
+| `DOCS_PORT` | Não | Porta do servidor de documentação (default: 3000) |
 
 **Segurança:** A chave mestra só funciona em DM, nunca em canais públicos.
 
@@ -95,6 +97,10 @@ Registra todos os slash commands descobertos em `src/commands/` na API do Discor
 npm start
 ```
 
+### Documentação
+
+Ao iniciar, o bot sobe um servidor HTTP com a documentação interativa dos comandos em `http://localhost:3000` (ou porta definida em `DOCS_PORT`).
+
 ## Comandos
 
 ### Público
@@ -102,6 +108,7 @@ npm start
 | Comando | Descrição |
 |---|---|
 | `/neon <mensagem>` | Conversar com a Neon |
+| `/convidar` | Link para adicionar a Neon em servidores ou no perfil |
 
 ### Admin (requer chave mestra)
 
@@ -122,6 +129,20 @@ npm start
 ### Ativar como mestre
 
 Envie a `MASTER_KEY` em **DM** para o bot. Após ativado, todos os comandos admin ficam disponíveis.
+
+## User Install (App de Usuário)
+
+A Neon pode ser instalada como **app de usuário**, permitindo usar `/neon` em qualquer DM — inclusive no meio da conversa com outra pessoa.
+
+**Para instalar:** use `/convidar` e clique em "Perfil", ou acesse diretamente:
+
+```
+https://discord.com/oauth2/authorize?client_id=SEU_CLIENT_ID&integration_type=1&scope=applications.commands
+```
+
+Após autorizar, o comando `/neon` aparece no menu de slash commands de **qualquer DM**.
+
+> **Nota:** Comandos admin (`/blacklist`, `/afinidade`, etc.) só funcionam no PV do bot e em servidores, não em DMs de outros usuários.
 
 ## Arquitetura
 
@@ -182,12 +203,21 @@ Níveis: `INFO`, `WARN`, `ERROR`.
 1. Crie `src/commands/meucomando.js`:
 
 ```js
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, InteractionContextType, ApplicationIntegrationType } = require("discord.js");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("meucomando")
-    .setDescription("Descrição"),
+    .setDescription("Descrição")
+    .setContexts(
+      InteractionContextType.Guild,
+      InteractionContextType.BotDM,
+      InteractionContextType.PrivateChannel
+    )
+    .setIntegrationTypes(
+      ApplicationIntegrationType.GuildInstall,
+      ApplicationIntegrationType.UserInstall
+    ),
   adminOnly: true,
   async execute(interaction) {
     await interaction.reply("funciona!");
