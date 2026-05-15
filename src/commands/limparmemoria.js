@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, InteractionContextType, ApplicationIntegrationType } = require("discord.js");
 const { db } = require("../db");
 const { log } = require("../logger");
 
@@ -6,6 +6,8 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName("limparmemoria")
     .setDescription("Limpar memória de um usuário")
+    .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
     .addUserOption((o) => o.setName("usuario").setDescription("Usuário").setRequired(true)),
   adminOnly: true,
   async execute(interaction) {

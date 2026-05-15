@@ -1,10 +1,12 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, InteractionContextType, ApplicationIntegrationType } = require("discord.js");
 const { db } = require("../db");
 
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("perfil")
     .setDescription("Ver perfil de um usuário")
+    .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
     .addUserOption((o) => o.setName("usuario").setDescription("Usuário").setRequired(true)),
   adminOnly: true,
   async execute(interaction) {

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require("discord.js");
+const { SlashCommandBuilder, InteractionContextType, ApplicationIntegrationType } = require("discord.js");
 const { db } = require("../db");
 const { getOrCreateUser } = require("../user");
 const { log } = require("../logger");
@@ -9,6 +9,8 @@ module.exports = {
   data: new SlashCommandBuilder()
     .setName("memoria")
     .setDescription("Adicionar memória a um usuário")
+    .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM)
+    .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
     .addUserOption((o) => o.setName("usuario").setDescription("Usuário").setRequired(true))
     .addStringOption((o) => o.setName("texto").setDescription("Texto da memória").setRequired(true)),
   adminOnly: true,
