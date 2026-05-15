@@ -61,6 +61,26 @@
         }
       }
     },
+    "/convidar": {
+      "get": {
+        "tags": ["Público"],
+        "summary": "Link de invite",
+        "description": "Retorna o link para adicionar a Neon em qualquer servidor do Discord.",
+        "responses": {
+          "200": {
+            "description": "URL gerada com as permissões necessárias",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "example": "https://discord.com/oauth2/authorize?client_id=123&permissions=101376&scope=bot%20applications.commands"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/blacklist": {
       "post": {
         "tags": ["Admin"],
