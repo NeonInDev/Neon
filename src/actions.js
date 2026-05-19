@@ -6,26 +6,36 @@ const exec = promisify(execCb);
 const TIMEOUT = 5000;
 
 async function tentar(comando) {
+  log("INFO", "[ACTION] tentando comando", { comando });
   try {
     const { stdout, stderr } = await exec(comando, { timeout: TIMEOUT });
-    if (stderr) log("WARN", "stderr", { comando, stderr: stderr.trim() });
+    if (stdout) log("INFO", "[ACTION] stdout", { comando, stdout: stdout.trim() });
+    if (stderr) log("WARN", "[ACTION] stderr", { comando, stderr: stderr.trim() });
+    log("INFO", "[ACTION] comando OK", { comando });
     return true;
   } catch (err) {
-    log("WARN", "falhou", { comando, erro: err.message });
+    log("WARN", "[ACTION] comando FALHOU", { comando, erro: err.message });
     return false;
   }
 }
 
 async function abrirUrl(url) {
+  log("INFO", "[ACTION] tentando abrir URL", { url });
   if (await tentar(`termux-open "${url}"`)) return "direto";
+  log("INFO", "[ACTION] termux-open falhou, tentando am start", { url });
   if (await tentar(`am start --user 0 -a android.intent.action.VIEW -d "${url}"`)) return "direto";
+  log("INFO", "[ACTION] am start falhou, tentando notificacao", { url });
   if (await tentar(`termux-notification --id neon_abrir --title "Neon" --content "Toque para abrir" --action "${url}" --alert-once --priority high`)) return "notificacao";
+  log("WARN", "[ACTION] todos os metodos falharam para URL", { url });
   return null;
 }
 
 async function abrirComando(comando, label) {
+  log("INFO", "[ACTION] executando comando direto", { comando, label });
   if (await tentar(comando)) return "direto";
+  log("INFO", "[ACTION] comando direto falhou, tentando notificacao", { comando, label });
   if (await tentar(`termux-notification --id neon_abrir --title "Neon" --content "Toque para abrir ${label}" --action "${comando}" --alert-once --priority high`)) return "notificacao";
+  log("WARN", "[ACTION] todos os metodos falharam para comando", { comando, label });
   return null;
 }
 
@@ -57,9 +67,13 @@ function encontrarApp(texto) {
 
 async function executarAcao(texto) {
   const app = encontrarApp(texto);
-  if (!app) return null;
+  if (!app) {
+    log("INFO", "[ACTION] nenhum app reconhecido", { texto });
+    return null;
+  }
 
   const label = app.nomes[0];
+  log("INFO", "[ACTION] app detectado", { label, texto, url: app.url, comando: app.comando });
 
   let via = null;
   if (app.url) {
@@ -68,6 +82,7 @@ async function executarAcao(texto) {
     via = await abrirComando(app.comando, label);
   }
 
+  log("INFO", "[ACTION] resultado final", { label, via });
   if (via === "direto") return `✅ Abrindo ${label}.`;
   if (via === "notificacao") return `📲 Toque na notificação para abrir ${label}.`;
   return `❌ Não consegui abrir ${label}.`;
