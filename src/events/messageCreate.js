@@ -1,6 +1,7 @@
 const { ChannelType } = require("discord.js");
 const { db } = require("../db");
 const { askNeon } = require("../ai");
+const { executarAcao } = require("../actions");
 const { getOrCreateUser } = require("../user");
 const { estaNaBlacklist } = require("../moderation");
 const { MASTER_KEY } = require("../config");
@@ -70,6 +71,12 @@ module.exports = {
 
       if (!ativar) return;
       if (checkCooldown(message.author.id)) return;
+
+      const resultadoAcao = await executarAcao(userInput);
+      if (resultadoAcao) {
+        await message.reply(resultadoAcao);
+        return;
+      }
 
       await message.channel.sendTyping();
       const imageUrl = message.attachments.first()?.url || null;
