@@ -1,110 +1,81 @@
-const { exec } = require("child_process");
+const { exec: execCb } = require("child_process");
+const { promisify } = require("util");
+const { log } = require("./logger");
 
-const apps = {
-  spotify: {
-    nome: "Spotify",
-    acao: () =>
-      exec("am start -a android.intent.action.VIEW -d https://open.spotify.com"),
-  },
-  youtube: {
-    nome: "YouTube",
-    acao: () =>
-      exec("am start -a android.intent.action.VIEW -d https://youtube.com"),
-  },
-  chrome: {
-    nome: "Chrome",
-    acao: () =>
-      exec("am start -n com.android.chrome/com.google.android.apps.chrome.Main"),
-  },
-  whatsapp: {
-    nome: "WhatsApp",
-    acao: () =>
-      exec("am start -n com.whatsapp/com.whatsapp.Main"),
-  },
-  telegram: {
-    nome: "Telegram",
-    acao: () =>
-      exec("am start -n org.telegram.messenger/org.telegram.ui.LaunchActivity"),
-  },
-  instagram: {
-    nome: "Instagram",
-    acao: () =>
-      exec("am start -n com.instagram.android/com.instagram.mainactivity.MainActivity"),
-  },
-  twitter: {
-    nome: "Twitter / X",
-    acao: () =>
-      exec("am start -n com.twitter.android/com.twitter.android.StartActivity"),
-  },
-  discord: {
-    nome: "Discord",
-    acao: () =>
-      exec("am start -n com.discord/com.discord.app.AppActivity$Main"),
-  },
-  gmail: {
-    nome: "Gmail",
-    acao: () =>
-      exec("am start -n com.google.android.gm/com.google.android.gm.ConversationListActivityGmail"),
-  },
-  maps: {
-    nome: "Google Maps",
-    acao: () =>
-      exec("am start -n com.google.android.apps.maps/com.google.android.maps.MapsActivity"),
-  },
-  camera: {
-    nome: "Câmera",
-    acao: () =>
-      exec("am start -a android.media.action.IMAGE_CAPTURE"),
-  },
-  config: {
-    nome: "Configurações",
-    acao: () =>
-      exec("am start -a android.settings.SETTINGS"),
-  },
-};
+const exec = promisify(execCb);
+const TIMEOUT = 5000;
+
+const AM_BASE = "am start --user 0 -a android.intent.action.VIEW -d";
+
+async function executar(comando) {
+  try {
+    const { stdout, stderr } = await exec(comando, { timeout: TIMEOUT });
+    if (stderr) log("WARN", "stderr do comando", { comando, stderr: stderr.trim() });
+    return true;
+  } catch (err) {
+    log("ERROR", "comando falhou", { comando, erro: err.message });
+    return false;
+  }
+}
+
+async function tentarTermuxOpen(url) {
+  try {
+    await exec(`termux-open "${url}"`, { timeout: TIMEOUT });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function tentarUrl(url) {
+  if (await tentarTermuxOpen(url)) return true;
+  return await executar(`${AM_BASE} "${url}"`);
+}
+
+const apps = [
+  { nomes: ["spotify"],           acao: () => tentarUrl("https://open.spotify.com") },
+  { nomes: ["youtube", "yt"],     acao: () => tentarUrl("https://youtube.com") },
+  { nomes: ["chrome"],            acao: () => tentarUrl("https://google.com") },
+  { nomes: ["whatsapp", "zap"],   acao: () => tentarUrl("https://wa.me") },
+  { nomes: ["telegram", "tg"],    acao: () => tentarUrl("https://t.me") },
+  { nomes: ["instagram", "insta"], acao: () => tentarUrl("https://instagram.com") },
+  { nomes: ["twitter", "x"],      acao: () => tentarUrl("https://x.com") },
+  { nomes: ["discord"],           acao: () => tentarUrl("https://discord.com/channels/@me") },
+  { nomes: ["gmail", "email"],    acao: () => tentarUrl("https://mail.google.com") },
+  { nomes: ["maps", "mapa"],      acao: () => tentarUrl("https://maps.google.com") },
+  { nomes: ["camera", "câmera"],  acao: () => executar("am start --user 0 -a android.media.action.IMAGE_CAPTURE") },
+  { nomes: ["config", "configuração", "configuracoes", "ajustes", "settings"],
+                                  acao: () => executar("am start --user 0 -a android.settings.SETTINGS") },
+];
 
 function encontrarApp(texto) {
   const lower = texto.toLowerCase().trim();
+  const match = lower.match(/^(?:abrir|abra|abre|open)\s+(.+)/i);
+  if (!match) return null;
 
-  const padraoDireto = lower.match(/^(?:abrir|abra|abre|open)\s+(.+)/i);
-  if (!padraoDireto) return null;
+  const nomeBuscado = match[1].trim().toLowerCase();
 
-  const nomeBuscado = padraoDireto[1].trim().toLowerCase();
-
-  const correspondencia = Object.entries(apps).find(([chave, app]) => {
-    const sinonimos = [chave, app.nome.toLowerCase()];
-    return sinonimos.some((s) => nomeBuscado.includes(s));
-  });
-
-  if (correspondencia) {
-    const [chave, app] = correspondencia;
-    return { nome: app.nome, executar: app.acao };
+  for (const app of apps) {
+    if (app.nomes.some((n) => nomeBuscado.includes(n))) {
+      return { label: app.nomes[0], executar: app.acao };
+    }
   }
 
-  return { nome: nomeBuscado, executar: null };
+  return { label: nomeBuscado, executar: null };
 }
 
 async function executarAcao(texto) {
   const app = encontrarApp(texto);
   if (!app) return null;
 
-  if (app.executar) {
-    try {
-      app.executar();
-      return `✅ Abrindo ${app.nome}.`;
-    } catch {
-      return `❌ Erro ao tentar abrir ${app.nome}.`;
-    }
+  if (!app.executar) {
+    const url = `https://${app.label}.com`;
+    const ok = await tentarUrl(url);
+    return ok ? `📱 Abrindo ${app.label}...` : `❌ Não consegui abrir ${app.label}.`;
   }
 
-  try {
-    exec(`am start -a android.intent.action.VIEW -d https://${app.nome}.com`);
-  } catch {}
-  return `📱 Tentando abrir ${app.nome}...`;
+  const ok = await app.executar();
+  return ok ? `✅ Abrindo ${app.label}.` : `❌ Erro ao tentar abrir ${app.label}. Verifique os logs.`;
 }
 
-function listarApps() {
-  return Object.values(apps).map((a) => a.nome.toLowerCase());
-}
-
-module.exports = { executarAcao, listarApps };
+module.exports = { executarAcao };
