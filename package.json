@@ -17,7 +17,5 @@
     "lowdb": "^7.0.1",
     "swagger-ui-express": "^5.0.1"
   },
-  "devDependencies": {
-    "opencode-ai": "^1.15.5"
-  }
+
 }
