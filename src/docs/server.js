@@ -3,9 +3,24 @@ const swaggerUi = require("swagger-ui-express");
 const apiSpec = require("./api.json");
 const { DOCS_PORT } = require("../config");
 const { log } = require("../logger");
+const { askNeon } = require("../ai");
 
 const app = express();
 let server = null;
+
+app.use(express.json());
+
+app.post("/api/ask", async (req, res) => {
+  const { userId, username, message } = req.body;
+  if (!message) return res.status(400).json({ error: "message é obrigatório" });
+  try {
+    const reply = await askNeon(userId || "local", username || "local", message);
+    res.json({ reply });
+  } catch (err) {
+    log("ERROR", "Local API erro", { erro: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.use("/", swaggerUi.serve, swaggerUi.setup(apiSpec, {
   customSiteTitle: "Neon Bot — Documentação",

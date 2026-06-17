@@ -51,7 +51,8 @@ module.exports = {
       let ativar = false;
       let userInput = content;
 
-      if (content.toLowerCase().startsWith("neon,")) {
+      const lowerContent = content.toLowerCase();
+      if (lowerContent.startsWith("neon,") || lowerContent.startsWith("neon ")) {
         ativar = true;
         userInput = content.slice(5).trim();
       }
@@ -73,7 +74,7 @@ module.exports = {
       if (checkCooldown(message.author.id)) return;
 
       const mestre = db.data.users?.[message.author.id]?.mestre || false;
-      const resultadoAcao = await executarAcao(userInput, mestre);
+      const resultadoAcao = await executarAcao(userInput, mestre, message.author.id);
       if (resultadoAcao) {
         await message.reply(resultadoAcao);
         return;
