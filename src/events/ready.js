@@ -3,7 +3,7 @@ const { log } = require("../logger");
 const { startDocsServer, getUrl } = require("../docs/server");
 
 module.exports = {
-  name: "clientReady",
+  name: "ready",
   once: true,
   async execute(c) {
     await initDB();
