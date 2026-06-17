@@ -72,7 +72,8 @@ module.exports = {
       if (!ativar) return;
       if (checkCooldown(message.author.id)) return;
 
-      const resultadoAcao = await executarAcao(userInput);
+      const mestre = db.data.users?.[message.author.id]?.mestre || false;
+      const resultadoAcao = await executarAcao(userInput, mestre);
       if (resultadoAcao) {
         await message.reply(resultadoAcao);
         return;

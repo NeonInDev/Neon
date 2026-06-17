@@ -12,6 +12,6 @@ for (const [key, val] of Object.entries(required)) {
 module.exports = {
   ...required,
   CLIENT_ID: process.env.CLIENT_ID,
-  OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+  ZEN_API_KEY: process.env.ZEN_API_KEY,
   DOCS_PORT: parseInt(process.env.DOCS_PORT, 10) || 3000,
 };

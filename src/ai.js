@@ -2,7 +2,7 @@ const axios = require("axios");
 const { db } = require("./db");
 const { getOrCreateUser } = require("./user");
 const { detectarManipulacao } = require("./moderation");
-const { OPENROUTER_API_KEY } = require("./config");
+const { ZEN_API_KEY, OPENROUTER_API_KEY } = require("./config");
 const { log } = require("./logger");
 
 const MAX_INPUT_LEN = 2000;
@@ -71,11 +71,17 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
   const sucesso = { ok: false, reply: "⚠️ erro interno." };
 
   try {
+    const apiKey = ZEN_API_KEY || OPENROUTER_API_KEY;
+    const baseUrl = ZEN_API_KEY
+      ? "https://opencode.ai/zen/v1/chat/completions"
+      : "https://openrouter.ai/api/v1/chat/completions";
+    const model = ZEN_API_KEY ? "big-pickle" : "openai/gpt-4o-mini";
+
     const response = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
+      baseUrl,
       {
-        model: "openai/gpt-4o-mini",
-        max_tokens: 500,
+        model,
+        max_tokens: 300,
         messages: [
           { role: "system", content: systemPrompt },
           ...historico,
@@ -93,10 +99,8 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
       {
         timeout: 30000,
         headers: {
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "http://localhost",
-          "X-Title": "Neon Core",
         },
       }
     );
@@ -115,7 +119,7 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
       caracteres: content.length,
     });
   } catch (err) {
-    log("ERROR", "Falha na OpenRouter", {
+    log("ERROR", "Falha na API", {
       tempo_ms: Date.now() - inicio,
       erro: err?.response?.data?.error?.message || err?.response?.data || err.message,
     });
