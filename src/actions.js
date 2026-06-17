@@ -3,6 +3,7 @@ const { promisify } = require("util");
 const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
+const { executarRoteiro } = require("./browser");
 
 const exec = promisify(execCb);
 const TIMEOUT = 5000;
@@ -113,6 +114,76 @@ function encontrarExec(texto) {
   return match[1].trim();
 }
 
+function encontrarSpotify(texto) {
+  const lower = texto.toLowerCase().trim();
+  const match = lower.match(/^(?:toca|tocar|play|toca música|tocar música)\s+(.+)/i);
+  if (!match) return null;
+  return match[1].trim();
+}
+
+function encontrarPesquisa(texto) {
+  const lower = texto.toLowerCase().trim();
+  const match = lower.match(/^(?:pesquisa|pesquisar|busca|buscar|procura|procurar|search)\s+(.+)/i);
+  if (!match) return null;
+  return match[1].trim();
+}
+
+function encontrarDigitar(texto) {
+  const lower = texto.toLowerCase().trim();
+  const match = lower.match(/^(?:digita|digitar|type|escreve|escrever)\s+(.+)/i);
+  if (!match) return null;
+  return match[1].trim();
+}
+
+const steamGames = {
+  "counter strike": 730, "cs": 730, "csgo": 730, "cs2": 730, "counter-strike": 730,
+  "dota 2": 570, "dota": 570,
+  "team fortress 2": 440, "tf2": 440,
+  "grand theft auto v": 271590, "gta v": 271590, "gta5": 271590, "gtav": 271590,
+  "among us": 945360,
+  "elden ring": 1245620,
+  "cyberpunk 2077": 1091500,
+  "red dead redemption 2": 1174180, "rdr2": 1174180,
+  "balatro": 2379780,
+  "stardew valley": 413150,
+  "the witcher 3": 292030, "witcher 3": 292030,
+  "left 4 dead 2": 550, "l4d2": 550,
+  "half-life": 70, "halflife": 70,
+  "portal 2": 620,
+  "terraria": 105600,
+  "astroneer": 361420,
+  "hollow knight": 367520, "hollow": 367520,
+  "hollow knight silksong": 1030300, "silksong": 1030300,
+  "marvel rivals": 2767030,
+  "minecraft": null,
+};
+
+function encontrarJogo(texto) {
+  const lower = texto.toLowerCase().trim();
+  const match = lower.match(/^(?:jogar|joga|abrir jogo|abre jogo|play)\s+(.+)/i);
+  if (!match) return null;
+  const nome = match[1].trim().toLowerCase();
+  const id = steamGames[nome];
+  if (id) return { nome: match[1].trim(), id };
+  return { nome: match[1].trim(), id: null };
+}
+
+function encontrarNavegar(texto) {
+  const lower = texto.toLowerCase().trim();
+  const match = lower.match(/^(?:vai pra|vá pra|navega|navegar|ir para|go to)\s+(.+)/i);
+  if (!match) return null;
+  let url = match[1].trim();
+  if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+  return url;
+}
+
+function encontrarBrowser(texto) {
+  const lower = texto.toLowerCase().trim();
+  const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
+  if (!m) return null;
+  return true;
+}
+
 function encontrarArquivo(texto) {
   const lower = texto.toLowerCase().trim();
   let match;
@@ -141,6 +212,12 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarPcCommand(texto)) return "pcCommand";
   if (isWin() && encontrarExec(texto)) return "exec";
   if (encontrarArquivo(texto)) return "arquivo";
+  if (encontrarSpotify(texto)) return "spotify";
+  if (encontrarPesquisa(texto)) return "pesquisa";
+  if (encontrarDigitar(texto)) return "digitar";
+  if (isWin() && encontrarJogo(texto)) return "jogo";
+  if (encontrarBrowser(texto)) return "browser";
+  if (encontrarNavegar(texto)) return "navegar";
   return null;
 }
 
@@ -236,6 +313,58 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
         return `📁 \`${alvo}\`\n\`\`\`\n${lista}\n\`\`\``;
       }
     }
+  }
+
+  // Spotify — tocar música
+  if (categoria === "spotify") {
+    const musica = encontrarSpotify(texto);
+    const r = await tentar(`start spotify:search:${musica}`);
+    if (r.ok) return `🎵 Buscando "${musica}" no Spotify.`;
+    return `❌ Não consegui abrir o Spotify.`;
+  }
+
+  // Pesquisa no navegador
+  if (categoria === "pesquisa") {
+    const query = encontrarPesquisa(texto);
+    const r = await tentar(`start "" "https://google.com/search?q=${encodeURIComponent(query)}"`);
+    if (r.ok) return `🔍 Pesquisando "${query}" no Google.`;
+    return `❌ Não consegui pesquisar.`;
+  }
+
+  // Digitar texto (via PowerShell SendKeys)
+  if (categoria === "digitar") {
+    const textoDigitar = encontrarDigitar(texto);
+    const psCmd = `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${textoDigitar.replace(/'/g, "''")}')"`;
+    const r = await tentar(psCmd);
+    if (r.ok) return `⌨️ Digitei "${textoDigitar}".`;
+    return `❌ Não consegui digitar.`;
+  }
+
+  // Steam — jogar
+  if (categoria === "jogo") {
+    const jogo = encontrarJogo(texto);
+    if (jogo.id) {
+      const r = await tentar(`start steam://rungameid/${jogo.id}`);
+      if (r.ok) return `🎮 Iniciando ${jogo.nome} pela Steam.`;
+      return `❌ Não consegui abrir ${jogo.nome}.`;
+    }
+    const r = await tentar(`start "" "https://store.steampowered.com/search/?term=${encodeURIComponent(jogo.nome)}"`);
+    if (r.ok) return `🔍 Busquei "${jogo.nome}" na Steam Store. Adicione o ID em actions.js para abrir direto.`;
+    return `❌ Não consegui buscar o jogo.`;
+  }
+
+  // Navegador com Puppeteer (entra no site e faz ação)
+  if (categoria === "browser") {
+    const result = await executarRoteiro(texto);
+    if (result) return result.msg;
+  }
+
+  // Navegar pra URL
+  if (categoria === "navegar") {
+    const url = encontrarNavegar(texto);
+    const r = await tentar(`start "" "${url}"`);
+    if (r.ok) return `🌐 Abrindo ${url}`;
+    return `❌ Não consegui abrir ${url}.`;
   }
 
   log("INFO", "[ACTION] nenhuma ação reconhecida", { texto });

@@ -16,6 +16,7 @@
     "express": "^5.2.1",
     "lowdb": "^7.0.1",
     "pkg": "^5.8.1",
+    "puppeteer": "^25.1.0",
     "swagger-ui-express": "^5.0.1"
   },
   "allowScripts": {

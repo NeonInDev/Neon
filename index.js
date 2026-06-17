@@ -5,6 +5,7 @@ const { db } = require("./src/db");
 const { TOKEN } = require("./src/config");
 const { log } = require("./src/logger");
 const { stopDocsServer } = require("./src/docs/server");
+const { fechar: fecharBrowser } = require("./src/browser");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
@@ -14,6 +15,7 @@ async function desligar(sinal) {
     log("ERROR", "Erro ao salvar dados", { erro: err.message });
   }
   stopDocsServer();
+  await fecharBrowser();
   client.destroy();
   process.exit(0);
 }
