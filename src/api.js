@@ -53,4 +53,66 @@ async function meuIP() {
   return { ip, pais: info.country || "?", cidade: info.city || "?", provedor: info.org || info.isp || "?" };
 }
 
-module.exports = { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP };
+async function gerarImagem(prompt) {
+  // Usa Pollinations.ai (gratis, sem chave, retorna imagem direto)
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${Date.now()}&nofeed=true`;
+  // Verifica se a URL responde
+  try {
+    await axios.head(url, { timeout: 5000 });
+  } catch {
+    // Se HEAD falhar, tenta GET parcial
+    try {
+      await axios.get(url, { timeout: 8000, responseType: "stream", maxContentLength: 1024 });
+    } catch {
+      throw new Error("Não foi possível gerar a imagem");
+    }
+  }
+  return url;
+}
+
+async function buscarImagem(query) {
+  // Tenta IA encontrar uma URL de imagem real para a query
+  try {
+    const { OPENROUTER_API_KEY } = require("./config");
+    const resp = await axios.post(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        model: "google/gemini-2.0-flash-001",
+        messages: [
+          { role: "user", content: `Retorne APENAS a URL direta de uma imagem real (jpg/png/gif) relevante para "${query}". NÃO explique, só a URL.` }
+        ],
+        max_tokens: 200,
+      },
+      {
+        timeout: 20000,
+        headers: {
+          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+    const content = resp?.data?.choices?.[0]?.message?.content?.trim();
+    if (content && /^https?:\/\//.test(content)) return content;
+  } catch {}
+  // Fallback: gera uma imagem tematica com o prompt como seed
+  const seed = encodeURIComponent(query.replace(/\s+/g, "-"));
+  return `https://picsum.photos/seed/${seed}/800/600`;
+}
+
+async function imagemAleatoria(tipo) {
+  const apis = {
+    gato: "https://api.thecatapi.com/v1/images/search",
+    cachorro: "https://dog.ceo/api/breeds/image/random",
+    paisagem: "https://picsum.photos/800/600",
+    aleatorio: "https://picsum.photos/800/600",
+  };
+  const url = apis[tipo] || apis.aleatorio;
+  const { data } = await axios.get(url, { timeout: 10000, maxRedirects: 0, validateStatus: s => s < 400 });
+  if (typeof data === "string") return data; // picsum redirects
+  if (data?.[0]?.url) return data[0].url; // thecatapi
+  if (data?.message) return data.message; // dog.ceo
+  if (data?.url) return data.url;
+  throw new Error("Não consegui buscar imagem");
+}
+
+module.exports = { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP, gerarImagem, buscarImagem, imagemAleatoria };

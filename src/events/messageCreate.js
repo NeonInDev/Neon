@@ -6,6 +6,7 @@ const { getOrCreateUser } = require("../user");
 const { estaNaBlacklist } = require("../moderation");
 const { MASTER_KEY } = require("../config");
 const { log } = require("../logger");
+const axios = require("axios");
 
 const processando = new Set();
 const cooldowns = new Map();
@@ -35,6 +36,31 @@ function checkCooldown(userId) {
   if (ultimo && agora - ultimo < COOLDOWN_MS) return true;
   cooldowns.set(userId, agora);
   return false;
+}
+
+async function enviarResposta(message, texto) {
+  // Detecta URLs de imagem no texto e baixa pra enviar como attachment
+  const urlMatch = texto?.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp)[^\s]*)|(https?:\/\/image\.pollinations\.ai\/prompt[^\s]*)/i);
+  if (urlMatch) {
+    try {
+      const resp = await axios.get(urlMatch[1] || urlMatch[2], {
+        responseType: "arraybuffer",
+        timeout: 30000,
+        maxContentLength: 10 * 1024 * 1024,
+      });
+      const { AttachmentBuilder } = require("discord.js");
+      const ext = resp.headers["content-type"]?.split("/")[1] || "png";
+      const attachment = new AttachmentBuilder(Buffer.from(resp.data), { name: `neon_${Date.now()}.${ext}` });
+      const txt = texto.replace(urlMatch[0], "").trim();
+      await message.reply({ content: txt || undefined, files: [attachment] });
+      return;
+    } catch {
+      // Fallback: envia URL pura (Discord pode embedar automaticamente)
+      await message.reply(texto);
+      return;
+    }
+  }
+  await message.reply(texto);
 }
 
 module.exports = {
@@ -77,14 +103,16 @@ module.exports = {
       const mestre = db.data.users?.[message.author.id]?.mestre || false;
       const resultadoAcao = await executarAcao(userInput, mestre, message.author.id);
       if (resultadoAcao) {
-        await message.reply(resultadoAcao);
+        await enviarResposta(message, resultadoAcao);
         return;
       }
 
       await message.channel.sendTyping();
       const imageUrl = message.attachments.first()?.url || null;
       const reply = await askNeon(message.author.id, message.author.username, userInput, imageUrl);
-      if (!message.replied) await message.reply(reply);
+      if (!message.replied) {
+        await enviarResposta(message, reply);
+      }
     } catch (err) {
       log("ERROR", "Erro ao processar mensagem", { usuario: message.author.username, erro: err.message });
       try {

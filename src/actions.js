@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
-const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP } = require("./api");
+const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP, gerarImagem, buscarImagem, imagemAleatoria } = require("./api");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function limparFiller(t) {
@@ -266,6 +266,19 @@ function encontrarIP(texto) {
   return false;
 }
 
+function encontrarGerarImagem(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:gera|gerar|cria|criar|desenha|faça|faz|produz)\s+(?:uma\s+|um\s+)?(?:imagem|foto|arte|arte\s+visual)\s+(?:de|do|da|com|pra|para)?\s+(.+)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarMostrarImagem(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver|acha|busca)\s+(?:uma?\s+|um\s+)?(?:foto|imagem|gif|figura)\s+(?:de|do|da|do|pra|para)?\s+(.+)/i.test(lower)) return true;
+  if (/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver)\s+(?:um\s+|um\s+)?(?:gato|cachorro|dog|cat|paisagem|natureza)\s*/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarBrowser(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
@@ -356,6 +369,8 @@ function detectarCategoria(texto) {
   if (encontrarDefinicao(texto)) return "definicao";
   if (encontrarFato(texto)) return "fato";
   if (encontrarIP(texto)) return "ip";
+  if (encontrarGerarImagem(texto)) return "gerarImagem";
+  if (encontrarMostrarImagem(texto)) return "mostrarImagem";
   if (/status.*discord|discord.*status/i.test(texto)) return "statusDiscord";
   // Detecta nome de app sem "abrir" (ex: "steam", "valorant")
   if (isWin() && encontrarApp("abrir " + texto)) return "app";
@@ -772,6 +787,39 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
       return `🌐 **Seu IP público:** ${info.ip}\n📍 ${info.cidade}, ${info.pais}\n🏢 ${info.provedor}`;
     } catch (err) {
       return `❌ Não consegui descobrir seu IP: ${err.message}`;
+    }
+  }
+
+  // Gerar imagem via IA
+  if (categoria === "gerarImagem") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/^(?:gera|gerar|cria|criar|desenha|faça|faz|produz)\s+(?:uma\s+|um\s+)?(?:imagem|foto|arte|arte\s+visual)\s+(?:de|do|da|com|pra|para)?\s+(.+)/i);
+      const prompt = m ? m[1].trim() : texto;
+      const url = await gerarImagem(prompt);
+      return `🎨 Gerando: "${prompt}"\n${url}`;
+    } catch (err) {
+      return `❌ Erro ao gerar imagem: ${err.message}`;
+    }
+  }
+
+  // Mostrar/buscar imagem
+  if (categoria === "mostrarImagem") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      // Verifica se é um dos tipos aleatorios conhecidos
+      const tipoMatch = lower.match(/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver)\s+(?:um\s+|um\s+)?(gato|cachorro|dog|cat|paisagem|natureza)\s*/i);
+      if (tipoMatch) {
+        const tipo = { gato: "gato", cachorro: "cachorro", dog: "cachorro", cat: "gato", paisagem: "paisagem", natureza: "paisagem" }[tipoMatch[1].toLowerCase()];
+        const url = await imagemAleatoria(tipo);
+        return `🐱 Aqui vai uma foto de ${tipo}:\n${url}`;
+      }
+      const m = lower.match(/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver|acha|busca)\s+(?:uma?\s+|um\s+)?(?:foto|imagem|gif|figura)\s+(?:de|do|da|do|pra|para)?\s+(.+)/i);
+      const query = m ? m[1].trim() : texto;
+      const url = await buscarImagem(query);
+      return `🔍 Aqui está uma imagem de "${query}":\n${url}`;
+    } catch (err) {
+      return `❌ Erro ao buscar imagem: ${err.message}`;
     }
   }
 
