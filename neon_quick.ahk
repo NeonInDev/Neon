@@ -1,17 +1,12 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 
-; ─── Só ativo no Discord / Chrome / Opera (NUNCA no VS Code/Electron!) ───
-#HotIf (WinActive("ahk_exe Discord.exe") or WinActive("ahk_exe chrome.exe") or WinActive("ahk_exe opera.exe")) and !WinActive("ahk_exe Code.exe")
+; ─── só ativo no Discord (NUNCA no VS Code/DM com Neon) ───
+#HotIf WinActive("ahk_exe Discord.exe") and !WinActive("ahk_exe Code.exe") and !WinActive("Neon")
 
-; Bloqueia Enter ($) e re-envia: se "Neon," → "/neon ...", senão → mensagem original
+; Enter: se "Neon," → substitui por "/neon " no lugar, senão Enter normal
 $Enter::
 {
-    static sending := false
-    if sending {
-        sending := false
-        return
-    }
     try {
         saved := A_Clipboard
         A_Clipboard := ""
@@ -21,10 +16,14 @@ $Enter::
         Sleep 50
         text := A_Clipboard
         A_Clipboard := saved
-        if RegExMatch(text, "i)^neon,\s*(.+)") {
-            cmd := RegExReplace(text, "i)^neon,\s*", "")
-            sending := true
-            Sleep 300
+        if RegExMatch(text, "i)^neon[\s,;:]\s*(.+)") {
+            cmd := RegExReplace(text, "i)^neon[\s,;:]\s*", "")
+            Sleep 100
+            ; Substitui o texto original por "/neon comando"
+            SendInput "^a"
+            Sleep 20
+            SendInput "{Backspace}"
+            Sleep 50
             cmd := StrReplace(cmd, "!", "{!}")
             cmd := StrReplace(cmd, "^", "{^}")
             cmd := StrReplace(cmd, "+", "{+}")
@@ -34,12 +33,10 @@ $Enter::
             SendInput "/neon " cmd
             SendInput "{Enter}"
         } else {
-            ; Mensagem sem "Neon," → re-envia original na hora
-            SendInput text
             SendInput "{Enter}"
         }
     } catch as err {
-        ToolTip "Neon AHK erro:`n" err.Message "`n`nLine: " err.Line
+        ToolTip "Neon AHK erro:`n" err.Message
         SetTimer(() => ToolTip(), -8000)
     }
 }
