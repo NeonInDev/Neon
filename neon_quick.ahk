@@ -48,21 +48,75 @@ $Enter::
 
 ; ─── Atalhos globais (funcionam de qualquer lugar) ───
 
-; Enviar mensagem pra Neon
+; ─── GUI Neon Chat (Ctrl+Shift+N) ───
 ^+N::
 {
-    ib := InputBox("Digite sua mensagem para a Neon:", "Neon", "w400 h130")
-    if ib.Result = "OK" and ib.Value != ""
+    if WinExist("Neon Chat")
     {
-        res := SendRequest(ib.Value)
-        if res = ""
-            res := "(sem resposta - servidor offline?)"
-        ToolTip(res)
-        SetTimer(() => ToolTip(), -8000)
+        WinActivate("Neon Chat")
+        return
+    }
+    CriarGuiNeon()
+}
+
+CriarGuiNeon()
+{
+    local gui := Gui("+Resize +MinSize460x380", "Neon Chat")
+    gui.BackColor := "1a1a2e"
+    gui.SetFont("s11 cFFFFFF", "Segoe UI")
+
+    ; Cabeçalho
+    gui.SetFont("s14 bold c00d4ff", "Segoe UI")
+    gui.Add("Text", "x15 y12 w430 h30 +0x200", "💬 NEON CHAT")
+    gui.SetFont("s10 cCCCCCC", "Segoe UI")
+
+    ; Área de resposta (read-only, scroll)
+    resp := gui.Add("Edit", "x15 y50 w430 h230 ReadOnly vResposta Background2d2d44 cFFFFFF -Wrap")
+    resp.Value := "Bem-vindo ao Neon Chat! Digite sua mensagem abaixo.`r`n`r`nDica: pressione ENTER para enviar."
+
+    ; Área de input + botão
+    inp := gui.Add("Edit", "x15 y295 w345 h32 vMensagem Background2d2d44 cFFFFFF")
+    btn := gui.Add("Button", "x370 y294 w75 h34 +Default", "Enviar")
+
+    ; Status bar
+    gui.SetFont("s9 c888888", "Segoe UI")
+    gui.Add("Text", "x15 y340 w430 h20 vStatus", "Pronto. Ctrl+Shift+N para reabrir.")
+
+    btn.OnEvent("Click", (*) => EnviarNeon(inp, resp))
+    ; Enter no input dispara o botão Default (Enviar) automaticamente
+    gui.OnEvent("Close", (*) => gui.Destroy())
+    gui.OnEvent("Size", (gui, *) => RedimensionarGui(gui, resp, inp, btn))
+
+    gui.Show("w460 h380")
+    return gui
+}
+
+RedimensionarGui(gui, resp, inp, btn)
+{
+    try {
+        w := gui.ClientPos.w
+        h := gui.ClientPos.h
+        resp.Move(15, 50, w - 30, h - 150)
+        inp.Move(15, h - 85, w - 115, 32)
+        btn.Move(w - 90, h - 86, 75, 34)
     }
 }
 
-^+B::
+EnviarNeon(inp, resp)
+{
+    msg := inp.Value
+    if msg = ""
+        return
+    resp.Value := "Aguardando resposta..." "`r`n`r`n" resp.Value
+    inp.Value := ""
+    res := SendRequest(msg)
+    if res = ""
+        res := "(sem resposta - servidor offline?)`r`nTente Ctrl+Shift+V para iniciar o bot."
+    resp.Value := res "`r`n---`r`n" resp.Value
+}
+
+; ─── Iniciar Bot (Ctrl+Shift+V — preferido) ───
+^+V::
 {
     if !WinExist("ahk_exe Code.exe")
     {
@@ -81,10 +135,19 @@ $Enter::
     Send("node index.js{Enter}")
 }
 
-^+V::
+; ─── Iniciar Bot alternativo (Ctrl+Shift+B) ───
+^+B::
 {
-    Run('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"')
-    Sleep(5000)
+    if !WinExist("ahk_exe Code.exe")
+    {
+        Run('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"')
+        Sleep(5000)
+    }
+    else
+    {
+        WinActivate("ahk_exe Code.exe")
+        Sleep(300)
+    }
     Send("^+p")
     Sleep(600)
     Send("Terminal: Create New Terminal{Enter}")

@@ -422,6 +422,9 @@ async function tocarSpotify(termo) {
 }
 
 // ─── YouTube — busca por HTTP + abre no navegador do usuário ───
+const recentVideoIds = new Set();
+const MAX_RECENT_VIDEOS = 5;
+
 async function pesquisarVideoId(termo) {
   const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(termo)}`;
   const { data } = await require("axios").get(url, {
@@ -431,9 +434,20 @@ async function pesquisarVideoId(termo) {
     },
     timeout: 15000,
   });
-  const match = data.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-  if (!match) throw new Error("Não encontrei o vídeo no YouTube");
-  return match[1];
+  const matches = [...data.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)];
+  if (matches.length === 0) throw new Error("Não encontrei o vídeo no YouTube");
+  // Pula vídeos que já foram tocados recentemente
+  let videoId = null;
+  for (const m of matches) {
+    if (!recentVideoIds.has(m[1])) { videoId = m[1]; break; }
+  }
+  if (!videoId) videoId = matches[0][1];
+  recentVideoIds.add(videoId);
+  if (recentVideoIds.size > MAX_RECENT_VIDEOS) {
+    const primeiro = recentVideoIds.values().next().value;
+    recentVideoIds.delete(primeiro);
+  }
+  return videoId;
 }
 
 async function tocarVideoYouTube(termo) {
