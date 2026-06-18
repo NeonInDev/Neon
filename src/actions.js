@@ -552,8 +552,6 @@ function detectarCategoria(texto) {
   if (encontrarMensagem(texto)) return "mensagem";
   if (encontrarSpotify(texto)) return "spotify";
   if (encontrarYouTube(texto)) return "youtube";
-  if (encontrarPesquisarWeb(texto)) return "pesquisarWeb";
-  if (encontrarPesquisa(texto)) return "pesquisa";
   if (encontrarDigitar(texto)) return "digitar";
   if (isWin() && encontrarJogo(texto)) return "jogo";
   if (encontrarVolume(texto)) return "volume";
@@ -564,19 +562,11 @@ function detectarCategoria(texto) {
   if (encontrarLembrete(texto)) return "lembrete";
   if (encontrarBrowser(texto)) return "browser";
   if (encontrarNavegar(texto)) return "navegar";
-  if (encontrarCotacao(texto)) return "cotacao";
-  if (encontrarClima(texto)) return "clima";
   if (encontrarCEP(texto)) return "cep";
   if (encontrarDefinicao(texto)) return "definicao";
-  if (encontrarFato(texto)) return "fato";
   if (encontrarIP(texto)) return "ip";
-  if (encontrarGerarImagem(texto)) return "gerarImagem";
   if (encontrarMostrarImagem(texto)) return "mostrarImagem";
   if (/status.*discord|discord.*status/i.test(texto)) return "statusDiscord";
-  if (encontrarWikipedia(texto)) return "wikipedia";
-  if (encontrarCalcular(texto)) return "calcular";
-  if (encontrarNoticias(texto)) return "noticias";
-  if (encontrarEntretenimento(texto)) return "entretenimento";
   if (encontrarLetra(texto)) return "letra";
   if (encontrarQRCode(texto)) return "qrCode";
   if (encontrarSenha(texto)) return "senha";
@@ -587,7 +577,6 @@ function detectarCategoria(texto) {
   if (encontrarBateria(texto)) return "bateria";
   if (isWin() && encontrarWhatsApp(texto)) return "whatsapp";
   if (encontrarMemoria(texto)) return "memoria";
-  if (/^(?:acao|ação|ações|acoes|cotacao|cotação|preco|preço|valor)\s+(?:da|do|de)?\s*\w{4,5}\d/i.test(texto)) return "acao";
   // Detecta nome de app sem "abrir" (ex: "steam", "valorant") — só se for app conhecido
   if (isWin() && texto.trim().length > 3) {
     const lower = texto.toLowerCase().trim();

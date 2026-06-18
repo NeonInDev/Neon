@@ -3,6 +3,7 @@ const api = require("./api");
 const pc = require("./pc");
 const { lembrar } = require("./memoria");
 const { abrirUrlNoOpera, tocarSpotify, tocarVideoYouTube } = require("./browser");
+const axios = require("axios");
 
 const FERRAMENTAS = [
   { nome: "pesquisar", desc: "Pesquisa algo na web. Uso: pesquisar | [consulta]" },
@@ -46,9 +47,18 @@ async function executarFerramenta(ferramenta) {
     switch (nome) {
       case "pesquisar": {
         if (!args) return "Nada para pesquisar.";
+        let resultados = [];
+        try {
+          const { data } = await axios.get(`https://lite.duckduckgo.com/lite/?q=${encodeURIComponent(args)}`, { timeout: 10000 });
+          const linhas = data.split("\n").filter(l => l.includes('class="result-snippet"') || l.includes('class="result-link"') || l.includes('class="result-title"'));
+          const snippets = data.match(/<a[^>]+class="result-link"[^>]*>(.*?)<\/a>|<a[^>]+class="result-title"[^>]*>(.*?)<\/a>|<td[^>]+class="result-snippet"[^>]*>(.*?)<\/td>/gi) || [];
+          const texto = snippets.map(s => s.replace(/<[^>]+>/g, "").trim()).filter(Boolean).slice(0, 6);
+          if (texto.length) resultados = texto;
+        } catch {}
         const url = `https://www.google.com/search?q=${encodeURIComponent(args)}`;
         await abrirUrlNoOpera(url);
-        return `Abri o navegador com resultados para "${args}".`;
+        const resumo = resultados.length ? resultados.join("\n") : `Abri o Google com resultados para "${args}".`;
+        return `Resultados da pesquisa "${args}":\n${resumo}`;
       }
       case "abrir_site": {
         let url = args;
