@@ -87,26 +87,37 @@ IMPORTANTE: Seja concisa. No maximo 2 acoes por vez. Nao invente comandos.`;
   try {
     const axios = require("axios");
     const { OPENROUTER_API_KEY } = require("./config");
-    const resp = await axios.post(
-      "https://openrouter.ai/api/v1/chat/completions",
-      {
-        model: "openrouter/free",
-        max_tokens: 300,
-        messages: [
-          { role: "system", content: "Você é Neon no modo autonomo. Seja concisa." },
-          { role: "user", content: prompt },
-        ],
-      },
-      {
-        timeout: 20000,
-        headers: {
-          Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-          "Content-Type": "application/json",
-        },
+    let content = null;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const resp = await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            model: "openrouter/free",
+            max_tokens: 300,
+            messages: [
+              { role: "system", content: "Você é Neon no modo autonomo. Seja concisa." },
+              { role: "user", content: prompt },
+            ],
+          },
+          {
+            timeout: 20000,
+            headers: {
+              Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        content = resp?.data?.choices?.[0]?.message?.content?.trim();
+        if (content) break;
+      } catch (err2) {
+        if (err2?.response?.status === 429 && i < 2) {
+          await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+          continue;
+        }
+        throw err2;
       }
-    );
-
-    const content = resp?.data?.choices?.[0]?.message?.content?.trim();
+    }
     if (!content || content === "NADA") return null;
     return content;
   } catch (err) {

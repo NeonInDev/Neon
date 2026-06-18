@@ -104,6 +104,13 @@ module.exports = {
         ativar = true;
         userInput = neonMatch[1] || "";
       }
+      if (!ativar) {
+        const slashMatch = lowerContent.match(/^\/neon\s+(.*)/);
+        if (slashMatch) {
+          ativar = true;
+          userInput = slashMatch[1] || "";
+        }
+      }
 
       if (message.reference && !ativar) {
         try {

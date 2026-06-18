@@ -174,15 +174,28 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
       }
     });
 
-    for (const t of tentativas) {
-      try {
-        content = await t.fn();
-        if (content) break;
-      } catch (err) {
-        log("WARN", `${t.nome} falhou, tentando próximo`, {
-          erro: err?.response?.data?.error?.message || err.message
-        });
+    async function tentarComRetry(fn, nome, maxTentativas = 3) {
+      for (let i = 0; i < maxTentativas; i++) {
+        try {
+          const res = await fn();
+          if (res) return res;
+        } catch (err) {
+          const status = err?.response?.status;
+          const msg = err?.response?.data?.error?.message || err.message;
+          log("WARN", `${nome} tentativa ${i + 1}/${maxTentativas} falhou`, { status, erro: msg });
+          if (status === 429 && i < maxTentativas - 1) {
+            await new Promise(r => setTimeout(r, 2000 * (i + 1)));
+            continue;
+          }
+          if (status !== 429) break;
+        }
       }
+      return null;
+    }
+
+    for (const t of tentativas) {
+      content = await tentarComRetry(t.fn, t.nome);
+      if (content) break;
     }
 
     if (!content) throw new Error("Todas as APIs falharam");
@@ -204,7 +217,7 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
 
       let finalContent = null;
       if (geminiValida) {
-        try {
+        finalContent = await tentarComRetry(async () => {
           const resp = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
             {
@@ -218,26 +231,28 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
             },
             { timeout: 30000 }
           );
-          finalContent = resp?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        } catch {}
+          return resp?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        }, "Gemini (follow-up)");
       }
       if (!finalContent) {
-        const resp = await axios.post(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            model: "openrouter/free",
-            max_tokens: 600,
-            messages: toolMessages,
-          },
-          {
-            timeout: 30000,
-            headers: {
-              Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json",
+        finalContent = await tentarComRetry(async () => {
+          const resp = await axios.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            {
+              model: "openrouter/free",
+              max_tokens: 600,
+              messages: toolMessages,
             },
-          }
-        );
-        finalContent = resp?.data?.choices?.[0]?.message?.content;
+            {
+              timeout: 30000,
+              headers: {
+                Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+          return resp?.data?.choices?.[0]?.message?.content;
+        }, "OpenRouter (follow-up)");
       }
       if (finalContent) content = finalContent;
     }
