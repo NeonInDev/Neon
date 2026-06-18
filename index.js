@@ -8,9 +8,11 @@ const { stopDocsServer } = require("./src/docs/server");
 const { fechar: fecharBrowser } = require("./src/browser");
 const voice = require("./src/voice");
 const monitor = require("./src/monitor");
+const proativo = require("./src/proativo");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
+  proativo.parar();
   monitor.parar();
   voice.parar();
   try {
@@ -28,6 +30,7 @@ client.once("clientReady", async () => {
   const ok = await voice.iniciar("1442928336329379925", "Dono");
   if (ok) log("INFO", "[VOICE] Microfone auto-iniciado");
   monitor.iniciar(client);
+  proativo.iniciar(client);
 });
 
 process.on("SIGINT", () => desligar("SIGINT"));
