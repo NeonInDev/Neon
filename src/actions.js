@@ -588,8 +588,14 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarWhatsApp(texto)) return "whatsapp";
   if (encontrarMemoria(texto)) return "memoria";
   if (/^(?:acao|ação|ações|acoes|cotacao|cotação|preco|preço|valor)\s+(?:da|do|de)?\s*\w{4,5}\d/i.test(texto)) return "acao";
-  // Detecta nome de app sem "abrir" (ex: "steam", "valorant")
-  if (isWin() && encontrarApp("abrir " + texto)) return "app";
+  // Detecta nome de app sem "abrir" (ex: "steam", "valorant") — só se for app conhecido
+  if (isWin() && texto.trim().length > 3) {
+    const lower = texto.toLowerCase().trim();
+    const appConhecido = apps.some(a =>
+      a.nomes.some(n => lower.includes(n))
+    );
+    if (appConhecido && encontrarApp("abrir " + texto)) return "app";
+  }
   return null;
 }
 
