@@ -2,9 +2,10 @@
 #SingleInstance Force
 
 ; ─── "Neon, comando" → tbm manda "/neon comando" ───
-#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
 ~Enter::
 {
+    if !WinActive("ahk_exe Discord.exe") and !WinActive("ahk_class Chrome_WidgetWin_1") and !WinActive("ahk_exe opera.exe")
+        return
     static sending := false
     if sending {
         sending := false
@@ -37,7 +38,6 @@
         SetTimer () => ToolTip(), -8000
     }
 }
-#HotIf
 
 
 ^+N::
