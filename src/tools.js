@@ -46,16 +46,18 @@ async function executarFerramenta(ferramenta) {
     switch (nome) {
       case "pesquisar": {
         if (!args) return "Nada para pesquisar.";
-        const r = await api.searchWeb(args);
-        return `Resultado da pesquisa "${args}": ${r.resultado?.slice(0, 300) || "sem resultados"}${r.url ? `\nFonte: ${r.url}` : ""}`;
+        const url = `https://www.google.com/search?q=${encodeURIComponent(args)}`;
+        await abrirUrlNoOpera(url);
+        return `Abri o navegador com resultados para "${args}".`;
       }
       case "abrir_site": {
         let url = args;
         if (!/^https?:\/\//i.test(url)) url = "https://" + url;
         await abrirUrlNoOpera(url);
-        return `Site aberto: ${url}`;
+        return `Abri o site: ${url}`;
       }
       case "abrir_app": {
+        if (!args) return "Nada pra abrir.";
         const { executarAcao } = require("./actions");
         const resultado = await executarAcao("abrir " + args, true, "1442928336329379925");
         return resultado?.replace(/[*_`~|#]/g, "") || `Tentei abrir ${args}`;

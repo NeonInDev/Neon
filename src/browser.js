@@ -354,22 +354,19 @@ async function executarRoteiro(texto) {
 
 // ─── Spotify — busca ID via Web e toca no Desktop ───
 async function buscarTrackIdSpotify(termo) {
-  const page = await abrirPagina(`https://open.spotify.com/search/${encodeURIComponent(termo)}`);
-  await sleep(5000);
-  try {
-    await page.waitForSelector("a[href*='/track/']", { timeout: 15000 });
-  } catch {}
-  await sleep(2000);
-
-  // Extrai o primeiro link de track
-  const hrefs = await page.$$eval("a[href*='/track/']", links =>
-    links.map(a => a.getAttribute("href")).filter(Boolean)
-  );
-  if (hrefs.length > 0) {
-    const m = hrefs[0].match(/\/track\/([a-zA-Z0-9]+)/);
-    if (m) { fecharAba(page); return m[1]; }
-  }
-  fecharAba(page);
+  const axios = require("axios");
+  const url = `https://open.spotify.com/search/${encodeURIComponent(termo)}`;
+  const { data } = await axios.get(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
+      "Accept-Language": "pt-BR,pt;q=0.9",
+    },
+    timeout: 15000,
+  });
+  const m = data.match(/\/track\/([a-zA-Z0-9]{22})/);
+  if (m) return m[1];
+  const m2 = data.match(/href="\/track\/([a-zA-Z0-9]+)"/);
+  if (m2) return m2[1];
   throw new Error("Track ID não encontrado no Spotify Web");
 }
 
