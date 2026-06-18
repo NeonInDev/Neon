@@ -10,6 +10,7 @@ const { traduzir } = require("./translate");
 const { detectar: detectarCustom, adicionar: addCustom, remover: removeCustom, listar: listarCustom } = require("./custom_commands");
 const { criarLembrete } = require("./timers");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const voice = require("./voice");
 
 function limparFiller(t) {
   return t.replace(/\s+(?:por\s+favor|pfv|please|pls)\s*$/i, "").replace(/^\s*(?:por\s+favor|pfv|please|pls)\s+/i, "").trim();
@@ -337,6 +338,14 @@ function encontrarCustomCommand(texto) {
   return !!cmd;
 }
 
+function encontrarVoiceToggle(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:ativa|ativar|liga|ligar|inicia|iniciar)\s+(?:o\s+)?(?:microfone|mic|audio|voz|escuta)/i.test(lower)) return "ativar";
+  if (/^(?:desativa|desativar|desliga|desligar|para|parar|pausa|pausar)\s+(?:o\s+)?(?:microfone|mic|audio|voz|escuta)/i.test(lower)) return "desativar";
+  if (/^(?:status|como\s+ta|como\s+esta)\s+(?:o\s+)?(?:microfone|mic|audio|voz|escuta)/i.test(lower)) return "status";
+  return null;
+}
+
 function encontrarBrowser(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
@@ -405,6 +414,9 @@ function permitido(userId) {
 }
 
 function detectarCategoria(texto) {
+  // Voice toggle (microfone)
+  const voiceToggle = encontrarVoiceToggle(texto);
+  if (voiceToggle) return "voiceToggle";
   // Custom commands (usuário define) — maior prioridade
   if (encontrarCustomCommand(texto)) return "customCommand";
   if (isWin()) {
@@ -891,6 +903,21 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   }
 
   // Custom commands (usuário)
+  // Voice toggle (microfone)
+  if (categoria === "voiceToggle") {
+    const acao = encontrarVoiceToggle(texto);
+    if (acao === "ativar") {
+      const r = voice.iniciar(userId, null);
+      return r ? "🎤 Microfone ativado! Fala 'Neon, comando' que eu respondo por áudio." : "🎤 Microfone já está ativo.";
+    }
+    if (acao === "desativar") {
+      const r = voice.parar();
+      return r ? "🎤 Microfone desativado." : "🎤 Microfone já está desativado.";
+    }
+    const st = voice.status();
+    return st.ativo ? "🎤 Microfone está **ativo**. Fala 'Neon, comando'." : "🎤 Microfone está **inativo**.";
+  }
+
   if (categoria === "customCommand") {
     const cmd = detectarCustom(texto);
     if (!cmd) return null;

@@ -4,6 +4,7 @@ const apiSpec = require("./api.json");
 const { DOCS_PORT } = require("../config");
 const { log } = require("../logger");
 const { askNeon } = require("../ai");
+const voice = require("../voice");
 
 const app = express();
 let server = null;
@@ -20,6 +21,21 @@ app.post("/api/ask", async (req, res) => {
     log("ERROR", "Local API erro", { erro: err.message });
     res.status(500).json({ error: err.message });
   }
+});
+
+app.post("/api/voice/toggle", (req, res) => {
+  const st = voice.status();
+  if (st.ativo) {
+    voice.parar();
+    res.json({ ativo: false, msg: "Microfone desativado." });
+  } else {
+    voice.iniciar(req.body?.userId || "1442928336329379925", "Dono");
+    res.json({ ativo: true, msg: "Microfone ativado! Fale 'Neon, comando'." });
+  }
+});
+
+app.get("/api/voice/status", (req, res) => {
+  res.json(voice.status());
 });
 
 app.use("/", swaggerUi.serve, swaggerUi.setup(apiSpec, {

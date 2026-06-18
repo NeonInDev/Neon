@@ -6,9 +6,11 @@ const { TOKEN } = require("./src/config");
 const { log } = require("./src/logger");
 const { stopDocsServer } = require("./src/docs/server");
 const { fechar: fecharBrowser } = require("./src/browser");
+const voice = require("./src/voice");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
+  voice.parar();
   try {
     await db.write();
   } catch (err) {
@@ -19,6 +21,17 @@ async function desligar(sinal) {
   client.destroy();
   process.exit(0);
 }
+
+// Auto-start microfone quando o bot ficar pronto
+client.once("ready", () => {
+  const OWNER_ID = "1442928336329379925";
+  const ok = voice.iniciar(OWNER_ID, "Dono");
+  if (ok) {
+    log("INFO", "[VOICE] Microfone auto-iniciado para o dono");
+  } else {
+    log("WARN", "[VOICE] Microfone ja estava ativo");
+  }
+});
 
 process.on("SIGINT", () => desligar("SIGINT"));
 process.on("SIGTERM", () => desligar("SIGTERM"));
