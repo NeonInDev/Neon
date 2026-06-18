@@ -1,16 +1,12 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
-TraySetIcon("imageres.dll", 179)
-TrayTip("Neon ativo", "Ctrl+Shift+N = falar com Neon`nCtrl+Shift+B = iniciar bot`nCtrl+Shift+V = VSCode + Neon", "Iconi")
 
 ^+N::
 {
     ib := InputBox("Digite sua mensagem para a Neon:", "Neon", "w400 h130")
     if ib.Result = "OK" and ib.Value != ""
     {
-        ToolTip("Neon: pensando...")
         res := SendRequest(ib.Value)
-        ToolTip()
         if res = ""
             res := "(sem resposta - servidor offline?)"
         MsgBox(res, "Neon", 4096)
@@ -19,17 +15,14 @@ TrayTip("Neon ativo", "Ctrl+Shift+N = falar com Neon`nCtrl+Shift+B = iniciar bot
 
 ^+B::
 {
-    ToolTip("Neon: iniciando bot...")
-    RunWait('powershell -NoProfile -Command "node index.js"', "C:\Meus Projetos\Neon", "Hide")
-    ToolTip()
+    Run('cmd /k "title Neon Bot && cd /d C:\Meus Projetos\Neon && node index.js"', , "Max")
 }
 
 ^+V::
 {
-    ToolTip("Neon: iniciando VS Code + Neon...")
-    Run('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"', "C:\Meus Projetos\Neon")
-    RunWait('powershell -NoProfile -Command "node index.js"', "C:\Meus Projetos\Neon", "Hide")
-    ToolTip()
+    Run('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"')
+    Sleep(500)
+    Run('cmd /k "title Neon Bot && cd /d C:\Meus Projetos\Neon && node index.js"', , "Max")
 }
 
 SendRequest(msg)
