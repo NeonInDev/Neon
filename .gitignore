@@ -7,3 +7,4 @@ memory.json
 .gitconfig
 .node_repl_history
 .npm
+*.log

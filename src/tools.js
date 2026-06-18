@@ -11,7 +11,6 @@ const FERRAMENTAS = [
   { nome: "abrir_app", desc: "Abre um app/programa. Uso: abrir_app | [nome]" },
   { nome: "noticias", desc: "Mostra as ultimas noticias. Uso: noticias" },
   { nome: "clima", desc: "Previsao do tempo. Uso: clima | [cidade]" },
-  { nome: "curiosidade", desc: "Fato aleatorio interessante. Uso: curiosidade" },
   { nome: "cotacao", desc: "Cotacao de moeda/cripto/acao. Uso: cotacao | [BTC/USD/PETR4]" },
   { nome: "pcInfo", desc: "Status do PC (CPU, RAM, Disco). Uso: pcInfo" },
   { nome: "screenshot", desc: "Tira um print da tela. Uso: screenshot" },
@@ -80,10 +79,6 @@ async function executarFerramenta(ferramenta) {
         const cidade = args || "São Paulo";
         const c = await api.clima(cidade);
         return `Clima em ${c.cidade}: ${c.condicao}, ${c.temperatura}, umidade ${c.umidade || "N/A"}`;
-      }
-      case "curiosidade": {
-        const f = await api.fatoAleatorio();
-        return `Fato: ${f.fato}`;
       }
       case "cotacao": {
         const alvo = args?.toUpperCase() || "BTC";

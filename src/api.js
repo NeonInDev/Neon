@@ -38,11 +38,6 @@ async function definicao(palavra) {
   return { palavra: entry.word, fonetica: entry.phonetic || "", definicoes: entry.meanings?.flatMap(m => m.definitions.map(d => ({ classe: m.partOfSpeech, definicao: d.definition, exemplo: d.example }))) || [] };
 }
 
-async function fatoAleatorio() {
-  const { data } = await axios.get("https://catfact.ninja/fact", { timeout: 10000 });
-  return { fato: data.fact };
-}
-
 async function meuIP() {
   const [ipRes, infoRes] = await Promise.allSettled([
     axios.get("https://api.ipify.org?format=json", { timeout: 10000 }),
@@ -244,4 +239,4 @@ async function cotacaoAcao(ticker) {
   };
 }
 
-module.exports = { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao };
+module.exports = { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao };

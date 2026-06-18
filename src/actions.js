@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
-const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao } = require("./api");
+const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao } = require("./api");
 const pc = require("./pc");
 const { traduzir } = require("./translate");
 const { detectar: detectarCustom, adicionar: addCustom, remover: removeCustom, listar: listarCustom } = require("./custom_commands");
@@ -260,12 +260,6 @@ function encontrarDefinicao(texto) {
   return false;
 }
 
-function encontrarFato(texto) {
-  const lower = limparFiller(texto.toLowerCase().trim());
-  if (/^(?:fato|curiosidade|conta|conta algo|me diga algo|conhecimento)[\s.!?]*$/i.test(lower)) return true;
-  return false;
-}
-
 function encontrarIP(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/(?:meu\s+)?(?:ip|endereço\s*ip|endereco\s*ip)/i.test(lower)) return true;
@@ -447,7 +441,7 @@ function encontrarEntretenimento(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:conta|conte|me\s+diz|diga|fala|fale)\s*(?:uma\s+)?(?:piada|historia|história|anedota)/i.test(lower)) return "piada";
   if (/^(?:me\s+dá|me\s+da|da|dá|quero\s+um)\s*(?:um\s+)?(?:conselho|dica|sugestao|sugestão)/i.test(lower)) return "conselho";
-  if (/^(?:trivia|quiz|pergunta|faça\s+uma\s+pergunta|me\s+pergunta\s+algo|curiosidade)/i.test(lower)) return "trivia";
+  if (/^(?:trivia|quiz|pergunta|faça\s+uma\s+pergunta|me\s+pergunta\s+algo)/i.test(lower)) return "trivia";
   return null;
 }
 
@@ -609,11 +603,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       const c = await clima("São Paulo");
       climaStr = `${c.condicao}, ${c.temperatura}`;
     } catch {}
-    let fato = "";
-    try {
-      const f = await fatoAleatorio();
-      fato = f.fato;
-    } catch {}
     return [
       "```",
       "╔══════════════════════════════════╗",
@@ -622,7 +611,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       "",
       `🕐 ${hora}`,
       climaStr ? `🌡 ${climaStr}` : "",
-      fato ? `\n💡 ${fato}` : "",
       "",
       ">> Spotify:   " + (r1.ok ? "✅" : "❌"),
       ">> Steam:     " + (r2.ok ? "✅" : "❌"),
@@ -1016,16 +1004,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     } catch (err) {
       // Se a API de dicionário falhar, deixa o AI responder
       return null;
-    }
-  }
-
-  // Fato aleatório
-  if (categoria === "fato") {
-    try {
-      const f = await fatoAleatorio();
-      return `💡 **Sabia que...** ${f.fato}`;
-    } catch (err) {
-      return `❌ Não consegui buscar um fato agora: ${err.message}`;
     }
   }
 

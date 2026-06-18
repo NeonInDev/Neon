@@ -73,7 +73,6 @@ COMANDOS DISPONIVEIS:
 - pesquisar | [consulta] — pesquisa algo na web
 - noticias — ve as ultimas noticias
 - clima | [cidade] — ve a previsao do tempo
-- curiosidade — conta um fato interessante
 - piada — conta uma piada
 - cotacao | BTC ou EUR ou PETR4 — ve cotacao
 - pcInfo — ve status do PC
@@ -161,10 +160,6 @@ async function processarComando(comando, args) {
       const cidade = args || "São Paulo";
       const c = await api.clima(cidade);
       return `🌤️ **${c.cidade}:** ${c.condicao}, ${c.temperatura}`;
-    }
-    case "curiosidade": {
-      const f = await api.fatoAleatorio();
-      return `💡 **Curiosidade:** ${f.fato}`;
     }
     case "piada": {
       const p = await api.piada();

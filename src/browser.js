@@ -6,6 +6,7 @@ const { promisify } = require("util");
 const execAsync = promisify(execCb);
 
 let browser = null;
+let browserRefCount = 0;
 const OPERA_PATH = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe";
 const USER_DATA = "C:\\Users\\Pichau\\AppData\\Local\\neon_opera_profile";
 const DEBUG_PORT = 9222;
@@ -16,11 +17,11 @@ async function abrirUrlNoOpera(url) {
 }
 
 async function iniciar() {
-  // Se já temos um browser conectado, reusa
   if (browser) {
     try {
       if (browser.connected) {
         await browser.pages();
+        browserRefCount++;
         return browser;
       }
     } catch {}
@@ -30,18 +31,17 @@ async function iniciar() {
 
   const puppeteer = require("puppeteer");
 
-  // Tenta conectar num Opera já aberto (com debug port)
   try {
     browser = await puppeteer.connect({
       browserURL: `http://localhost:${DEBUG_PORT}`,
     });
-    log("INFO", "[BROWSER] Conectado ao Opera existente");
+    log("INFO", "[BROWSER] Conectado ao Opera existente (debug port)");
+    browserRefCount = 1;
     return browser;
   } catch {
     log("INFO", "[BROWSER] Nenhum Opera com debug encontrado, iniciando novo");
   }
 
-  // Abre UM novo Opera (com debug port fixo)
   try {
     browser = await puppeteer.launch({
       executablePath: OPERA_PATH,
@@ -50,16 +50,27 @@ async function iniciar() {
         "--no-sandbox",
         "--disable-setuid-sandbox",
         `--user-data-dir=${USER_DATA}`,
-        "--start-maximized",
         `--remote-debugging-port=${DEBUG_PORT}`,
       ],
     });
-    log("INFO", "[BROWSER] Opera GX iniciado");
+    browserRefCount = 1;
+    log("INFO", "[BROWSER] Opera unico iniciado (porta ${DEBUG_PORT})");
     return browser;
   } catch (err) {
     log("ERROR", "[BROWSER] Falha ao iniciar", { erro: err.message });
     browser = null;
     throw err;
+  }
+}
+
+async function liberar() {
+  if (browser) {
+    browserRefCount--;
+    if (browserRefCount <= 0) {
+      try { await browser.close(); } catch {}
+      browser = null;
+      log("INFO", "[BROWSER] Opera fechado (sem mais usos)");
+    }
   }
 }
 
@@ -413,4 +424,4 @@ async function tocarVideoYouTube(termo, skip = 0) {
   return `🎬 Tocando "${termo}" no YouTube.`;
 }
 
-module.exports = { executarRoteiro, fechar, fecharAba, abrirPagina, interpretarAcaoTexto, executarAcao, tocarSpotify, tocarVideoYouTube, abrirUrlNoOpera };
+module.exports = { executarRoteiro, fechar, fecharAba, abrirPagina, interpretarAcaoTexto, executarAcao, tocarSpotify, tocarVideoYouTube, abrirUrlNoOpera, iniciar, liberar };

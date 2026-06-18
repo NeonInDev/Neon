@@ -1,31 +1,12 @@
 const { log } = require("./logger");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const { iniciar: iniciarBrowser, liberar } = require("./browser");
 
-let browser = null;
 let pagina = null;
 const WHATSAPP_URL = "https://web.whatsapp.com";
-const OPERA_PATH = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe";
-const USER_DATA = "C:\\Users\\Pichau\\AppData\\Local\\neon_whatsapp_profile";
-
-async function getBrowser() {
-  if (browser && browser.connected) { try { await browser.pages(); return browser; } catch {} }
-  try { await browser?.close(); } catch {}
-  browser = null;
-  const puppeteer = require("puppeteer");
-  browser = await puppeteer.launch({
-    executablePath: OPERA_PATH,
-    headless: false,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      `--user-data-dir=${USER_DATA}`,
-    ],
-  });
-  return browser;
-}
 
 async function abrirWhatsApp() {
-  const b = await getBrowser();
+  const b = await iniciarBrowser();
   pagina = await b.newPage();
   await pagina.goto(WHATSAPP_URL, { waitUntil: "networkidle2", timeout: 60000 });
   await pagina.setViewport({ width: 1280, height: 800 });
