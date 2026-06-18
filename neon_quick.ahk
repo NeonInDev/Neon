@@ -1,6 +1,14 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 
+; ─── Hotstring: "Neon," → "/neon " (só no Discord) ───
+#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
+::neon,::
+{
+    SendInput("/neon ")
+}
+#HotIf
+
 ^+N::
 {
     ib := InputBox("Digite sua mensagem para a Neon:", "Neon", "w400 h130")
@@ -16,20 +24,53 @@
 
 ^+B::
 {
-    Run('cmd /k "title Neon Bot && cd /d C:\Meus Projetos\Neon && node index.js"', , "Max")
+    if !WinExist("ahk_exe Code.exe")
+    {
+        Run('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"')
+        Sleep(5000)
+    }
+    else
+    {
+        WinActivate("ahk_exe Code.exe")
+        Sleep(300)
+    }
+    Send("^+p")
+    Sleep(600)
+    Send("Terminal: Create New Terminal{Enter}")
+    Sleep(1500)
+    Send("node index.js{Enter}")
 }
 
 ^+V::
 {
     Run('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"')
-    Sleep(500)
-    Run('cmd /k "title Neon Bot && cd /d C:\Meus Projetos\Neon && node index.js"', , "Max")
+    Sleep(5000)
+    Send("^+p")
+    Sleep(600)
+    Send("Terminal: Create New Terminal{Enter}")
+    Sleep(1500)
+    Send("node index.js{Enter}")
 }
 
 ^+X::
 {
-    RunWait('powershell -NoProfile -Command "Stop-Process -Name node -Force"', , "Hide")
-    Run('cmd /c "title Neon Bot && echo Bot encerrado. && timeout /t 3"', , "Max")
+    if WinExist("ahk_exe Code.exe")
+    {
+        WinActivate("ahk_exe Code.exe")
+        Sleep(300)
+        Send("^+p")
+        Sleep(600)
+        Send("Terminal: Focus on Terminal{Enter}")
+        Sleep(500)
+        Send("^{c}")
+        Sleep(1000)
+        Run('cmd /c "echo Bot encerrado. && timeout /t 3"', , "Max")
+    }
+    else
+    {
+        RunWait('powershell -NoProfile -Command "Stop-Process -Name node -Force"', , "Hide")
+        Run('cmd /c "echo Bot encerrado. && timeout /t 3"', , "Max")
+    }
 }
 
 SendRequest(msg)

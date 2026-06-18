@@ -271,4 +271,46 @@ async function executarRoteiro(texto) {
   return null;
 }
 
-module.exports = { executarRoteiro, fechar, abrirPagina, interpretarAcaoTexto, executarAcao };
+// ─── Spotify Web ───
+async function tocarSpotify(termo) {
+  const page = await abrirPagina(`https://open.spotify.com/search/${encodeURIComponent(termo)}`);
+  await sleep(5000);
+
+  // Tenta clicar no primeiro resultado
+  const playSelectors = [
+    "div[data-testid='tracklist-row']:first-child button[data-testid='play-button']",
+    "div[data-testid='tracklist-row']:first-child button",
+    "div[data-testid='track-list'] div[role='row']:first-child button",
+    "section[data-testid='search-page'] div[role='row']:first-child div[role='cell']:nth-child(2) button",
+    "[data-testid='herocard'] button",
+  ];
+  for (const sel of playSelectors) {
+    const btn = await page.$(sel);
+    if (btn) {
+      await btn.evaluate(el => el.scrollIntoView({ block: "center" }));
+      await sleep(500);
+      await btn.click();
+      await sleep(2000);
+      return `🎵 Tocando "${termo}" no Spotify Web.`;
+    }
+  }
+
+  // Fallback: clica no primeiro card que aparece
+  const cards = await page.$$("a[href*='/track/'], div[data-testid='tracklist-row']");
+  if (cards.length > 0) {
+    await cards[0].click();
+    await sleep(3000);
+    return `🎵 Tocando "${termo}" no Spotify Web.`;
+  }
+
+  throw new Error("Não achei resultados no Spotify Web");
+}
+
+// ─── YouTube — pesquisar e tocar direto ───
+async function tocarVideoYouTube(termo) {
+  const page = await abrirPagina("https://www.youtube.com");
+  await pesquisarYouTube(page, termo);
+  return `🎬 Tocando "${termo}" no YouTube.`;
+}
+
+module.exports = { executarRoteiro, fechar, abrirPagina, interpretarAcaoTexto, executarAcao, tocarSpotify, tocarVideoYouTube };

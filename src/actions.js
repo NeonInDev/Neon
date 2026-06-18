@@ -3,7 +3,7 @@ const { promisify } = require("util");
 const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
-const { executarRoteiro } = require("./browser");
+const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 const OPERA_PATH = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe";
@@ -126,7 +126,18 @@ function encontrarSpotify(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const match = lower.match(/^(?:toca|tocar|play|toca música|toca a música)\s+(.+)/i);
   if (!match) return null;
-  return match[1].trim();
+  const query = match[1].trim();
+  // Se mencionou youtube explicitamente, não é spotify
+  if (/\bno\s+youtube\b|\bno\s+yt\b/i.test(query)) return null;
+  return query;
+}
+
+function encontrarYouTube(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  // "coloca X", "coloca X no youtube", "toca X no youtube", "assiste X", "assiste X no youtube"
+  const match = lower.match(/^(?:coloca|colocar|toca|tocar|assiste|assistir|play|da play|dá play)\s+(?:o\s+)?(?:(?:vídeo|video)\s+)?(.+)/i);
+  if (!match) return null;
+  return match[1].trim().replace(/\bno\s+youtube\b|\bno\s+yt\b/gi, "").trim();
 }
 
 function encontrarPesquisa(texto) {
@@ -236,6 +247,7 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarExec(texto)) return "exec";
   if (encontrarArquivo(texto)) return "arquivo";
   if (encontrarMensagem(texto)) return "mensagem";
+  if (encontrarYouTube(texto)) return "youtube";
   if (encontrarSpotify(texto)) return "spotify";
   if (encontrarPesquisa(texto)) return "pesquisa";
   if (encontrarDigitar(texto)) return "digitar";
@@ -247,6 +259,41 @@ function detectarCategoria(texto) {
 
 async function executarAcao(texto, usuarioMestre = false, userId = null) {
   const podePC = permitido(userId);
+  const lower = texto.toLowerCase().trim();
+
+  // ─── Daddy is home ───
+  if (lower === "daddy is home" || lower === "daddy's home") {
+    if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
+    await tentar('start spotify:');
+    await tentar('start steam:');
+    setTimeout(() => {
+      execCb('taskkill /f /im Spotify.exe 2>nul & taskkill /f /im Steam.exe 2>nul', () => {});
+    }, 7000);
+    return [
+      "```",
+      "   ╔══════════════════════════════════╗",
+      "   ║          INICIANDO SISTEMAS       ║",
+      "   ╚══════════════════════════════════╝",
+      "```",
+      "",
+      "Bem-vindo em casa, chefe.",
+      "",
+      "```",
+      "[NEON OS v3.1.7]  Protocolo de boas-vindas ativado.",
+      "────────────────────────────────────────────",
+      "  >>  Autenticacao biométrica:   OK",
+      "  >>  Rede doméstica:            OK",
+      "  >>  Assinatura de voz:         \"" + (texto.includes("Daddy") ? "Daddy" : "Chefe") + " identificado\"",
+      "  >>  Spotify:                   ABRINDO...",
+      "  >>  Steam:                     ABRINDO...",
+      "  >>  Café:                      ¯\\_(ツ)_/¯ (vai ter que fazer)",
+      "────────────────────────────────────────────",
+      "```",
+      "",
+      "Fechando tudo em 7s... so pra mostrar servico. 🤖",
+    ].join("\n");
+  }
+
   const categoria = detectarCategoria(texto);
 
   if (categoria && !podePC) {
@@ -346,18 +393,33 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
     const alvo = info.alvo.toLowerCase();
 
     let usuarioDiscord = null;
-    for (const guild of dc.guilds.cache.values()) {
-      const membros = await guild.members.fetch({ cache: false });
-      const encontrado = membros.find(m =>
-        m.user.username.toLowerCase() === alvo ||
-        (m.nickname && m.nickname.toLowerCase() === alvo) ||
-        (m.user.globalName && m.user.globalName.toLowerCase() === alvo) ||
-        (m.user.tag && m.user.tag.toLowerCase() === alvo)
-      );
-      if (encontrado) { usuarioDiscord = encontrado.user; break; }
+
+    // Primeiro tenta buscar por ID (se for um número)
+    if (/^\d{17,19}$/.test(alvo)) {
+      try {
+        usuarioDiscord = await dc.users.fetch(alvo);
+      } catch {}
     }
 
-    if (!usuarioDiscord) return `❌ Não encontrei ninguém chamado "${info.alvo}" no servidor.`;
+    // Depois procura nos servidores que compartilha
+    if (!usuarioDiscord) {
+      for (const guild of dc.guilds.cache.values()) {
+        try {
+          const membros = await guild.members.fetch({ cache: false });
+          const encontrado = membros.find(m =>
+            m.user.username.toLowerCase() === alvo ||
+            (m.nickname && m.nickname.toLowerCase() === alvo) ||
+            (m.user.globalName && m.user.globalName.toLowerCase() === alvo) ||
+            (m.user.tag && m.user.tag.toLowerCase() === alvo)
+          );
+          if (encontrado) { usuarioDiscord = encontrado.user; break; }
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    if (!usuarioDiscord) return `❌ Não encontrei ninguém chamado "${info.alvo}".`;
     try {
       await usuarioDiscord.send(`💬 **Neon:** ${info.conteudo}`);
       return `✅ Mensagem enviada para **${usuarioDiscord.username}**.`;
@@ -366,16 +428,29 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
     }
   }
 
-  // Spotify — tocar música de verdade
+  // YouTube — pesquisar e tocar vídeo
+  if (categoria === "youtube") {
+    const video = encontrarYouTube(texto);
+    try {
+      const msg = await tocarVideoYouTube(video);
+      return msg;
+    } catch (err) {
+      return `❌ Não consegui tocar no YouTube: ${err.message}`;
+    }
+  }
+
+  // Spotify — tocar música via navegador (Spotify Web)
   if (categoria === "spotify") {
     const musica = encontrarSpotify(texto);
-    const buscaCmd = `start spotify:search:${encodeURIComponent(musica)}`;
-    const r1 = await tentar(buscaCmd);
-    if (!r1.ok) return `❌ Não consegui abrir o Spotify.`;
-    // Aguarda carregar, navega pro primeiro resultado, toca, e minimiza
-    const tocarCmd = `powershell -Command "Start-Sleep 4; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{DOWN}{ENTER}'); Start-Sleep 2; try { $wshell = New-Object -ComObject wscript.shell; $wshell.AppActivate('Spotify'); Start-Sleep 500; [System.Windows.Forms.SendKeys]::SendWait('%{Space}n') } catch {}"`;
-    await tentar(tocarCmd);
-    return `🎵 Tocando "${musica}" no Spotify.`;
+    try {
+      const msg = await tocarSpotify(musica);
+      return msg;
+    } catch (err) {
+      // fallback: tenta pelo app desktop
+      const buscaCmd = `start spotify:search:${encodeURIComponent(musica)}`;
+      await tentar(buscaCmd);
+      return `🔍 Abri o Spotify procurando "${musica}". Dá um play lá?`;
+    }
   }
 
   // Pesquisa no navegador
