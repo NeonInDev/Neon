@@ -561,42 +561,17 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
     }
   }
 
-  // Spotify — tocar música (app desktop + fallback web)
+  // Spotify — busca ID via Web, toca no Desktop
   if (categoria === "spotify") {
     const musica = encontrarSpotify(texto);
-    let desktopOk = false;
-    // Mata processo pra garantir abertura limpa
-    await tentar("taskkill /f /im Spotify.exe 2>nul");
-    await sleep(2000);
-    // Tenta vários formatos de URI
-    const uris = [
-      `start spotify:search:${encodeURIComponent(musica)}`,
-      `start spotify://search/${encodeURIComponent(musica)}`,
-    ];
-    let r1 = null;
-    for (const uri of uris) {
-      r1 = await tentar(uri);
-      if (r1.ok) break;
-    }
-    if (r1 && r1.ok) {
-      await sleep(5000);
-      const psActivate = `powershell -Command "$w = New-Object -ComObject wscript.shell;$w.AppActivate('Spotify');Start-Sleep 2;$w.SendKeys('{DOWN}');Start-Sleep 0.8;$w.SendKeys('{ENTER}')"`;
-      const r2 = await tentar(psActivate);
-      if (r2.ok) desktopOk = true;
-      if (!desktopOk) {
-        const psEnter = `powershell -Command "$w = New-Object -ComObject wscript.shell;$w.AppActivate('Spotify');Start-Sleep 3;$w.SendKeys('{ENTER}')"`;
-        const r3 = await tentar(psEnter);
-        if (r3.ok) desktopOk = true;
-      }
-      if (desktopOk) return `🎵 Tocando "${musica}" no Spotify.`;
-    }
-    // Fallback: web (perfil persistente agora)
     try {
       const msg = await tocarSpotify(musica);
       return msg;
-    } catch {
-      if (r1 && r1.ok) return `🔍 Abri o Spotify procurando "${musica}". Se não tocar, abre o site open.spotify.com e loga uma vez no Opera da Neon.`;
-      return `❌ Não consegui abrir o Spotify para tocar "${musica}".`;
+    } catch (err) {
+      if (err.message?.includes("Track ID")) {
+        return `🔍 Não achei "${musica}" no Spotify. Pode ser que precise logar no Spotify Web pelo Opera da Neon (abre uma vez e faz login que fica salvo).`;
+      }
+      return `❌ Erro no Spotify: ${err.message}`;
     }
   }
 

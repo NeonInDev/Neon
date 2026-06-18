@@ -352,73 +352,31 @@ async function executarRoteiro(texto) {
   return null;
 }
 
-// ─── Spotify Web ───
-async function tocarSpotify(termo) {
+// ─── Spotify — busca ID via Web e toca no Desktop ───
+async function buscarTrackIdSpotify(termo) {
   const page = await abrirPagina(`https://open.spotify.com/search/${encodeURIComponent(termo)}`);
-  // Espera a página de busca carregar — até 15s
-  await sleep(4000);
+  await sleep(5000);
   try {
-    await page.waitForSelector("[data-testid='search-page'], section[data-testid='search-page'], div[role='row'], a[href*='/track/']", { timeout: 15000 });
+    await page.waitForSelector("a[href*='/track/']", { timeout: 15000 });
   } catch {}
   await sleep(2000);
 
-  // Estratégia 1: botão de play no primeiro resultado (vários seletores)
-  const playSelectors = [
-    "div[data-testid='search-page'] section:first-of-type div[role='row']:first-child button[data-testid='play-button']",
-    "div[data-testid='search-page'] div[data-testid='track-list'] div[role='row']:first-child button",
-    "div[data-testid='tracklist-row']:first-child button[data-testid='play-button']",
-    "div[data-testid='tracklist-row']:first-child button",
-    "section[data-testid='search-page'] div[role='row']:first-child div[role='cell']:nth-child(2) button",
-    "[data-testid='herocard'] button",
-    "button[data-testid='play-button']",
-    "[role='row']:first-child button:has(svg)",
-    "[role='row']:first-child button svg",
-  ];
-  for (const sel of playSelectors) {
-    const btns = await page.$$(sel);
-    for (const btn of btns) {
-      try {
-        await btn.evaluate(el => el.scrollIntoView({ block: "center" }));
-        await sleep(300);
-        await btn.click();
-        await sleep(2000);
-        return `🎵 Tocando "${termo}" no Spotify Web.`;
-      } catch {}
-    }
+  // Extrai o primeiro link de track
+  const hrefs = await page.$$eval("a[href*='/track/']", links =>
+    links.map(a => a.getAttribute("href")).filter(Boolean)
+  );
+  if (hrefs.length > 0) {
+    const m = hrefs[0].match(/\/track\/([a-zA-Z0-9]+)/);
+    if (m) { fecharAba(page); return m[1]; }
   }
+  fecharAba(page);
+  throw new Error("Track ID não encontrado no Spotify Web");
+}
 
-  // Estratégia 2: clica no primeiro link de track, depois espera tocar
-  const trackLinks = await page.$$("a[href*='/track/']");
-  if (trackLinks.length > 0) {
-    try {
-      await trackLinks[0].click();
-      await sleep(4000);
-      // Tenta clicar em play na página da track
-      const playBtns = await page.$$("button[data-testid='play-button'], button[aria-label*='Play'], button[aria-label*='Tocar']");
-      for (const btn of playBtns) {
-        try {
-          await btn.click();
-          await sleep(2000);
-          return `🎵 Tocando "${termo}" no Spotify Web.`;
-        } catch {}
-      }
-      return `🎵 Abri "${termo}" no Spotify Web.`;
-    } catch {}
-  }
-
-  // Estratégia 3: pressiona Enter no primeiro item
-  try {
-    const primeiroItem = await page.$("div[role='row']:first-child, [data-testid='tracklist-row']:first-child");
-    if (primeiroItem) {
-      await primeiroItem.click();
-      await sleep(1000);
-      await page.keyboard.press("Enter");
-      await sleep(3000);
-      return `🎵 Tocando "${termo}" no Spotify Web.`;
-    }
-  } catch {}
-
-  throw new Error("Não achei resultados no Spotify Web");
+async function tocarSpotify(termo) {
+  const trackId = await buscarTrackIdSpotify(termo);
+  await execAsync(`start "" "spotify:track:${trackId}"`);
+  return `🎵 Tocando "${termo}" no Spotify Desktop.`;
 }
 
 // ─── YouTube — busca por HTTP + abre no navegador do usuário ───
