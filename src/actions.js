@@ -549,9 +549,12 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
 
   // YouTube — pesquisar e tocar vídeo
   if (categoria === "youtube") {
-    const video = encontrarYouTube(texto);
+    let video = encontrarYouTube(texto);
+    const lowerTexto = texto.toLowerCase();
+    const skip = /\b(outro|outra|outros|outras|another|diferente|next)\b/i.test(lowerTexto) ? 1 : 0;
+    if (skip) video = video.replace(/\b(outro|outra|outros|outras|another|diferente|next)\s+(?:vídeo|video\s+)?/i, "").trim();
     try {
-      const msg = await tocarVideoYouTube(video);
+      const msg = await tocarVideoYouTube(video, skip);
       return msg;
     } catch (err) {
       return `❌ Não consegui tocar no YouTube: ${err.message}`;

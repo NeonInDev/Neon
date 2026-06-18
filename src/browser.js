@@ -425,7 +425,7 @@ async function tocarSpotify(termo) {
 const recentVideoIds = new Set();
 const MAX_RECENT_VIDEOS = 5;
 
-async function pesquisarVideoId(termo) {
+async function pesquisarVideoId(termo, skip = 0) {
   const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(termo)}`;
   const { data } = await require("axios").get(url, {
     headers: {
@@ -436,12 +436,13 @@ async function pesquisarVideoId(termo) {
   });
   const matches = [...data.matchAll(/"videoId":"([a-zA-Z0-9_-]{11})"/g)];
   if (matches.length === 0) throw new Error("Não encontrei o vídeo no YouTube");
-  // Pula vídeos que já foram tocados recentemente
+  // Pula os 'skip' primeiros resultados (pra "outro video")
   let videoId = null;
-  for (const m of matches) {
-    if (!recentVideoIds.has(m[1])) { videoId = m[1]; break; }
+  let idx = skip;
+  for (let i = skip; i < matches.length; i++) {
+    if (!recentVideoIds.has(matches[i][1])) { videoId = matches[i][1]; idx = i; break; }
   }
-  if (!videoId) videoId = matches[0][1];
+  if (!videoId) videoId = matches[skip]?.[1] || matches[0][1];
   recentVideoIds.add(videoId);
   if (recentVideoIds.size > MAX_RECENT_VIDEOS) {
     const primeiro = recentVideoIds.values().next().value;
@@ -450,8 +451,8 @@ async function pesquisarVideoId(termo) {
   return videoId;
 }
 
-async function tocarVideoYouTube(termo) {
-  const videoId = await pesquisarVideoId(termo);
+async function tocarVideoYouTube(termo, skip = 0) {
+  const videoId = await pesquisarVideoId(termo, skip);
   const url = `https://www.youtube.com/watch?v=${videoId}`;
   await abrirUrlNoOpera(url);
   return `🎬 Tocando "${termo}" no YouTube.`;
