@@ -53,36 +53,46 @@ function isWin() {
 }
 
 const apps = [
-  { nomes: ["spotify"],           url: "https://open.spotify.com", comando: "start spotify:" },
-  { nomes: ["steam"],             url: "https://store.steampowered.com", comando: "start steam:" },
-  { nomes: ["riot", "riot client", "league", "lol", "valorant"],
-                                  url: "https://riotgames.com", comando: "start riot" },
-  { nomes: ["youtube", "yt"],     url: "https://youtube.com" },
-  { nomes: ["chrome"],            url: "https://google.com" },
-  { nomes: ["whatsapp", "zap"],   url: "https://wa.me" },
-  { nomes: ["telegram", "tg"],    url: "https://t.me" },
-  { nomes: ["instagram", "insta"], url: "https://instagram.com" },
-  { nomes: ["twitter", "x"],      url: "https://x.com" },
-  { nomes: ["discord"],           url: "https://discord.com/channels/@me" },
-  { nomes: ["gmail", "email"],    url: "https://mail.google.com" },
-  { nomes: ["maps", "mapa"],      url: "https://maps.google.com" },
-  { nomes: ["camera", "câmera"],  comando: "am start --user 0 -a android.media.action.IMAGE_CAPTURE", so: "android" },
+  { nomes: ["spotify"],                     url: "https://open.spotify.com", comando: "start spotify:" },
+  { nomes: ["steam", "steam store", "steam powered", "app da steam", "steam powered store", "steam app"],
+                                            url: "https://store.steampowered.com", comando: "start steam:" },
+  { nomes: ["riot", "riot client", "league", "lol", "league of legends", "valorant", "val", "riot games"],
+                                            url: "https://riotgames.com", comando: "start riot" },
+  { nomes: ["youtube", "yt", "youtube music"],
+                                            url: "https://youtube.com" },
+  { nomes: ["chrome", "google chrome", "browser chrome"],
+                                            url: "https://google.com" },
+  { nomes: ["whatsapp", "zap", "zapzap", "whats"],
+                                            url: "https://wa.me" },
+  { nomes: ["telegram", "tg"],              url: "https://t.me" },
+  { nomes: ["instagram", "insta", "ig"],    url: "https://instagram.com" },
+  { nomes: ["twitter", "x"],                url: "https://x.com" },
+  { nomes: ["discord", "dc"],               url: "https://discord.com/channels/@me" },
+  { nomes: ["gmail", "email", "mail"],      url: "https://mail.google.com" },
+  { nomes: ["maps", "mapa", "google maps", "google mapas"],
+                                            url: "https://maps.google.com" },
+  { nomes: ["camera", "câmera"],            comando: "am start --user 0 -a android.media.action.IMAGE_CAPTURE", so: "android" },
   { nomes: ["config", "configuração", "configuracoes", "ajustes", "settings"],
-                                  comando: "am start --user 0 -a android.settings.SETTINGS", so: "android" },
-  { nomes: ["explorador", "explorer", "arquivos"],
-                                  comando: "start explorer", so: "win32" },
-  { nomes: ["bloco de notas", "bloco", "notepad"],
-                                  comando: "start notepad", so: "win32" },
-  { nomes: ["cmd", "terminal", "prompt"],
-                                  comando: "start cmd", so: "win32" },
-  { nomes: ["powershell"],
-                                  comando: "start powershell", so: "win32" },
-  { nomes: ["calculadora", "calc"],
-                                  comando: "start calc", so: "win32" },
-  { nomes: ["painel de controle", "painel", "control"],
-                                  comando: "start control", so: "win32" },
-  { nomes: ["navegador", "browser", "opera gx", "opera"],
-                                  url: "https://google.com" },
+                                            comando: "am start --user 0 -a android.settings.SETTINGS", so: "android" },
+  { nomes: ["explorador", "explorer", "arquivos", "file explorer"],
+                                            comando: "start explorer", so: "win32" },
+  { nomes: ["bloco de notas", "bloco", "notepad", "notas"],
+                                            comando: "start notepad", so: "win32" },
+  { nomes: ["cmd", "terminal", "prompt", "command prompt"],
+                                            comando: "start cmd", so: "win32" },
+  { nomes: ["powershell", "ps", "shell"],   comando: "start powershell", so: "win32" },
+  { nomes: ["calculadora", "calc", "calculator"],
+                                            comando: "start calc", so: "win32" },
+  { nomes: ["painel de controle", "painel", "control", "control panel"],
+                                            comando: "start control", so: "win32" },
+  { nomes: ["navegador", "browser", "opera gx", "opera", "internet"],
+                                            url: "https://google.com" },
+  { nomes: ["twitch", "tv"],                url: "https://twitch.tv" },
+  { nomes: ["netflix"],                      url: "https://netflix.com" },
+  { nomes: ["prime video", "prime", "amazon prime"],
+                                            url: "https://primevideo.com" },
+  { nomes: ["spotify web", "spotify web player"],
+                                            url: "https://open.spotify.com" },
 ];
 
 const pcCommands = [
@@ -207,6 +217,22 @@ function encontrarCotacao(texto) {
   return false;
 }
 
+function encontrarStatusDiscord(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const m = lower.match(/(?:muda|mudar|troca|trocar|alterar|coloca|colocar|define|definir|set)\s+(?:meu\s+)?(?:status\s+)?(?:do\s+)?(?:discord\s+)?(?:pra|para|como|em)?\s*(.+)/i);
+  if (!m) return null;
+  const alvo = m[1].trim().toLowerCase();
+  const statusMap = {
+    online: "online", on: "online", verde: "online", disponivel: "online",
+    idle: "idle", ausente: "idle", longe: "idle", amarelo: "idle",
+    dnd: "dnd", ocupado: "dnd", "nao perturbe": "dnd", "não perturbe": "dnd", vermelho: "dnd",
+    invisible: "invisible", invisivel: "invisible", "invisível": "invisible", off: "invisible", offline: "invisible",
+  };
+  if (statusMap[alvo]) return { acao: "status", valor: statusMap[alvo] };
+  // Se tiver texto livre, é custom status
+  return { acao: "custom", valor: alvo };
+}
+
 function encontrarBrowser(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
@@ -292,6 +318,9 @@ function detectarCategoria(texto) {
   if (encontrarBrowser(texto)) return "browser";
   if (encontrarNavegar(texto)) return "navegar";
   if (encontrarCotacao(texto)) return "cotacao";
+  if (/status.*discord|discord.*status/i.test(texto)) return "statusDiscord";
+  // Detecta nome de app sem "abrir" (ex: "steam", "valorant")
+  if (isWin() && encontrarApp("abrir " + texto)) return "app";
   return null;
 }
 
@@ -636,6 +665,25 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
       return msg;
     } catch (err) {
       return `❌ Erro ao buscar cotações: ${err.message}`;
+    }
+  }
+
+  // Discord — mudar status
+  if (categoria === "statusDiscord") {
+    const info = encontrarStatusDiscord(texto);
+    if (!info) return `❌ Não entendi qual status você quer. Tente: online, ausente, ocupado, invisível.`;
+    if (info.acao === "status") {
+      const keyMap = { online: "{Up}", idle: "{Up 2}", dnd: "{Up 3}", invisible: "{Up 4}" };
+      const ps = `powershell -Command "$w = New-Object -ComObject wscript.shell; if ($w.AppActivate('Discord')) { Start-Sleep 1; $w.SendKeys('^+s'); Start-Sleep 0.8; $w.SendKeys('${keyMap[info.valor]}{Enter}') }"`;
+      const r = await tentar(ps);
+      if (r.ok) return `✅ Status do Discord alterado para **${info.valor}**.`;
+      return `❌ Não consegui alterar o status. O Discord está aberto?`;
+    }
+    if (info.acao === "custom") {
+      const ps = `powershell -Command "$w = New-Object -ComObject wscript.shell; if ($w.AppActivate('Discord')) { Start-Sleep 1; $w.SendKeys('^+s'); Start-Sleep 0.8; $w.SendKeys('{Tab}{Tab}'); Start-Sleep 0.3; $w.SendKeys('${info.valor}'); Start-Sleep 0.3; $w.SendKeys('{Enter}') }"`;
+      const r = await tentar(ps);
+      if (r.ok) return `✅ Status customizado definido: "${info.valor}".`;
+      return `❌ Não consegui definir o status customizado.`;
     }
   }
 

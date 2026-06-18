@@ -298,9 +298,9 @@ async function executarRoteiro(texto) {
 
   try {
     if (cmd.acao === "navegar") {
-      const page = await abrirPagina(cmd.site);
-      log("INFO", "[BROWSER] Página aberta", { site: cmd.site });
-      return { ok: true, msg: `🌐 Abri ${cmd.site} no Opera GX.` };
+      await abrirUrlNoOpera(cmd.site);
+      log("INFO", "[BROWSER] Página aberta no navegador do usuário", { site: cmd.site });
+      return { ok: true, msg: `🌐 Abri ${cmd.site} no seu navegador.` };
     }
 
     if (cmd.acao === "navegar_e_fazer") {
