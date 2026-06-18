@@ -5,26 +5,36 @@
 #HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
 ~Enter::
 {
-    saved := A_Clipboard
-    A_Clipboard := ""
-    SendInput "^a"
-    Sleep 30
-    SendInput "^c"
-    Sleep 50
-    text := A_Clipboard
-    A_Clipboard := saved
-
-    if RegExMatch(text, "iO)^neon,\s*(.+)", &m) {
-        Sleep 300
-        cmd := m[1]
-        cmd := StrReplace(cmd, "!", "{!}")
-        cmd := StrReplace(cmd, "^", "{^}")
-        cmd := StrReplace(cmd, "+", "{+}")
-        cmd := StrReplace(cmd, "#", "{#}")
-        cmd := StrReplace(cmd, "{", "{{}")
-        cmd := StrReplace(cmd, "}", "{}}")
-        SendInput "/neon " cmd
-        SendInput "{Enter}"
+    static sending := false
+    if sending {
+        sending := false
+        return
+    }
+    try {
+        saved := A_Clipboard
+        A_Clipboard := ""
+        SendInput "^a"
+        Sleep 30
+        SendInput "^c"
+        Sleep 50
+        text := A_Clipboard
+        A_Clipboard := saved
+        if RegExMatch(text, "iO)^neon,\s*(.+)", &m) {
+            sending := true
+            Sleep 300
+            cmd := m[1]
+            cmd := StrReplace(cmd, "!", "{!}")
+            cmd := StrReplace(cmd, "^", "{^}")
+            cmd := StrReplace(cmd, "+", "{+}")
+            cmd := StrReplace(cmd, "#", "{#}")
+            cmd := StrReplace(cmd, "{", "{{}")
+            cmd := StrReplace(cmd, "}", "{}}")
+            SendInput "/neon " cmd
+            SendInput "{Enter}"
+        }
+    } catch as err {
+        ToolTip "Neon AHK erro:`n" err.Message "`n`nLine: " err.Line
+        SetTimer () => ToolTip(), -8000
     }
 }
 #HotIf
