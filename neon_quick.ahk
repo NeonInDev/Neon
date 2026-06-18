@@ -1,5 +1,6 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
+#Persistent
 
 ^+N::
 {
@@ -9,33 +10,74 @@
         ToolTip("Neon: pensando...")
         res := SendRequest(ib.Value)
         ToolTip()
-        MsgBox(res != "" ? res : "(sem resposta)", "Neon")
+        if res = ""
+            res := "(sem resposta - servidor offline?)"
+        MsgBox(res, "Neon", 4096)
     }
+}
+
+^+B::
+{
+    RunWait('powershell -NoProfile -Command "node C:\Meus Projetos\Neon\index.js"', , "Hide")
+}
+
+^+V::
+{
+    ToolTip("Neon: iniciando VS Code + Neon...")
+    RunWait('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"', , "Max")
+    RunWait('powershell -NoProfile -Command "node C:\Meus Projetos\Neon\index.js"', , "Hide")
+    ToolTip()
 }
 
 SendRequest(msg)
 {
-    e := msg
-    e := StrReplace(e, "\", "\\")
-    e := StrReplace(e, '"', '\"')
-    e := StrReplace(e, "`n", "\n")
-    e := StrReplace(e, "`r", "")
+    static http := ""
+    if !http
+        http := ComObject("WinHttp.WinHttpRequest.5.1")
 
-    http := ComObject("WinHttp.WinHttpRequest.5.1")
-    http.Open("POST", "http://localhost:3000/api/ask", false)
-    http.SetRequestHeader("Content-Type", "application/json")
-    http.Send('{"userId":"ahk_local","username":"ahk_local","message":"' e '"}')
+    safe := JsonEncode(msg)
 
-    if (http.Status != 200)
-        return "Erro HTTP: " http.Status
+    try {
+        http.Open("POST", "http://localhost:3000/api/ask", false)
+        http.SetRequestHeader("Content-Type", "application/json")
+        http.Send('{"userId":"ahk_local","username":"Atalho","message":' safe '}')
 
-    d := http.ResponseText
-    if RegExMatch(d, '"reply":\s*"(.*)"\s*}', &m) {
+        if (http.Status != 200)
+            return "Erro HTTP: " http.Status "`n" http.ResponseText
+
+        return JsonDecode(http.ResponseText)
+    } catch {
+        return "Erro de conexão. O servidor da Neon está rodando?`n`nTente Ctrl+Shift+B para iniciar."
+    }
+}
+
+JsonEncode(str)
+{
+    str := StrReplace(str, "\", "\\")
+    str := StrReplace(str, '"', '\"')
+    str := StrReplace(str, "`n", "\n")
+    str := StrReplace(str, "`r", "")
+    str := StrReplace(str, "`t", "\t")
+    return '"' str '"'
+}
+
+JsonDecode(text)
+{
+    if RegExMatch(text, '"reply":\s*"(.*)"\s*}', &m)
+    {
         r := m[1]
-        r := StrReplace(r, "\n", "`n")
-        r := StrReplace(r, "\\", "\")
         r := StrReplace(r, '\"', '"')
+        r := StrReplace(r, "\\", "\")
+        r := StrReplace(r, "\n", "`n")
+        r := StrReplace(r, "\t", "`t")
         return r
     }
-    return d
+    start := InStr(text, '"reply": "') + 10
+    if start > 10
+    {
+        end := InStr(text, '"', false, start)
+        if end > start
+            return SubStr(text, start, end - start)
+    }
+    return text
 }

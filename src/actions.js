@@ -4,6 +4,13 @@ const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
 const { executarRoteiro } = require("./browser");
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+const OPERA_PATH = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe";
+
+function limparFiller(t) {
+  return t.replace(/\s+(?:por\s+favor|pfv|please|pls)\s*$/i, "").replace(/^\s*(?:por\s+favor|pfv|please|pls)\s+/i, "").trim();
+}
 
 const exec = promisify(execCb);
 const TIMEOUT = 5000;
@@ -24,7 +31,7 @@ async function tentar(comando) {
 
 async function abrirUrl(url) {
   if (process.platform === "win32") {
-    const r = await tentar(`start "" "${url}"`);
+    const r = await tentar(`"${OPERA_PATH}" "${url}"`);
     if (r.ok) return "direto";
     return null;
   }
@@ -75,7 +82,7 @@ const apps = [
                                   comando: "start calc", so: "win32" },
   { nomes: ["painel de controle", "painel", "control"],
                                   comando: "start control", so: "win32" },
-  { nomes: ["navegador", "browser", "edge"],
+  { nomes: ["navegador", "browser", "opera gx", "opera"],
                                   url: "https://google.com" },
 ];
 
@@ -89,7 +96,8 @@ const pcCommands = [
 
 function encontrarApp(texto) {
   const lower = texto.toLowerCase().trim();
-  const match = lower.match(/^(?:abrir|abra|abre|open)\s+(.+)/i);
+  const clean = limparFiller(lower);
+  const match = clean.match(/^(?:abrir|abra|abre|open)\s+(.+)/i);
   if (!match) return null;
 
   const nomeBuscado = match[1].trim().toLowerCase();
@@ -108,28 +116,28 @@ function encontrarPcCommand(texto) {
 }
 
 function encontrarExec(texto) {
-  const lower = texto.toLowerCase().trim();
+  const lower = limparFiller(texto.toLowerCase().trim());
   const match = lower.match(/^(?:executa|executar|roda|run)\s+(.+)/i);
   if (!match) return null;
   return match[1].trim();
 }
 
 function encontrarSpotify(texto) {
-  const lower = texto.toLowerCase().trim();
-  const match = lower.match(/^(?:toca|tocar|play|toca música|tocar música)\s+(.+)/i);
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const match = lower.match(/^(?:toca|tocar|play|toca música|toca a música)\s+(.+)/i);
   if (!match) return null;
   return match[1].trim();
 }
 
 function encontrarPesquisa(texto) {
-  const lower = texto.toLowerCase().trim();
+  const lower = limparFiller(texto.toLowerCase().trim());
   const match = lower.match(/^(?:pesquisa|pesquisar|busca|buscar|procura|procurar|search)\s+(.+)/i);
   if (!match) return null;
   return match[1].trim();
 }
 
 function encontrarDigitar(texto) {
-  const lower = texto.toLowerCase().trim();
+  const lower = limparFiller(texto.toLowerCase().trim());
   const match = lower.match(/^(?:digita|digitar|type|escreve|escrever)\s+(.+)/i);
   if (!match) return null;
   return match[1].trim();
@@ -159,17 +167,21 @@ const steamGames = {
 };
 
 function encontrarJogo(texto) {
-  const lower = texto.toLowerCase().trim();
-  const match = lower.match(/^(?:jogar|joga|abrir jogo|abre jogo|play)\s+(.+)/i);
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const match = lower.match(/^(?:jogar|joga|abrir|abre|abrir jogo|abre jogo|play)\s+(.+)/i);
   if (!match) return null;
   const nome = match[1].trim().toLowerCase();
   const id = steamGames[nome];
-  if (id) return { nome: match[1].trim(), id };
+  if (id !== undefined) return { nome: match[1].trim(), id };
+  // fallback: busca por substring no dicionário
+  for (const [key, val] of Object.entries(steamGames)) {
+    if (nome.includes(key) || key.includes(nome)) return { nome: key, id: val };
+  }
   return { nome: match[1].trim(), id: null };
 }
 
 function encontrarNavegar(texto) {
-  const lower = texto.toLowerCase().trim();
+  const lower = limparFiller(texto.toLowerCase().trim());
   const match = lower.match(/^(?:vai pra|vá pra|navega|navegar|ir para|go to)\s+(.+)/i);
   if (!match) return null;
   let url = match[1].trim();
@@ -178,7 +190,7 @@ function encontrarNavegar(texto) {
 }
 
 function encontrarBrowser(texto) {
-  const lower = texto.toLowerCase().trim();
+  const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
   if (!m) return null;
   return true;
@@ -203,15 +215,27 @@ function encontrarArquivo(texto) {
   return null;
 }
 
+function encontrarMensagem(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|mensagem pra|msg pra|dm pra|dm para)\s+(.+?)(?::\s*|,\s*|\s+dizendo\s+)(.+)/i);
+  if (!match) return null;
+  return { alvo: match[1].trim(), conteudo: match[2].trim() };
+}
+
 function permitido(userId) {
   return userId === OWNER_ID;
 }
 
 function detectarCategoria(texto) {
+  if (isWin()) {
+    const jogo = encontrarJogo(texto);
+    if (jogo && jogo.id !== undefined) return "jogo";
+  }
   if (encontrarApp(texto)) return "app";
   if (isWin() && encontrarPcCommand(texto)) return "pcCommand";
   if (isWin() && encontrarExec(texto)) return "exec";
   if (encontrarArquivo(texto)) return "arquivo";
+  if (encontrarMensagem(texto)) return "mensagem";
   if (encontrarSpotify(texto)) return "spotify";
   if (encontrarPesquisa(texto)) return "pesquisa";
   if (encontrarDigitar(texto)) return "digitar";
@@ -315,19 +339,50 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
     }
   }
 
-  // Spotify — tocar música
+  // Enviar mensagem no Discord
+  if (categoria === "mensagem") {
+    const { client: dc } = require("./client");
+    const info = encontrarMensagem(texto);
+    const alvo = info.alvo.toLowerCase();
+
+    let usuarioDiscord = null;
+    for (const guild of dc.guilds.cache.values()) {
+      const membros = await guild.members.fetch({ cache: false });
+      const encontrado = membros.find(m =>
+        m.user.username.toLowerCase() === alvo ||
+        (m.nickname && m.nickname.toLowerCase() === alvo) ||
+        (m.user.globalName && m.user.globalName.toLowerCase() === alvo) ||
+        (m.user.tag && m.user.tag.toLowerCase() === alvo)
+      );
+      if (encontrado) { usuarioDiscord = encontrado.user; break; }
+    }
+
+    if (!usuarioDiscord) return `❌ Não encontrei ninguém chamado "${info.alvo}" no servidor.`;
+    try {
+      await usuarioDiscord.send(`💬 **Neon:** ${info.conteudo}`);
+      return `✅ Mensagem enviada para **${usuarioDiscord.username}**.`;
+    } catch (err) {
+      return `❌ Não consegui enviar DM para ${info.alvo}: ${err.message}`;
+    }
+  }
+
+  // Spotify — tocar música de verdade
   if (categoria === "spotify") {
     const musica = encontrarSpotify(texto);
-    const r = await tentar(`start spotify:search:${musica}`);
-    if (r.ok) return `🎵 Buscando "${musica}" no Spotify.`;
-    return `❌ Não consegui abrir o Spotify.`;
+    const buscaCmd = `start spotify:search:${encodeURIComponent(musica)}`;
+    const r1 = await tentar(buscaCmd);
+    if (!r1.ok) return `❌ Não consegui abrir o Spotify.`;
+    // Aguarda carregar, navega pro primeiro resultado, toca, e minimiza
+    const tocarCmd = `powershell -Command "Start-Sleep 4; Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('{DOWN}{ENTER}'); Start-Sleep 2; try { $wshell = New-Object -ComObject wscript.shell; $wshell.AppActivate('Spotify'); Start-Sleep 500; [System.Windows.Forms.SendKeys]::SendWait('%{Space}n') } catch {}"`;
+    await tentar(tocarCmd);
+    return `🎵 Tocando "${musica}" no Spotify.`;
   }
 
   // Pesquisa no navegador
   if (categoria === "pesquisa") {
     const query = encontrarPesquisa(texto);
-    const r = await tentar(`start "" "https://google.com/search?q=${encodeURIComponent(query)}"`);
-    if (r.ok) return `🔍 Pesquisando "${query}" no Google.`;
+    const r = await tentar(`"${OPERA_PATH}" "https://google.com/search?q=${encodeURIComponent(query)}"`);
+    if (r.ok) return `🔍 Pesquisando "${query}" no Google (Opera GX).`;
     return `❌ Não consegui pesquisar.`;
   }
 
@@ -343,14 +398,12 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
   // Steam — jogar
   if (categoria === "jogo") {
     const jogo = encontrarJogo(texto);
-    if (jogo.id) {
-      const r = await tentar(`start steam://rungameid/${jogo.id}`);
-      if (r.ok) return `🎮 Iniciando ${jogo.nome} pela Steam.`;
-      return `❌ Não consegui abrir ${jogo.nome}.`;
-    }
-    const r = await tentar(`start "" "https://store.steampowered.com/search/?term=${encodeURIComponent(jogo.nome)}"`);
-    if (r.ok) return `🔍 Busquei "${jogo.nome}" na Steam Store. Adicione o ID em actions.js para abrir direto.`;
-    return `❌ Não consegui buscar o jogo.`;
+    if (!jogo) return null;
+    if (jogo.id === undefined || jogo.id === null) return null;
+    const r1 = await tentar(`start steam://rungameid/${jogo.id}`);
+    if (!r1.ok) return `❌ Não consegui abrir ${jogo.nome}.`;
+    await tentar(`powershell -Command "Start-Sleep 2; try { $wshell = New-Object -ComObject wscript.shell; $wshell.AppActivate('Steam'); Start-Sleep 500; [System.Windows.Forms.SendKeys]::SendWait('%{Space}n') } catch {}"`);
+    return `🎮 Iniciando ${jogo.nome} pela Steam.`;
   }
 
   // Navegador com Puppeteer (entra no site e faz ação)
@@ -362,8 +415,8 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
   // Navegar pra URL
   if (categoria === "navegar") {
     const url = encontrarNavegar(texto);
-    const r = await tentar(`start "" "${url}"`);
-    if (r.ok) return `🌐 Abrindo ${url}`;
+    const r = await tentar(`"${OPERA_PATH}" "${url}"`);
+    if (r.ok) return `🌐 Abrindo ${url} no Opera GX.`;
     return `❌ Não consegui abrir ${url}.`;
   }
 
