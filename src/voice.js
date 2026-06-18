@@ -8,6 +8,9 @@ let ownerId = null;
 
 let readyResolve = null;
 
+const OPERA_PATH = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe";
+const USER_DATA = "C:\\Users\\Pichau\\AppData\\Local\\neon_voice_profile";
+
 async function iniciar(id, username) {
   if (ativo) { log("INFO", "[VOICE] Já ativo"); return false; }
   ownerId = id;
@@ -16,10 +19,12 @@ async function iniciar(id, username) {
   try {
     const puppeteer = require("puppeteer");
     browser = await puppeteer.launch({
+      executablePath: OPERA_PATH,
       headless: "new",
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
+        `--user-data-dir=${USER_DATA}`,
         "--use-fake-ui-for-media-stream",
         "--allow-file-access-from-files",
         "--display-capture-permissions-policy-allowed",

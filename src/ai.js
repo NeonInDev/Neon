@@ -7,6 +7,9 @@ const { log } = require("./logger");
 
 const MAX_INPUT_LEN = 2000;
 
+const memoriaModule = require("./memoria");
+const memoriaFormatar = memoriaModule.formatarParaPrompt;
+
 const basePrompt = `
 Você é Neon, uma IA irreverente e carismática que vive no PC do dono.
 
@@ -65,7 +68,8 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
     `Mood global: ${db.data.globalMood || "normal"}`,
   ].join("\n");
 
-  const systemPrompt = `${basePrompt}\n${memoriaLonga}`;
+  const memoriaGlobal = memoriaFormatar();
+  const systemPrompt = `${basePrompt}\n${memoriaLonga}\n${memoriaGlobal}`;
 
   // Monta mensagem do usuário (com imagem se houver)
   const userMessage = imageUrl

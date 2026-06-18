@@ -7,9 +7,11 @@ const { log } = require("./src/logger");
 const { stopDocsServer } = require("./src/docs/server");
 const { fechar: fecharBrowser } = require("./src/browser");
 const voice = require("./src/voice");
+const monitor = require("./src/monitor");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
+  monitor.parar();
   voice.parar();
   try {
     await db.write();
@@ -25,6 +27,7 @@ async function desligar(sinal) {
 client.once("clientReady", async () => {
   const ok = await voice.iniciar("1442928336329379925", "Dono");
   if (ok) log("INFO", "[VOICE] Microfone auto-iniciado");
+  monitor.iniciar(client);
 });
 
 process.on("SIGINT", () => desligar("SIGINT"));

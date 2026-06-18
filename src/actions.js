@@ -9,6 +9,7 @@ const pc = require("./pc");
 const { traduzir } = require("./translate");
 const { detectar: detectarCustom, adicionar: addCustom, remover: removeCustom, listar: listarCustom } = require("./custom_commands");
 const { criarLembrete } = require("./timers");
+const memoriaModule = require("./memoria");
 const voice = require("./voice");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -65,7 +66,7 @@ const apps = [
                                             url: "https://riotgames.com", comando: "start riot" },
   { nomes: ["youtube", "yt", "youtube music"],
                                             url: "https://youtube.com" },
-  { nomes: ["chrome", "google chrome", "browser chrome"],
+  { nomes: ["opera", "opera gx", "browser opera"],
                                             url: "https://google.com" },
   { nomes: ["whatsapp", "zap", "zapzap", "whats"],
                                             url: "https://wa.me" },
@@ -505,6 +506,30 @@ function encontrarEmail(texto) {
   return null;
 }
 
+function encontrarWhatsApp(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const m = lower.match(/^(?:manda|mandar|enviar|envia)\s*(?:um\s+)?(?:zap|whats|whatsapp|zapzap|msg|mensagem)\s+(?:pra|para)\s+(.+?)(?::\s*|,\s*|\s+dizendo\s+|\s+diz\s+|\s+fala\s+)(.+)/i);
+  if (m) return { contato: m[1].trim(), mensagem: m[2].trim() };
+  const m2 = lower.match(/^(?:manda|mandar|enviar|envia)\s*(?:um\s+)?(?:zap|whats|whatsapp|zapzap|msg|mensagem)\s+(?:pra|para)\s+(.+)/i);
+  if (m2) {
+    const resto = m2[1].trim();
+    const espaco = resto.indexOf(" ");
+    if (espaco > 0) return { contato: resto.slice(0, espaco).trim(), mensagem: resto.slice(espaco).trim() };
+  }
+  return null;
+}
+
+function encontrarMemoria(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const lembrarM = lower.match(/^(?:me\s+)?(?:lembra|lembre|guarda|guarde|salva|salve|anota|anote|memoriza|memorize|guarda\s+na\s+memoria)\s+(?:que|disso|isto|disso:|disso,)?\s*(.+)/i);
+  if (lembrarM) return { acao: "lembrar", args: lembrarM[1].trim() };
+  const esquecerM = lower.match(/^(?:esquece|esqueca|esquecer|delete|apaga|apagar|remove|remover)\s+(?:isso|isto|da\s+memoria|essa\s+memoria|o\s+que\s+eu\s+falei\s+sobre)?\s*(.+)/i);
+  if (esquecerM) return { acao: "esquecer", args: esquecerM[1].trim() };
+  if (/^(?:o\s+)?(?:que\s+)?(?:voce\s+)?(?:sabe|lembra|conhece)\s+(?:sobre|de)?\s+(.+)/i.test(lower) && lower.length < 100) return { acao: "buscar", args: lower };
+  if (/^(?:mostra|lista|exibe|quais|todas)\s+(?:as\s+)?(?:memorias|memorias|lembrancas|coisas\s+que\s+voce\s+sabe)/i.test(lower)) return { acao: "listar" };
+  return null;
+}
+
 function permitido(userId) {
   return userId === OWNER_ID;
 }
@@ -560,6 +585,8 @@ function detectarCategoria(texto) {
   if (encontrarEmail(texto)) return "email";
   if (encontrarRede(texto)) return "rede";
   if (encontrarBateria(texto)) return "bateria";
+  if (isWin() && encontrarWhatsApp(texto)) return "whatsapp";
+  if (encontrarMemoria(texto)) return "memoria";
   if (/^(?:acao|ação|ações|acoes|cotacao|cotação|preco|preço|valor)\s+(?:da|do|de)?\s*\w{4,5}\d/i.test(texto)) return "acao";
   // Detecta nome de app sem "abrir" (ex: "steam", "valorant")
   if (isWin() && encontrarApp("abrir " + texto)) return "app";
@@ -1423,6 +1450,55 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return await pc.enviarEmail(para, assunto, corpo);
     } catch (err) {
       return `❌ Erro no email: ${err.message}`;
+    }
+  }
+
+  // WhatsApp
+  if (categoria === "whatsapp") {
+    if (!podePC) return "❌ Só o chefão pode usar WhatsApp.";
+    try {
+      const info = encontrarWhatsApp(texto);
+      if (!info || !info.contato || !info.mensagem) return "❌ Use: manda zap pra [contato]: [mensagem]";
+      const whatsapp = require("./whatsapp");
+      return await whatsapp.enviarMensagem(info.contato, info.mensagem);
+    } catch (err) {
+      return `❌ Erro no WhatsApp: ${err.message}`;
+    }
+  }
+
+  // Memória global
+  if (categoria === "memoria") {
+    try {
+      const info = encontrarMemoria(texto);
+      if (!info) return "❌ Não entendi o comando de memória.";
+      if (info.acao === "lembrar") {
+        const partes = info.args.match(/^(.+?)(?:\s+(?:que|é|e|são|sao|significa|vale|tem|possui|pode|faz|foi|era|está|esta|tá|ta|seria|seja|fosse))\s+(.+)/i);
+        if (partes) return await memoriaModule.lembrar(partes[1].trim(), partes[2].trim());
+        const doisPontos = info.args.indexOf(":");
+        if (doisPontos > 0) return await memoriaModule.lembrar(info.args.slice(0, doisPontos).trim(), info.args.slice(doisPontos + 1).trim());
+        return await memoriaModule.lembrar("info", info.args);
+      }
+      if (info.acao === "esquecer") return await memoriaModule.esquecer(info.args);
+      if (info.acao === "buscar") {
+        const m = info.args.match(/(?:o\s+)?(?:que\s+)?(?:voce\s+)?(?:sabe|lembra|conhece)\s+(?:sobre|de)?\s+(.+)/i);
+        const query = m?.[1] || info.args.replace(/^(?:o\s+)?(?:que\s+)?(?:voce\s+)?(?:sabe|lembra|conhece)\s+(?:sobre|de)?/i, "").trim();
+        if (!query) {
+          const todas = await memoriaModule.listar();
+          if (!todas.length) return "📭 Não tenho nenhuma memória guardada.";
+          return "🧠 **Minhas memórias:**\n" + todas.map(t => `- **${t.chave}**: ${t.valor.slice(0, 200)}`).join("\n");
+        }
+        const res = await memoriaModule.buscar(query);
+        if (!res.length) return `❓ Não lembro de nada sobre "${query}".`;
+        return "🧠 **Memórias encontradas:**\n" + res.map(r => `- **${r.chave}**: ${r.valor.slice(0, 200)}`).join("\n");
+      }
+      if (info.acao === "listar") {
+        const todas = await memoriaModule.listar();
+        if (!todas.length) return "📭 Não tenho nenhuma memória guardada.";
+        return "🧠 **Minhas memórias:**\n" + todas.map(t => `- **${t.chave}**: ${t.valor.slice(0, 200)}`).join("\n");
+      }
+      return "❌ Não entendi o comando de memória.";
+    } catch (err) {
+      return `❌ Erro na memória: ${err.message}`;
     }
   }
 
