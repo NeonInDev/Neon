@@ -7,14 +7,18 @@ let client = null;
 let intervalId = null;
 let ultimaAcao = 0;
 const COOLDOWN_MS = 5 * 60 * 1000;
-const CICLO_MS = 10 * 60 * 1000;
+const CICLO_MS = 30 * 60 * 1000;
 const OWNER_ID = "1442928336329379925";
 
 async function iniciar(discordClient) {
   client = discordClient;
-  log("INFO", "[PROATIVO] Modo autonomo iniciado");
+  log("INFO", "[PROATIVO] Modo autonomo iniciado (30min, max 10min)");
   ciclo();
   intervalId = setInterval(ciclo, CICLO_MS);
+  setTimeout(() => {
+    parar();
+    log("INFO", "[PROATIVO] Tempo maximo de 10min atingido, desligando");
+  }, 10 * 60 * 1000);
 }
 
 function parar() {
