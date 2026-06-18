@@ -1,25 +1,68 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 
-; ─── InputHook global — reinicia em QUALQUER Enter ───
-global neonIH := InputHook("V", "Enter")
-neonIH.Start()
-
-; ─── "Neon, comando" → "/neon comando" (só em Discord/Chrome/Opera) ───
-~Enter::
+; ─── "Neon, comando" → "/neon comando" (só Discord/Chrome/Opera) ───
+#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
+$Enter::
 {
-    global neonIH
-    try buf := neonIH.Input
-    catch buf := ""
-    neonIH := InputHook("V", "Enter")
-    neonIH.Start()
-
-    if !WinActive("ahk_exe Discord.exe") and !WinActive("ahk_class Chrome_WidgetWin_1") and !WinActive("ahk_exe opera.exe")
+    static sending := false
+    if sending {
+        sending := false
         return
+    }
 
-    try if RegExMatch(buf, "iO)^neon,\s*(.+)", &m)
-        SendInput "/neon " m[1] "{Enter}"
+    ; Shift+Enter = nova linha, só passa adiante
+    if GetKeyState("Shift", "P") {
+        SendInput "{Shift down}{Enter}{Shift up}"
+        return
+    }
+
+    saved := A_Clipboard
+    A_Clipboard := ""
+    SendInput "^a"
+    Sleep 30
+    SendInput "^c"
+    Sleep 50
+    text := A_Clipboard
+    A_Clipboard := saved
+
+    if text = "" {
+        SendInput "{Enter}"
+        return
+    }
+
+    ; Limpa input e re-envia escapando tudo
+    SendInput "{Delete}"
+    Sleep 20
+    esc := StrReplace(text, "`r", "")
+    esc := StrReplace(esc, "`n", "{Shift down}{Enter}{Shift up}")
+    esc := StrReplace(esc, "!", "{!}")
+    esc := StrReplace(esc, "^", "{^}")
+    esc := StrReplace(esc, "+", "{+}")
+    esc := StrReplace(esc, "#", "{#}")
+    esc := StrReplace(esc, "{", "{{}")
+    esc := StrReplace(esc, "}", "{}}")
+
+    if RegExMatch(text, "iO)^neon,\s*(.+)", &m) {
+        sending := true
+        cmd := m[1]
+        cmd := StrReplace(cmd, "!", "{!}")
+        cmd := StrReplace(cmd, "^", "{^}")
+        cmd := StrReplace(cmd, "+", "{+}")
+        cmd := StrReplace(cmd, "#", "{#}")
+        cmd := StrReplace(cmd, "{", "{{}")
+        cmd := StrReplace(cmd, "}", "{}}")
+        SendInput esc
+        SendInput "{Enter}"
+        Sleep 500
+        SendInput "/neon " cmd
+        SendInput "{Enter}"
+    } else {
+        SendInput esc
+        SendInput "{Enter}"
+    }
 }
+#HotIf
 
 
 ^+N::
