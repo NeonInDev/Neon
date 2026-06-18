@@ -1,6 +1,5 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
-#Persistent
 TraySetIcon("imageres.dll", 179)
 TrayTip("Neon ativo", "Ctrl+Shift+N = falar com Neon`nCtrl+Shift+B = iniciar bot`nCtrl+Shift+V = VSCode + Neon", "Iconi")
 
