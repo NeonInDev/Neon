@@ -15,15 +15,15 @@
         saved := A_Clipboard
         A_Clipboard := ""
         SendInput "^a"
-        Sleep 30
-        SendInput "^c"
         Sleep 50
+        SendInput "^c"
+        Sleep 100
         text := A_Clipboard
         A_Clipboard := saved
-        if RegExMatch(text, "iO)^neon,\s*(.+)", &m) {
+        if RegExMatch(text, "i)^neon,\s*(.+)") {
+            cmd := RegExReplace(text, "i)^neon,\s*", "")
             sending := true
             Sleep 300
-            cmd := m[1]
             cmd := StrReplace(cmd, "!", "{!}")
             cmd := StrReplace(cmd, "^", "{^}")
             cmd := StrReplace(cmd, "+", "{+}")
@@ -39,6 +39,9 @@
     }
 }
 
+
+; ─── Atalhos auxiliares (só ativos no Discord/Chrome/Opera) ───
+#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
 
 ^+N::
 {
@@ -103,6 +106,8 @@
         Run('cmd /c "echo Bot encerrado. && timeout /t 3"', , "Max")
     }
 }
+
+#HotIf
 
 SendRequest(msg)
 {

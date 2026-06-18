@@ -228,9 +228,24 @@ function encontrarArquivo(texto) {
 
 function encontrarMensagem(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
-  const match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|mensagem pra|msg pra|dm pra|dm para)\s+(.+?)(?::\s*|,\s*|\s+dizendo\s+)(.+)/i);
-  if (!match) return null;
-  return { alvo: match[1].trim(), conteudo: match[2].trim() };
+
+  // Pattern 1: "envia msg pra <alvo>: <conteudo>" ou "manda dm pra <alvo> dizendo <conteudo>"
+  let match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm\s*)?(?:pra|para)?\s*(.+?)(?::\s*|,\s*|\s+dizendo\s+)(.+)/i);
+  if (match) return { alvo: match[1].trim(), conteudo: match[2].trim() };
+
+  // Pattern 2: "envia msg pra <alvo> <conteudo>" (sem separator)
+  match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm\s*)?(?:pra|para)?\s*(.+)/i);
+  if (match) {
+    const resto = match[1].trim();
+    const primeiroEspaco = resto.indexOf(" ");
+    if (primeiroEspaco > 0) {
+      const alvo = resto.slice(0, primeiroEspaco).trim();
+      const conteudo = resto.slice(primeiroEspaco).trim();
+      if (alvo && conteudo) return { alvo, conteudo };
+    }
+  }
+
+  return null;
 }
 
 function permitido(userId) {
@@ -396,31 +411,42 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
 
     let usuarioDiscord = null;
 
-    // 1. Tenta buscar por ID diretamente (mais rápido)
+    // "mim"/"me"/"eu" → dono
+    if (/^(?:mim|me|eu|dono|owner)$/i.test(alvo)) {
+      try {
+        usuarioDiscord = await dc.users.fetch(OWNER_ID);
+      } catch {}
+      if (usuarioDiscord) {
+        try {
+          await usuarioDiscord.send(`💬 **Neon:** ${info.conteudo}`);
+          return `✅ Mensagem enviada para **${usuarioDiscord.username}**.`;
+        } catch (err) {
+          return `❌ Não consegui enviar DM pra você: ${err.message}`;
+        }
+      }
+    }
+
+    // 1. Tenta buscar por ID diretamente
     if (/^\d{17,19}$/.test(alvo)) {
       try {
         usuarioDiscord = await dc.users.fetch(alvo);
       } catch {}
     }
 
-    // 2. Procura no cache dos servidores (sem API call)
+    // 2. Procura no cache + fetch por username
     if (!usuarioDiscord) {
       for (const guild of dc.guilds.cache.values()) {
-        const encontrado = guild.members.cache.find(m =>
+        // Cache primeiro
+        let encontrado = guild.members.cache.find(m =>
           m.user.username.toLowerCase() === alvo ||
           (m.nickname && m.nickname.toLowerCase() === alvo) ||
           (m.user.globalName && m.user.globalName.toLowerCase() === alvo)
         );
         if (encontrado) { usuarioDiscord = encontrado.user; break; }
-      }
-    }
-
-    // 3. Último recurso: fetch dos membros (mais lento, pode rate limit)
-    if (!usuarioDiscord) {
-      for (const guild of dc.guilds.cache.values()) {
+        // Se não achou no cache, tenta fetch da guild
         try {
           const membros = await guild.members.fetch();
-          const encontrado = membros.find(m =>
+          encontrado = membros.find(m =>
             m.user.username.toLowerCase() === alvo ||
             (m.nickname && m.nickname.toLowerCase() === alvo) ||
             (m.user.globalName && m.user.globalName.toLowerCase() === alvo)
