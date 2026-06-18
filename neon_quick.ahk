@@ -1,11 +1,12 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 
-; ─── "Neon, comando" → tbm manda "/neon comando" ───
+; ─── Só ativo no Discord / Chrome / Opera pra não atrapalhar o terminal ───
+#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
+
+; "Neon, comando" → tbm manda "/neon comando"
 ~Enter::
 {
-    if !WinActive("ahk_exe Discord.exe") and !WinActive("ahk_class Chrome_WidgetWin_1") and !WinActive("ahk_exe opera.exe")
-        return
     static sending := false
     if sending {
         sending := false
@@ -35,14 +36,11 @@
         }
     } catch as err {
         ToolTip "Neon AHK erro:`n" err.Message "`n`nLine: " err.Line
-        SetTimer () => ToolTip(), -8000
+        SetTimer(() => ToolTip(), -8000)
     }
 }
 
-
-; ─── Atalhos auxiliares (só ativos no Discord/Chrome/Opera) ───
-#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
-
+; Enviar mensagem pra Neon
 ^+N::
 {
     ib := InputBox("Digite sua mensagem para a Neon:", "Neon", "w400 h130")
@@ -55,6 +53,11 @@
         SetTimer(() => ToolTip(), -8000)
     }
 }
+
+#HotIf
+
+; ─── Também funciona no VS Code / terminal pra gerenciar o bot ───
+#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe") or WinActive("ahk_exe Code.exe") or WinActive("ahk_exe WindowsTerminal.exe")
 
 ^+B::
 {
