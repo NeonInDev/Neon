@@ -20,4 +20,37 @@ async function cotacaoCrypto() {
   };
 }
 
-module.exports = { cotacaoMoeda, cotacaoCrypto };
+async function clima(cidade) {
+  const { data } = await axios.get(`https://wttr.in/${encodeURIComponent(cidade)}?format=%C+%t+%h+%w&lang=pt`, { timeout: 10000 });
+  const partes = data.trim().split(/\s+/);
+  return { condicao: partes.slice(0, -3).join(" "), temperatura: partes[partes.length - 3], umidade: partes[partes.length - 2], vento: partes[partes.length - 1] };
+}
+
+async function buscarCEP(cep) {
+  const { data } = await axios.get(`https://viacep.com.br/ws/${cep}/json/`, { timeout: 10000 });
+  if (data.erro) throw new Error("CEP não encontrado");
+  return { logradouro: data.logradouro, bairro: data.bairro, cidade: data.localidade, estado: data.uf, cep: data.cep };
+}
+
+async function definicao(palavra) {
+  const { data } = await axios.get(`https://api.dictionaryapi.dev/api/v2/entries/pt/${encodeURIComponent(palavra)}`, { timeout: 10000 });
+  const entry = data[0];
+  return { palavra: entry.word, fonetica: entry.phonetic || "", definicoes: entry.meanings?.flatMap(m => m.definitions.map(d => ({ classe: m.partOfSpeech, definicao: d.definition, exemplo: d.example }))) || [] };
+}
+
+async function fatoAleatorio() {
+  const { data } = await axios.get("https://catfact.ninja/fact", { timeout: 10000 });
+  return { fato: data.fact };
+}
+
+async function meuIP() {
+  const [ipRes, infoRes] = await Promise.allSettled([
+    axios.get("https://api.ipify.org?format=json", { timeout: 10000 }),
+    axios.get("https://ipinfo.io/json", { timeout: 10000 }),
+  ]);
+  const ip = ipRes.status === "fulfilled" ? ipRes.value.data.ip : "desconhecido";
+  const info = infoRes.status === "fulfilled" ? infoRes.value.data : {};
+  return { ip, pais: info.country || "?", cidade: info.city || "?", provedor: info.org || info.isp || "?" };
+}
+
+module.exports = { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP };

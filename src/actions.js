@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
-const { cotacaoMoeda, cotacaoCrypto } = require("./api");
+const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP } = require("./api");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function limparFiller(t) {
@@ -233,6 +233,39 @@ function encontrarStatusDiscord(texto) {
   return { acao: "custom", valor: alvo };
 }
 
+function encontrarClima(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/(?:tempo|clima|previsão|previsao|temperatura)\s+(?:em\s+|de\s+|do\s+|da\s+|para\s+)?(.+)/i.test(lower)) return true;
+  if (/^(?:como\s+)?(?:esta|tá|ta|está)\s+(?:o\s+)?(?:tempo|clima)\s+(?:em\s+)?(.+)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarCEP(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^cep\s+\d{5}-?\d{3}/i.test(lower)) return true;
+  if (/\b\d{5}-?\d{3}\b/.test(lower) && /(?:cep|busca|buscar|consulta|consultar)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarDefinicao(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:o que|oque|que|qual)\s+(?:é|e|significa)\s+(.+)$/i.test(lower) && lower.split(/\s+/).length <= 8) return true;
+  if(/^(?:definição|definicao|significado)\s+(?:de\s+)?(.+)$/i.test(lower) && lower.split(/\s+/).length <= 6) return true;
+  return false;
+}
+
+function encontrarFato(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:fato|curiosidade|conta|conta algo|me diga algo|conhecimento)[\s.!?]*$/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarIP(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/(?:meu\s+)?(?:ip|endereço\s*ip|endereco\s*ip)/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarBrowser(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
@@ -318,6 +351,11 @@ function detectarCategoria(texto) {
   if (encontrarBrowser(texto)) return "browser";
   if (encontrarNavegar(texto)) return "navegar";
   if (encontrarCotacao(texto)) return "cotacao";
+  if (encontrarClima(texto)) return "clima";
+  if (encontrarCEP(texto)) return "cep";
+  if (encontrarDefinicao(texto)) return "definicao";
+  if (encontrarFato(texto)) return "fato";
+  if (encontrarIP(texto)) return "ip";
   if (/status.*discord|discord.*status/i.test(texto)) return "statusDiscord";
   // Detecta nome de app sem "abrir" (ex: "steam", "valorant")
   if (isWin() && encontrarApp("abrir " + texto)) return "app";
@@ -333,34 +371,37 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
   // ─── Daddy is home ───
   if (lower === "daddy is home" || lower === "daddy's home") {
     if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
-    await tentar('start spotify:');
-    await tentar('start steam:');
-    setTimeout(() => {
-      execCb('taskkill /f /im Spotify.exe 2>nul & taskkill /f /im Steam.exe 2>nul', () => {});
-    }, 7000);
+    const erros = [];
+    const r1 = await tentar('start spotify:');
+    if (!r1.ok) erros.push("Spotify");
+    const r2 = await tentar('start steam:');
+    if (!r2.ok) erros.push("Steam");
+    const now = new Date();
+    const hora = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    let climaStr = "";
+    try {
+      const c = await clima("São Paulo");
+      climaStr = `${c.condicao}, ${c.temperatura}`;
+    } catch {}
+    let fato = "";
+    try {
+      const f = await fatoAleatorio();
+      fato = f.fato;
+    } catch {}
     return [
       "```",
-      "   ╔══════════════════════════════════╗",
-      "   ║          INICIANDO SISTEMAS       ║",
-      "   ╚══════════════════════════════════╝",
-      "```",
+      "╔══════════════════════════════════╗",
+      "║       BEM-VINDO EM CASA          ║",
+      "╚══════════════════════════════════╝",
       "",
-      "Bem-vindo em casa, chefe.",
+      `🕐 ${hora}`,
+      climaStr ? `🌡 ${climaStr}` : "",
+      fato ? `\n💡 ${fato}` : "",
       "",
+      ">> Spotify:   " + (r1.ok ? "✅" : "❌"),
+      ">> Steam:     " + (r2.ok ? "✅" : "❌"),
       "```",
-      "[NEON OS v3.1.7]  Protocolo de boas-vindas ativado.",
-      "────────────────────────────────────────────",
-      "  >>  Autenticacao biométrica:   OK",
-      "  >>  Rede doméstica:            OK",
-      "  >>  Assinatura de voz:         \"" + (texto.includes("Daddy") ? "Daddy" : "Chefe") + " identificado\"",
-      "  >>  Spotify:                   ABRINDO...",
-      "  >>  Steam:                     ABRINDO...",
-      "  >>  Café:                      ¯\\_(ツ)_/¯ (vai ter que fazer)",
-      "────────────────────────────────────────────",
-      "```",
-      "",
-      "Fechando tudo em 7s... so pra mostrar servico. 🤖",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
   }
 
   const categoria = detectarCategoria(texto);
@@ -665,6 +706,72 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
       return msg;
     } catch (err) {
       return `❌ Erro ao buscar cotações: ${err.message}`;
+    }
+  }
+
+  // Clima
+  if (categoria === "clima") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/(?:tempo|clima|previsão|previsao|temperatura)\s+(?:em\s+|de\s+|do\s+|da\s+|para\s+)?(.+)$/i)
+              || lower.match(/(?:esta|tá|ta|está)\s+(?:o\s+)?(?:tempo|clima)\s+(?:em\s+)?(.+)$/i);
+      const cidade = m ? m[1].trim() : "São Paulo";
+      const c = await clima(cidade);
+      return `🌤 **${cidade}** — ${c.condicao}, ${c.temperatura}, umidade ${c.umidade}, vento ${c.vento}`;
+    } catch (err) {
+      return `❌ Não consegui buscar o clima: ${err.message}`;
+    }
+  }
+
+  // CEP
+  if (categoria === "cep") {
+    try {
+      const lower = texto.toLowerCase().trim();
+      const m = lower.match(/\b(\d{5}-?\d{3})\b/);
+      if (!m) return "❌ CEP inválido.";
+      const cep = m[1].replace("-", "");
+      const info = await buscarCEP(cep);
+      return `📍 **CEP ${info.cep}** — ${info.logradouro}, ${info.bairro}, ${info.cidade}/${info.estado}`;
+    } catch (err) {
+      return `❌ CEP não encontrado: ${err.message}`;
+    }
+  }
+
+  // Definição
+  if (categoria === "definicao") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/(?:o que|oque|que|qual)\s+(?:é|e|significa)\s+(.+)$/i) || lower.match(/^(?:definição|definicao|significado)\s+(?:de\s+)?(.+)$/i);
+      if (!m) return "❌ Não entendi qual palavra procurar.";
+      const palavra = m[1].trim();
+      const d = await definicao(palavra);
+      const defs = d.definicoes.slice(0, 3).map((def, i) =>
+        `${i + 1}. _(${def.classe})_ ${def.definicao}${def.exemplo ? `\n   > "${def.exemplo}"` : ""}`
+      ).join("\n");
+      return `📖 **${d.palavra}**${d.fonetica ? ` (${d.fonetica})` : ""}\n${defs || "Nenhuma definição encontrada."}`;
+    } catch (err) {
+      // Se a API de dicionário falhar, deixa o AI responder
+      return null;
+    }
+  }
+
+  // Fato aleatório
+  if (categoria === "fato") {
+    try {
+      const f = await fatoAleatorio();
+      return `💡 **Sabia que...** ${f.fato}`;
+    } catch (err) {
+      return `❌ Não consegui buscar um fato agora: ${err.message}`;
+    }
+  }
+
+  // Meu IP
+  if (categoria === "ip") {
+    try {
+      const info = await meuIP();
+      return `🌐 **Seu IP público:** ${info.ip}\n📍 ${info.cidade}, ${info.pais}\n🏢 ${info.provedor}`;
+    } catch (err) {
+      return `❌ Não consegui descobrir seu IP: ${err.message}`;
     }
   }
 
