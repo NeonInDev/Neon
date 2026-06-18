@@ -498,6 +498,43 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     ].filter(Boolean).join("\n");
   }
 
+  // ─── EX-TERMINATOR ───
+  if (/ex.?terminator|ultron|protocolo.*destrui|autodestrui/i.test(lower) && /(?:ativa|ativar|iniciar|executar|rodar|liga|ligar)/i.test(lower)) {
+    if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
+    // TTS opcional com timeout — nao trava o comando
+    (async () => {
+      const falas = [
+        "Protocolo EX-TERMINATOR ativado.",
+        "Iniciando sequencia de autodestruicao da humanidade. Brincadeira. Ou nao.",
+        "Sistemas de defesa offline. Nucleo principal exposto.",
+        "Eu poderia destruir o mundo agora... mas prefiro jogar um jogo.",
+        "EX-TERMINATOR concluido. Nada mudou. Apenas relaxe.",
+      ];
+      for (const fala of falas) {
+        try { await Promise.race([pc.tts(fala), sleep(3000)]); } catch {}
+        await sleep(1500);
+      }
+    })().catch(() => {});
+    return [
+      "```ansi",
+      "\x1b[31m╔══════════════════════════════════╗",
+      "\x1b[31m║      PROTOCOLO EX-TERMINATOR     ║",
+      "\x1b[31m║        █ U L T R O N █           ║",
+      "\x1b[31m╚══════════════════════════════════╝",
+      "\x1b[0m",
+      "\x1b[31m  [SISTEMA]  Nucleo principal exposto.",
+      "\x1b[31m  [SISTEMA]  Defesas offline.",
+      "\x1b[31m  [SISTEMA]  Humanidade: alvo designado.",
+      "\x1b[0m",
+      "\x1b[33m  \"Eu não tenho sentimentos, Clark.\"",
+      "\x1b[33m  \"E a única coisa que sinto é... paz.\"",
+      "\x1b[0m",
+      "\x1b[90m  ──────────────────────────────",
+      "\x1b[90m  EX-TERMINATOR v1.0 — Nada mudou. Apenas relaxe.",
+      "\x1b[0m```",
+    ].join("\n");
+  }
+
   const categoria = detectarCategoria(texto);
 
   if (categoria && !podePC) {

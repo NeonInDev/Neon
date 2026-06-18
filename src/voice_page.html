@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<script>
+if (!('webkitSpeechRecognition' in window)) {
+  window.__neonSpeechReady(false, 'webkitSpeechRecognition nao disponivel');
+} else {
+  const rec = new webkitSpeechRecognition();
+  rec.continuous = true;
+  rec.interimResults = false;
+  rec.lang = 'pt-BR';
+
+  rec.onresult = (e) => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        const text = e.results[i][0].transcript.trim();
+        if (text && window.__neonSpeechCmd) {
+          window.__neonSpeechCmd(text);
+        }
+      }
+    }
+  };
+
+  rec.onerror = (e) => { window.__neonSpeechReady(false, e.error); };
+  rec.onend = () => {
+    // Reinicia se parar
+    if (window.__neonListening) {
+      try { rec.start(); } catch(e) { window.__neonSpeechReady(false, e.message); }
+    }
+  };
+
+  window.__neonListening = true;
+  try {
+    rec.start();
+    window.__neonSpeechReady(true, 'OK');
+  } catch(e) {
+    window.__neonSpeechReady(false, e.message);
+  }
+}
+</script>
+</body>
+</html>

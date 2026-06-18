@@ -28,6 +28,13 @@ client.once("ready", () => {
   const ok = voice.iniciar(OWNER_ID, "Dono");
   if (ok) {
     log("INFO", "[VOICE] Microfone auto-iniciado para o dono");
+  }
+});
+client.once("clientReady", () => {
+  const OWNER_ID = "1442928336329379925";
+  const ok = voice.iniciar(OWNER_ID, "Dono");
+  if (ok) {
+    log("INFO", "[VOICE] Microfone auto-iniciado para o dono");
   } else {
     log("WARN", "[VOICE] Microfone ja estava ativo");
   }
