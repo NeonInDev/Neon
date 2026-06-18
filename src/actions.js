@@ -4,9 +4,8 @@ const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
+const { cotacaoMoeda, cotacaoCrypto } = require("./api");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
-const OPERA_PATH = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe";
 
 function limparFiller(t) {
   return t.replace(/\s+(?:por\s+favor|pfv|please|pls)\s*$/i, "").replace(/^\s*(?:por\s+favor|pfv|please|pls)\s+/i, "").trim();
@@ -31,7 +30,7 @@ async function tentar(comando) {
 
 async function abrirUrl(url) {
   if (process.platform === "win32") {
-    const r = await tentar(`"${OPERA_PATH}" "${url}"`);
+    const r = await tentar(`start "" "${url}"`);
     if (r.ok) return "direto";
     return null;
   }
@@ -200,6 +199,14 @@ function encontrarNavegar(texto) {
   return url;
 }
 
+function encontrarCotacao(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/(?:cotação|cotacao|quanto\s+ta|preço|preco|valor).*(?:dolar|dólar|euro|libra|peso|bitcoin|btc|ethereum|eth|solana|crypto|moeda)/i.test(lower)) return true;
+  if (/^(?:dolar|dólar|euro|libra|peso)\s+(?:hoje|agora|valor|preco|preço|cotacao|cotação)/i.test(lower)) return true;
+  if (/^(?:bitcoin|btc|ethereum|eth|solana)\s+(?:hoje|agora|valor|preco|preço)/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarBrowser(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
@@ -284,6 +291,7 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarJogo(texto)) return "jogo";
   if (encontrarBrowser(texto)) return "browser";
   if (encontrarNavegar(texto)) return "navegar";
+  if (encontrarCotacao(texto)) return "cotacao";
   return null;
 }
 
@@ -583,8 +591,8 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
   // Pesquisa no navegador
   if (categoria === "pesquisa") {
     const query = encontrarPesquisa(texto);
-    const r = await tentar(`"${OPERA_PATH}" "https://google.com/search?q=${encodeURIComponent(query)}"`);
-    if (r.ok) return `🔍 Pesquisando "${query}" no Google (Opera GX).`;
+    const r = await abrirUrl(`https://google.com/search?q=${encodeURIComponent(query)}`);
+    if (r) return `🔍 Pesquisando "${query}" no Google.`;
     return `❌ Não consegui pesquisar.`;
   }
 
@@ -617,9 +625,31 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
   // Navegar pra URL
   if (categoria === "navegar") {
     const url = encontrarNavegar(texto);
-    const r = await tentar(`"${OPERA_PATH}" "${url}"`);
-    if (r.ok) return `🌐 Abrindo ${url} no Opera GX.`;
+    const r = await abrirUrl(url);
+    if (r) return `🌐 Abrindo ${url} no navegador.`;
     return `❌ Não consegui abrir ${url}.`;
+  }
+
+  // Cotação de moedas e crypto
+  if (categoria === "cotacao") {
+    try {
+      const [moedas, crypto] = await Promise.all([cotacaoMoeda(), cotacaoCrypto()]);
+      const msg = [
+        "💰 **Cotações em tempo real:**\n",
+        `🇺🇸 Dólar: **R$ ${moedas.dolar.compra.toFixed(2)}** (${moedas.dolar.variacao >= 0 ? "+" : ""}${moedas.dolar.variacao}%)`,
+        `🇪🇺 Euro: **R$ ${moedas.euro.compra.toFixed(2)}** (${moedas.euro.variacao >= 0 ? "+" : ""}${moedas.euro.variacao}%)`,
+        `🇬🇧 Libra: **R$ ${moedas.libra.compra.toFixed(2)}** (${moedas.libra.variacao >= 0 ? "+" : ""}${moedas.libra.variacao}%)`,
+        `🇦🇷 Peso Argentino: **R$ ${moedas.peso.compra.toFixed(4)}**`,
+        "",
+        "₿ **Crypto:**",
+        `Bitcoin: **$${crypto.bitcoin.usd.toLocaleString()}** (${crypto.bitcoin.variacao24h >= 0 ? "+" : ""}${crypto.bitcoin.variacao24h?.toFixed(2) || "0"}% 24h)`,
+        `Ethereum: **$${crypto.ethereum.usd.toLocaleString()}** (${crypto.ethereum.variacao24h >= 0 ? "+" : ""}${crypto.ethereum.variacao24h?.toFixed(2) || "0"}% 24h)`,
+        `Solana: **$${crypto.solana.usd.toLocaleString()}** (${crypto.solana.variacao24h >= 0 ? "+" : ""}${crypto.solana.variacao24h?.toFixed(2) || "0"}% 24h)`,
+      ].join("\n");
+      return msg;
+    } catch (err) {
+      return `❌ Erro ao buscar cotações: ${err.message}`;
+    }
   }
 
   log("INFO", "[ACTION] nenhuma ação reconhecida", { texto });

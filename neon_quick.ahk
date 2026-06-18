@@ -1,8 +1,8 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 
-; ─── Só ativo no Discord / Chrome / Opera (não pega no terminal) ───
-#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
+; ─── Só ativo no Discord / Chrome / Opera (NUNCA no VS Code/Electron!) ───
+#HotIf (WinActive("ahk_exe Discord.exe") or WinActive("ahk_exe chrome.exe") or WinActive("ahk_exe opera.exe")) and !WinActive("ahk_exe Code.exe")
 
 ; Bloqueia Enter ($) e re-envia: se "Neon," → "/neon ...", senão → mensagem original
 $Enter::

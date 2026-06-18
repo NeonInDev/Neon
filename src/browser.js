@@ -1,11 +1,22 @@
 const { log } = require("./logger");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+const { exec: execCb } = require("child_process");
+const { promisify } = require("util");
+const execAsync = promisify(execCb);
+
 let browser = null;
 const OPERA_PATH = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe";
-const USER_DATA = "C:\\Users\\Pichau\\AppData\\Local\\Temp\\neon_opera_profile";
+const USER_DATA = "C:\\Users\\Pichau\\AppData\\Local\\neon_opera_profile";
+const DEBUG_PORT = 9222;
+
+// Abre URL no navegador padrão do usuário (reusa janela existente, nova aba)
+async function abrirUrlNoOpera(url) {
+  await execAsync(`start "" "${url}"`);
+}
 
 async function iniciar() {
+  // Se já temos um browser conectado, reusa
   if (browser) {
     try {
       if (browser.connected) {
@@ -15,10 +26,23 @@ async function iniciar() {
     } catch {}
     try { await browser.close(); } catch {}
     browser = null;
-    log("INFO", "[BROWSER] Navegador anterior fechado, criando novo");
   }
+
+  const puppeteer = require("puppeteer");
+
+  // Tenta conectar num Opera já aberto (com debug port)
   try {
-    const puppeteer = require("puppeteer");
+    browser = await puppeteer.connect({
+      browserURL: `http://localhost:${DEBUG_PORT}`,
+    });
+    log("INFO", "[BROWSER] Conectado ao Opera existente");
+    return browser;
+  } catch {
+    log("INFO", "[BROWSER] Nenhum Opera com debug encontrado, iniciando novo");
+  }
+
+  // Abre UM novo Opera (com debug port fixo)
+  try {
     browser = await puppeteer.launch({
       executablePath: OPERA_PATH,
       headless: false,
@@ -27,7 +51,7 @@ async function iniciar() {
         "--disable-setuid-sandbox",
         `--user-data-dir=${USER_DATA}`,
         "--start-maximized",
-        "--remote-debugging-port=0",
+        `--remote-debugging-port=${DEBUG_PORT}`,
       ],
     });
     log("INFO", "[BROWSER] Opera GX iniciado");
@@ -36,6 +60,13 @@ async function iniciar() {
     log("ERROR", "[BROWSER] Falha ao iniciar", { erro: err.message });
     browser = null;
     throw err;
+  }
+}
+
+// Fecha só a aba, não o navegador inteiro — mantém a janela pra reuso
+async function fecharAba(page) {
+  if (page && !page.isClosed()) {
+    try { await page.close(); } catch {}
   }
 }
 
@@ -390,11 +421,26 @@ async function tocarSpotify(termo) {
   throw new Error("Não achei resultados no Spotify Web");
 }
 
-// ─── YouTube — pesquisar e tocar direto ───
+// ─── YouTube — busca por HTTP + abre no navegador do usuário ───
+async function pesquisarVideoId(termo) {
+  const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(termo)}`;
+  const { data } = await require("axios").get(url, {
+    headers: {
+      "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 OPR/106.0.0.0",
+      "Accept-Language": "pt-BR,pt;q=0.9",
+    },
+    timeout: 15000,
+  });
+  const match = data.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+  if (!match) throw new Error("Não encontrei o vídeo no YouTube");
+  return match[1];
+}
+
 async function tocarVideoYouTube(termo) {
-  const page = await abrirPagina("https://www.youtube.com");
-  await pesquisarYouTube(page, termo);
+  const videoId = await pesquisarVideoId(termo);
+  const url = `https://www.youtube.com/watch?v=${videoId}`;
+  await abrirUrlNoOpera(url);
   return `🎬 Tocando "${termo}" no YouTube.`;
 }
 
-module.exports = { executarRoteiro, fechar, abrirPagina, interpretarAcaoTexto, executarAcao, tocarSpotify, tocarVideoYouTube };
+module.exports = { executarRoteiro, fechar, fecharAba, abrirPagina, interpretarAcaoTexto, executarAcao, tocarSpotify, tocarVideoYouTube, abrirUrlNoOpera };
