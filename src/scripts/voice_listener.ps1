@@ -1,30 +1,20 @@
+param($OutputFile)
+
+# Garante que o arquivo existe desde o inicio
+$null = New-Item -Path $OutputFile -ItemType File -Force
+
 Add-Type -AssemblyName System.Speech
 
-try {
-  $rec = New-Object System.Speech.Recognition.SpeechRecognitionEngine
-  $rec.SetInputToDefaultAudioDevice()
+$rec = New-Object System.Speech.Recognition.SpeechRecognitionEngine
+$grammar = New-Object System.Speech.Recognition.DictationGrammar
+$rec.LoadGrammar($grammar)
 
-  $dg = New-Object System.Speech.Recognition.DictationGrammar
-  $rec.LoadGrammar($dg)
+$null = Register-ObjectEvent -InputObject $rec -EventName SpeechRecognized -Action {
+  $text = $EventArgs.Result.Text
+  $text | Set-Content -Path $Event.MessageData -Force
+} -MessageData $OutputFile
 
-  $rec.SpeechRecognized += {
-    $text = $EventArgs.Result.Text
-    if ($text -match '^[Nn][Ee][Oo][Nn][,\s]\s*(.*)') {
-      Write-Output $matches[1]
-    }
-  }
+$rec.SetInputToDefaultAudioDevice()
+$rec.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple)
 
-  $rec.RecognizeAsync([System.Speech.Recognition.RecognizeMode]::Multiple)
-
-  # Keep alive until stdin closes (parent process kills us)
-  while ($true) {
-    $line = [Console]::In.ReadLine()
-    if ($line -eq 'QUIT') { break }
-    Start-Sleep -Milliseconds 100
-  }
-} catch {
-  Write-Error $_.Exception.Message
-  [Environment]::Exit(1)
-} finally {
-  try { $rec.Dispose() } catch {}
-}
+while ($true) { Start-Sleep -Seconds 1 }

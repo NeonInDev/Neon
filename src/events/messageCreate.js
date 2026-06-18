@@ -57,23 +57,28 @@ async function enviarResposta(message, texto) {
   }
 
   // URLs de imagem — baixa e envia como attachment
-  const urlMatch = texto.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp)[^\s]*)|(https?:\/\/image\.pollinations\.ai\/prompt[^\s]*)/i);
+  const urlMatch = texto.match(/https?:\/\/[^\s]+/i);
   if (urlMatch) {
-    try {
-      const resp = await axios.get(urlMatch[1] || urlMatch[2], {
-        responseType: "arraybuffer",
-        timeout: 30000,
-        maxContentLength: 10 * 1024 * 1024,
-      });
-      const { AttachmentBuilder } = require("discord.js");
-      const ext = resp.headers["content-type"]?.split("/")[1] || "png";
-      const attachment = new AttachmentBuilder(Buffer.from(resp.data), { name: `neon_${Date.now()}.${ext}` });
-      const txt = texto.replace(urlMatch[0], "").trim();
-      await message.reply({ content: txt || undefined, files: [attachment] });
-      return;
-    } catch {
-      await message.reply(texto);
-      return;
+    const url = urlMatch[0];
+    const isImageExt = /\.(png|jpg|jpeg|gif|webp)(\?|$)/i.test(url);
+    const isImageApi = /(?:picsum|thecatapi|dog\.ceo|pollinations|qrserver\.com\/create-qr-code|placehold\.co)/i.test(url);
+    if (isImageExt || isImageApi) {
+      try {
+        const resp = await axios.get(url, {
+          responseType: "arraybuffer",
+          timeout: 30000,
+          maxContentLength: 10 * 1024 * 1024,
+        });
+        const ct = resp.headers["content-type"] || "";
+        if (ct.startsWith("image/")) {
+          const { AttachmentBuilder } = require("discord.js");
+          const ext = ct.split("/")[1] || "png";
+          const attachment = new AttachmentBuilder(Buffer.from(resp.data), { name: `neon_${Date.now()}.${ext}` });
+          const txt = texto.replace(url, "").trim();
+          await message.reply({ content: txt || undefined, files: [attachment] });
+          return;
+        }
+      } catch {}
     }
   }
   await message.reply(texto);

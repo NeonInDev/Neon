@@ -22,22 +22,9 @@ async function desligar(sinal) {
   process.exit(0);
 }
 
-// Auto-start microfone quando o bot ficar pronto
-client.once("ready", () => {
-  const OWNER_ID = "1442928336329379925";
-  const ok = voice.iniciar(OWNER_ID, "Dono");
-  if (ok) {
-    log("INFO", "[VOICE] Microfone auto-iniciado para o dono");
-  }
-});
-client.once("clientReady", () => {
-  const OWNER_ID = "1442928336329379925";
-  const ok = voice.iniciar(OWNER_ID, "Dono");
-  if (ok) {
-    log("INFO", "[VOICE] Microfone auto-iniciado para o dono");
-  } else {
-    log("WARN", "[VOICE] Microfone ja estava ativo");
-  }
+client.once("clientReady", async () => {
+  const ok = await voice.iniciar("1442928336329379925", "Dono");
+  if (ok) log("INFO", "[VOICE] Microfone auto-iniciado");
 });
 
 process.on("SIGINT", () => desligar("SIGINT"));

@@ -1,43 +1,65 @@
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"></head>
+<head><meta charset="utf-8"></head>
 <body>
 <script>
-if (!('webkitSpeechRecognition' in window)) {
-  window.__neonSpeechReady(false, 'webkitSpeechRecognition nao disponivel');
-} else {
-  const rec = new webkitSpeechRecognition();
-  rec.continuous = true;
-  rec.interimResults = false;
-  rec.lang = 'pt-BR';
+let recognition = null;
+let restartTimer = null;
 
-  rec.onresult = (e) => {
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) {
-        const text = e.results[i][0].transcript.trim();
-        if (text && window.__neonSpeechCmd) {
-          window.__neonSpeechCmd(text);
-        }
-      }
-    }
-  };
-
-  rec.onerror = (e) => { window.__neonSpeechReady(false, e.error); };
-  rec.onend = () => {
-    // Reinicia se parar
-    if (window.__neonListening) {
-      try { rec.start(); } catch(e) { window.__neonSpeechReady(false, e.message); }
-    }
-  };
-
-  window.__neonListening = true;
-  try {
-    rec.start();
-    window.__neonSpeechReady(true, 'OK');
-  } catch(e) {
-    window.__neonSpeechReady(false, e.message);
+function iniciar() {
+  console.log('VOICE_PAGE: iniciando webkitSpeechRecognition...');
+  if (!('webkitSpeechRecognition' in window)) {
+    console.error('VOICE_PAGE: webkitSpeechRecognition nao disponivel');
+    __neonSpeechReady2(false, 'webkitSpeechRecognition nao disponivel');
+    return;
   }
+
+  recognition = new webkitSpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'pt-BR';
+
+  recognition.onstart = () => {
+    console.log('VOICE_PAGE: recognition started');
+    __neonSpeechReady2(true, 'ok');
+  };
+
+  recognition.onerror = (e) => {
+    console.warn('VOICE_PAGE: recognition error', e.error);
+    if (e.error === 'aborted') return;
+    if (e.error === 'no-speech') return;
+    __neonSpeechReady2(false, e.error);
+    agendarRestart();
+  };
+
+  recognition.onend = () => {
+    console.log('VOICE_PAGE: recognition ended, restarting...');
+    agendarRestart();
+  };
+
+  recognition.onresult = (e) => {
+    console.log('VOICE_PAGE: result received', e.resultIndex, e.results.length);
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const texto = e.results[i][0].transcript.trim();
+      console.log('VOICE_PAGE: transcript', texto);
+      if (texto) __neonSpeechCmd(texto);
+    }
+  };
+
+  recognition.start();
+  console.log('VOICE_PAGE: recognition.start() called');
 }
+
+function agendarRestart() {
+  if (restartTimer) clearTimeout(restartTimer);
+  restartTimer = setTimeout(() => {
+    console.log('VOICE_PAGE: attempting restart...');
+    try { recognition?.start(); } catch(e) { console.error('VOICE_PAGE: restart failed', e); }
+  }, 1000);
+}
+
+window.__neonListening = true;
+iniciar();
 </script>
 </body>
 </html>

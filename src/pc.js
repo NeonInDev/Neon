@@ -90,15 +90,84 @@ async function clipboard(acao, texto) {
 }
 
 async function tts(texto) {
-  const safe = texto.replace(/"/g, '\\"').replace(/'/g, "''");
-  const script = `
-try {
-  $v = New-Object -ComObject Sapi.SpVoice
-  $v.Speak("${safe}")
-  Write-Output "OK"
-} catch { Write-Error $_.Exception.Message }`;
-  await ps(script, "tts");
+  const safe = texto.replace(/"/g, '""').replace(/'/g, "''");
+  const cmd = `powershell -NoProfile -Command "(New-Object -ComObject Sapi.SpVoice).Speak('${safe}')"`;
+  execAsync(cmd, { timeout: 15000 }).catch(() => {});
   return `🗣️ Falei: "${texto.slice(0, 100)}"`;
 }
 
-module.exports = { screenshot, pcInfo, volume, clipboard, tts };
+async function listarProcessos() {
+  const script = `Get-Process | Sort-Object CPU -Descending | Select-Object -First 20 Name, Id, @{N='CPU';E={'{0:N1}' -f $_.CPU}}, @{N='MemMB';E={'{0:N0}' -f ($_.WorkingSet64/1MB)}} | Format-Table -AutoSize | Out-String -Width 200`;
+  const out = await ps(script, "listProcess");
+  const lines = out.split("\n").slice(3).filter(l => l.trim() && !l.endsWith("----")).slice(0, 15).map(l => l.trim()).join("\n");
+  return lines;
+}
+
+async function matarProcesso(nome) {
+  const script = `Stop-Process -Name "${nome}" -Force -ErrorAction Stop; Write-Output "ok"`;
+  await ps(script, "killProcess");
+  return `✅ Processo "${nome}" finalizado.`;
+}
+
+async function infoRede() {
+  const script = `
+$adapter = Get-NetAdapter | Where-Object { $_.Status -eq 'Up' } | Select-Object -First 1
+$ip = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -eq $adapter.Name } | Select-Object -First 1).IPAddress
+$wifi = (Get-NetConnectionProfile | Where-Object { $_.Name -ne $null } | Select-Object -First 1).Name
+$ssid = (netsh wlan show interfaces | Select-String "SSID" | Select-String -NotMatch "BSSID" | Select-Object -First 1).ToString().Split(':')[1].Trim()
+Write-Output "IP: $ip"
+Write-Output "Rede: $wifi"
+Write-Output "WiFi: $ssid"
+Write-Output "Adaptador: $($adapter.Name)"`;
+  return await ps(script, "netInfo");
+}
+
+async function bateria() {
+  const script = `$bat = Get-WmiObject Win32_Battery
+if ($bat) {
+  $pct = [int]$bat.EstimatedChargeRemaining
+  $s = switch ($bat.BatteryStatus) {
+    1 { "Descarregando" }
+    2 { "Carregando" }
+    3 { "Completa" }
+    4 { "Baixa" }
+    5 { "Critica" }
+    6 { "Em pausa" }
+    7 { "Carregando (alto)" }
+    11 { "Conectada" }
+    default { "Desconhecido" }
+  }
+  Write-Output "Nivel: $pct%"
+  Write-Output "Status: $s"
+  if ($bat.EstimatedRunTime -gt 0) { Write-Output "Autonomia: $($bat.EstimatedRunTime) min" }
+} else { Write-Output "Sem bateria detectada (PC de mesa?)" }`;
+  return await ps(script, "battery");
+}
+
+async function notificar(titulo, mensagem) {
+  const script = `$popup = New-Object -ComObject wscript.shell; $popup.Popup("${mensagem.replace(/"/g,'""')}", 5, "${titulo.replace(/"/g,'""')}", 64) | Out-Null`;
+  try {
+    await ps(script, "notify");
+  } catch {}
+  return `🔔 Notificação enviada: "${titulo}"`;
+}
+
+async function enviarEmail(para, assunto, corpo) {
+  const script = `
+Send-MailMessage -To "${para}" -Subject "${assunto}" -Body "${corpo}" -SmtpServer "localhost" -From "neon@localhost" -ErrorAction Stop
+Write-Output "ok"`;
+  try {
+    await ps(script, "email");
+    return `📧 Email enviado para ${para}.`;
+  } catch {
+    try {
+      const fallback = `powershell -NoProfile -Command "$o = New-Object -ComObject Outlook.Application; $m = $o.CreateItem(0); $m.To = '${para}'; $m.Subject = '${assunto}'; $m.Body = '${corpo}'; $m.Send()"`;
+      await execAsync(fallback, { timeout: 10000 });
+      return `📧 Email enviado via Outlook para ${para}.`;
+    } catch {
+      throw new Error("Não foi possível enviar email. Configure um servidor SMTP ou Outlook.");
+    }
+  }
+}
+
+module.exports = { screenshot, pcInfo, volume, clipboard, tts, listarProcessos, matarProcesso, infoRede, bateria, notificar, enviarEmail };

@@ -4,13 +4,13 @@ const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
-const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP, gerarImagem, buscarImagem, imagemAleatoria } = require("./api");
+const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao } = require("./api");
 const pc = require("./pc");
 const { traduzir } = require("./translate");
 const { detectar: detectarCustom, adicionar: addCustom, remover: removeCustom, listar: listarCustom } = require("./custom_commands");
 const { criarLembrete } = require("./timers");
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const voice = require("./voice");
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function limparFiller(t) {
   return t.replace(/\s+(?:por\s+favor|pfv|please|pls)\s*$/i, "").replace(/^\s*(?:por\s+favor|pfv|please|pls)\s+/i, "").trim();
@@ -280,7 +280,7 @@ function encontrarGerarImagem(texto) {
 function encontrarMostrarImagem(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver|acha|busca)\s+(?:uma?\s+|um\s+)?(?:foto|imagem|gif|figura)\s+(?:de|do|da|do|pra|para)?\s+(.+)/i.test(lower)) return true;
-  if (/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver)\s+(?:um\s+|um\s+)?(?:gato|cachorro|dog|cat|paisagem|natureza)\s*/i.test(lower)) return true;
+  if (/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver)\s+(?:um\s+|uma\s+|um\s+)?(?:gato|cachorro|dog|cat|paisagem|natureza)\s*/i.test(lower)) return true;
   return false;
 }
 
@@ -316,8 +316,11 @@ function encontrarClipboard(texto) {
 
 function encontrarTTS(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
+  if (lower === "fala" || lower === "falar" || lower === "diz" || lower === "dizer" || lower === "leia" || lower === "ler" || lower === "le") return false;
   if (/^(?:fala|falar|diz|dizer|pronuncia|pronunciar)\s+(?:algo|isso|isto|em\s+voz\s+alta|em\s+audio|pelas\s+caixas)/i.test(lower)) return true;
+  if (/^(?:fala|falar|diz|dizer)\s+.+/i.test(lower)) return true;
   if (/^(?:leia|le|ler)\s+(?:em\s+voz\s+alta|pra\s+mim|para\s+mim|esse\s+texto)/i.test(lower)) return true;
+  if (/^(?:leia|le|ler)\s+.+/i.test(lower)) return true;
   return false;
 }
 
@@ -342,7 +345,7 @@ function encontrarVoiceToggle(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:ativa|ativar|liga|ligar|inicia|iniciar)\s+(?:o\s+)?(?:microfone|mic|audio|voz|escuta)/i.test(lower)) return "ativar";
   if (/^(?:desativa|desativar|desliga|desligar|para|parar|pausa|pausar)\s+(?:o\s+)?(?:microfone|mic|audio|voz|escuta)/i.test(lower)) return "desativar";
-  if (/^(?:status|como\s+ta|como\s+esta)\s+(?:o\s+)?(?:microfone|mic|audio|voz|escuta)/i.test(lower)) return "status";
+  if (/^(?:status|como\s+ta|como\s+esta)\s+(?:(?:o|do|da|de)\s+)?(?:microfone|mic|audio|voz|escuta)/i.test(lower)) return "status";
   return null;
 }
 
@@ -409,12 +412,105 @@ function encontrarMensagem(texto) {
   return null;
 }
 
+function encontrarPesquisarWeb(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:pesquisa|pesquisar|busca|buscar|procura|procurar)\s+(?:na\s+)?(?:internet|web|google|internet\s+sobre|web\s+sobre)\s+(.+)/i.test(lower)) return true;
+  if (/^(?:pesquisa|pesquisar)\s+(?:sobre|pra mim|pra\s+mim)\s+(.+)/i.test(lower)) return true;
+  if (/^(?:o\s+)?google\s+(?:isso|sobre|pra\s+mim)?\s+(.+)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarWikipedia(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:o\s+)?(?:que\s+)?(?:é|e|sao|são)\s+(.+?\s+)?(?:no\s+)?wikipedia|wikipedia\s+(.+)/i.test(lower)) return true;
+  if (/(?:busca|buscar|pesquisa|pesquisar|consulta|consultar)\s+(?:na|no)\s+wikipedia/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarCalcular(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/(?:piada|historia|história|anedota|conselho|dica|trivia|quiz)/i.test(lower)) return false;
+  if (/^(?:quanto\s+)?(?:é|e|da|dá)\s+(.+)/i.test(lower) && /[+\-*/%^()0-9]/.test(lower) && lower.length < 60) return true;
+  if (/^(?:calcula|calcular|conta|contar|resolve|resolver|math|calcule)\s+(.+)/i.test(lower) && /[+\-*/%^()0-9]/.test(lower)) return true;
+  return false;
+}
+
+function encontrarNoticias(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:noticias|notícias|ultimas|últimas|quais\s+as\s+noticias|o\s+que\s+ta\s+rolando|news)[\s.!?]*$/i.test(lower)) return true;
+  if (/^(?:mostra|ver|veja|quero\s+ver)\s+(?:as\s+)?(?:noticias|notícias|ultimas|últimas)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarEntretenimento(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:conta|conte|me\s+diz|diga|fala|fale)\s*(?:uma\s+)?(?:piada|historia|história|anedota)/i.test(lower)) return "piada";
+  if (/^(?:me\s+dá|me\s+da|da|dá|quero\s+um)\s*(?:um\s+)?(?:conselho|dica|sugestao|sugestão)/i.test(lower)) return "conselho";
+  if (/^(?:trivia|quiz|pergunta|faça\s+uma\s+pergunta|me\s+pergunta\s+algo|curiosidade)/i.test(lower)) return "trivia";
+  return null;
+}
+
+function encontrarLetra(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const m = lower.match(/^(?:letra|lyrics|letra\s+de)\s+(.+?)(?:\s+(?:de|do|da|por)\s+(.+))?/i);
+  if (m) return m;
+  return null;
+}
+
+function encontrarQRCode(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:gera|gerar|cria|criar|faz|fazer)\s*(?:um\s+)?(?:qr\s?code|qrcode|codigo\s+qr|código\s+qr)\s+(?:pra|para|de|do|da|com)?\s*(.+)/i.test(lower)) return true;
+  if (/^(?:qr\s?code|qrcode)\s+(?:pra|para|de|do|da|com)?\s+(.+)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarSenha(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:gera|gerar|cria|criar|faz|fazer|sortear)\s*(?:uma\s+)?(?:senha|password|pass|key|chave)\s*(?:de\s+)?(\d+)?/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarProcessos(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:lista|listar|mostra|mostrar|veja|ver|quais)\s+(?:os\s+)?(?:processos|programas|apps|aplicativos)\s*(?:em\s+execução|executando|abertos|rodando)?/i.test(lower)) return "listar";
+  const m = lower.match(/^(?:mata|matar|finaliza|finalizar|kill|termina|terminar|fecha|fechar)\s+(?:o\s+)?(?:processo|programa|app)\s+(.+)/i);
+  if (m) return { acao: "matar", nome: m[1].trim() };
+  return null;
+}
+
+function encontrarRede(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:info|informação|informacoes|status|como\s+ta)\s+(?:da\s+)?(?:rede|net|network|wifi|wi-fi|internet)/i.test(lower)) return true;
+  if (/(?:qual\s+)?(?:meu\s+)?(?:ip\s+)?(?:da\s+)?rede|wifi/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarBateria(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:bateria|battery|carga|nível\s+da\s+bateria|nivel\s+da\s+bateria|quanto\s+ta\s+a\s+bateria)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarNotificar(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const m = lower.match(/^(?:notifica|notificar|mostra\s+notificação|avisa|avisar|alerta|alertar|popup)\s+(?:com\s+)?(?:"([^"]+)"(?:["\s]+)?([^"]*)|(.+?)(?:\s+(?:dizendo|com\s+a\s+mensagem|mensagem)\s+)?(.+))/i);
+  if (m) return true;
+  return false;
+}
+
+function encontrarEmail(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const m = lower.match(/^(?:manda|mandar|enviar|envia)\s*(?:um\s+)?(?:email|e-mail|mail)\s+(?:pra|para)\s+(.+?)(?:\s+(?:com\s+)?(?:assunto|subject|titulo|sobre)\s+(.+?)(?:\s*(?:[:].*)?$|\s+(?:dizendo|corpo|mensagem|texto)\s+(.+))?)?/i);
+  if (m) return m;
+  return null;
+}
+
 function permitido(userId) {
   return userId === OWNER_ID;
 }
 
 function detectarCategoria(texto) {
-  // Voice toggle (microfone)
+  // Voice toggle
   const voiceToggle = encontrarVoiceToggle(texto);
   if (voiceToggle) return "voiceToggle";
   // Custom commands (usuário define) — maior prioridade
@@ -431,6 +527,7 @@ function detectarCategoria(texto) {
   if (encontrarMensagem(texto)) return "mensagem";
   if (encontrarSpotify(texto)) return "spotify";
   if (encontrarYouTube(texto)) return "youtube";
+  if (encontrarPesquisarWeb(texto)) return "pesquisarWeb";
   if (encontrarPesquisa(texto)) return "pesquisa";
   if (encontrarDigitar(texto)) return "digitar";
   if (isWin() && encontrarJogo(texto)) return "jogo";
@@ -451,6 +548,19 @@ function detectarCategoria(texto) {
   if (encontrarGerarImagem(texto)) return "gerarImagem";
   if (encontrarMostrarImagem(texto)) return "mostrarImagem";
   if (/status.*discord|discord.*status/i.test(texto)) return "statusDiscord";
+  if (encontrarWikipedia(texto)) return "wikipedia";
+  if (encontrarCalcular(texto)) return "calcular";
+  if (encontrarNoticias(texto)) return "noticias";
+  if (encontrarEntretenimento(texto)) return "entretenimento";
+  if (encontrarLetra(texto)) return "letra";
+  if (encontrarQRCode(texto)) return "qrCode";
+  if (encontrarSenha(texto)) return "senha";
+  if (isWin() && encontrarProcessos(texto)) return "processos";
+  if (encontrarNotificar(texto)) return "notificar";
+  if (encontrarEmail(texto)) return "email";
+  if (encontrarRede(texto)) return "rede";
+  if (encontrarBateria(texto)) return "bateria";
+  if (/^(?:acao|ação|ações|acoes|cotacao|cotação|preco|preço|valor)\s+(?:da|do|de)?\s*\w{4,5}\d/i.test(texto)) return "acao";
   // Detecta nome de app sem "abrir" (ex: "steam", "valorant")
   if (isWin() && encontrarApp("abrir " + texto)) return "app";
   return null;
@@ -543,7 +653,8 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
 
   // Apps
   if (categoria === "app") {
-    const app = encontrarApp(texto);
+    const app = encontrarApp(texto) || encontrarApp("abrir " + texto);
+    if (!app) return "❌ App não encontrado.";
     const label = app.nomes[0];
     log("INFO", "[ACTION] app detectado", { label, texto, url: app.url, comando: app.comando });
 
@@ -927,8 +1038,9 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       const tipoMatch = lower.match(/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver)\s+(?:um\s+|um\s+)?(gato|cachorro|dog|cat|paisagem|natureza)\s*/i);
       if (tipoMatch) {
         const tipo = { gato: "gato", cachorro: "cachorro", dog: "cachorro", cat: "gato", paisagem: "paisagem", natureza: "paisagem" }[tipoMatch[1].toLowerCase()];
+        const emoji = { gato: "🐱", cachorro: "🐶", dog: "🐶", cat: "🐱", paisagem: "🌄", natureza: "🌄" }[tipoMatch[1].toLowerCase()];
         const url = await imagemAleatoria(tipo);
-        return `🐱 Aqui vai uma foto de ${tipo}:\n${url}`;
+        return `${emoji} Aqui vai uma foto de ${tipo}:\n${url}`;
       }
       const m = lower.match(/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver|acha|busca)\s+(?:uma?\s+|um\s+)?(?:foto|imagem|gif|figura)\s+(?:de|do|da|do|pra|para)?\s+(.+)/i);
       const query = m ? m[1].trim() : texto;
@@ -939,22 +1051,22 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
   }
 
-  // Custom commands (usuário)
-  // Voice toggle (microfone)
+  // Voice toggle
   if (categoria === "voiceToggle") {
     const acao = encontrarVoiceToggle(texto);
     if (acao === "ativar") {
-      const r = voice.iniciar(userId, null);
-      return r ? "🎤 Microfone ativado! Fala 'Neon, comando' que eu respondo por áudio." : "🎤 Microfone já está ativo.";
+      const r = await voice.iniciar(userId, null);
+      return r ? "🎤 Microfone ativado!" : "🎤 Microfone já está ativo.";
     }
     if (acao === "desativar") {
-      const r = voice.parar();
+      const r = await voice.parar();
       return r ? "🎤 Microfone desativado." : "🎤 Microfone já está desativado.";
     }
     const st = voice.status();
-    return st.ativo ? "🎤 Microfone está **ativo**. Fala 'Neon, comando'." : "🎤 Microfone está **inativo**.";
+    return st.ativo ? "🎤 Microfone está **ativo**." : "🎤 Microfone está **inativo**.";
   }
 
+  // Custom commands (usuário) 
   if (categoria === "customCommand") {
     const cmd = detectarCustom(texto);
     if (!cmd) return null;
@@ -1103,6 +1215,228 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       const r = await tentar(ps);
       if (r.ok) return `✅ Status customizado definido: "${info.valor}".`;
       return `❌ Não consegui definir o status customizado.`;
+    }
+  }
+
+  // Pesquisa na Web (DuckDuckGo + Wikipedia fallback)
+  if (categoria === "pesquisarWeb") {
+    try {
+      let query = limparFiller(texto).replace(/^(?:pesquisa|pesquisar|busca|buscar|procura|procurar|google)\s*(?:na\s+)?(?:internet|web|google|internet\s+sobre|web\s+sobre|sobre\s+|pra\s+mim\s+|pra\s+min\s+)?/i, "").trim();
+      if (!query) return "❌ O que você quer pesquisar?";
+      const resultado = await searchWeb(query);
+      let reply = `🔍 **${resultado.titulo}**\n${resultado.resultado.slice(0, 500)}`;
+      if (resultado.url) reply += `\n🔗 ${resultado.url}`;
+      return reply;
+    } catch (err) {
+      return `❌ Erro na pesquisa: ${err.message}`;
+    }
+  }
+
+  // Wikipedia
+  if (categoria === "wikipedia") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/^(?:(?:o\s+)?(?:que\s+)?(?:é|e|sao|são)\s+(.+?)\s+(?:no\s+)?wikipedia|wikipedia\s+(.+))/i);
+      const query = m?.[1] || m?.[2] || texto.replace(/wikipedia/gi, "").trim();
+      if (!query) return "❌ O que você quer saber na Wikipedia?";
+      const wiki = await wikipedia(query);
+      let reply = `📚 **${wiki.titulo}** (Wikipedia)\n${wiki.resumo}`;
+      if (wiki.imagem) reply += `\n🖼️ ${wiki.imagem}`;
+      if (wiki.url) reply += `\n🔗 ${wiki.url}`;
+      return reply;
+    } catch (err) {
+      return `❌ Erro na Wikipedia: ${err.message}`;
+    }
+  }
+
+  // Calculadora
+  if (categoria === "calcular") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/^(?:quanto\s+)?(?:é|e|da|dá|calcula|calcular|conta|contar|resolve|resolver|math|calcule)\s+(.+)/i);
+      let expr = (m?.[1] || texto).trim()
+        .replace(/x/g, "*").replace(/×/g, "*").replace(/÷/g, "/").replace(/,/g, ".")
+        .replace(/(\d+)\s*%\s*(?:de|do|da)?\s*/g, "($1/100)*")
+        .replace(/(\d+)\s+por\s+cento\s+(?:de|do|da)?\s*/g, "($1/100)*")
+        .replace(/por\s+cento/g, "/100");
+      if (expr.match(/[a-z]/i) && !expr.match(/^[\d\s+\-*/().%]+$/)) {
+        expr = expr.replace(/[^0-9+\-*/().%\s]/g, "");
+      }
+      const result = Function(`"use strict"; return (${expr})`)();
+      if (typeof result === "number" && !isNaN(result)) {
+        return `🧮 **${expr.replace(/\*/g, "×")}** = **${Number.isInteger(result) ? result : result.toFixed(4)}**`;
+      }
+      return `🧮 **${expr}** = ${result}`;
+    } catch {
+      return "❌ Não consegui calcular essa expressão.";
+    }
+  }
+
+  // Notícias
+  if (categoria === "noticias") {
+    try {
+      const lista = await noticias();
+      const linhas = lista.map((n, i) =>
+        `${i + 1}. **${n.titulo}**${n.fonte ? ` (${n.fonte})` : ""}${n.url ? `\n   🔗 ${n.url}` : ""}`
+      ).join("\n");
+      return `📰 **Últimas Notícias**\n${linhas}`;
+    } catch (err) {
+      return `❌ Erro ao buscar notícias: ${err.message}`;
+    }
+  }
+
+  // Entretenimento (piada, conselho, trivia)
+  if (categoria === "entretenimento") {
+    const tipo = encontrarEntretenimento(texto);
+    try {
+      if (tipo === "piada") {
+        const p = await piada();
+        return `😂 ${p.piada}`;
+      }
+      if (tipo === "conselho") {
+        const c = await conselho();
+        return `💡 **Conselho:** ${c.conselho}`;
+      }
+      if (tipo === "trivia") {
+        const t = await trivia();
+        const opts = t.respostas.map((r, i) => `${i + 1}. ${r}`).join("\n");
+        return `❓ **${t.pergunta}** (${t.categoria}, ${t.dificuldade})\n\n${opts}\n\n✅ Resposta: ||${t.correta}||`;
+      }
+      return "❌ Não entendi que tipo de entretenimento você quer.";
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
+    }
+  }
+
+  // Letra de música
+  if (categoria === "letra") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/^(?:letra|lyrics|letra\s+de)\s+(.+?)(?:\s+(?:de|do|da|por)\s+(.+))?/i);
+      if (!m) return "❌ Use: letra de [música] de [artista]";
+      const musica = m[1].trim();
+      const artista = m[2]?.trim() || "";
+      if (!artista) return `🔍 Pesquisei a letra de "${musica}" sem artista.`;
+      const l = await letraMusica(artista, musica);
+      return `🎵 **${l.musica}** — ${l.artista}\n\`\`\`\n${l.letra.slice(0, 1500)}\n\`\`\``;
+    } catch (err) {
+      return `❌ Letra não encontrada: ${err.message}`;
+    }
+  }
+
+  // QR Code
+  if (categoria === "qrCode") {
+    try {
+      let conteudo = limparFiller(texto).replace(/^(?:gera|gerar|cria|criar|faz|fazer)\s*(?:um\s+)?(?:qr\s?code|qrcode|codigo\s+qr|código\s+qr)\s+(?:pra|para|de|do|da|com)?\s*/i, "").trim();
+      if (!conteudo) return "❌ O que você quer no QR Code?";
+      const url = qrCode(conteudo);
+      return `📱 QR Code para "${conteudo.slice(0, 100)}"\n${url}`;
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
+    }
+  }
+
+  // Senha
+  if (categoria === "senha") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/(\d+)/);
+      const tamanho = Math.min(Math.max(parseInt(m?.[1]) || 16, 6), 64);
+      const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%&*";
+      let senha = "";
+      for (let i = 0; i < tamanho; i++) senha += chars[Math.floor(Math.random() * chars.length)];
+      return `🔑 Senha de ${tamanho} caracteres:\n\`\`\`\n${senha}\n\`\`\``;
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
+    }
+  }
+
+  // Processos
+  if (categoria === "processos") {
+    try {
+      const info = encontrarProcessos(texto);
+      if (info === "listar") {
+        const lista = await pc.listarProcessos();
+        return `📋 **Processos (top 15 por CPU):**\n\`\`\`\n${lista}\n\`\`\``;
+      }
+      if (info?.acao === "matar") {
+        await pc.matarProcesso(info.nome);
+        return `✅ Processo "${info.nome}" finalizado.`;
+      }
+      return "❌ Use: lista processos | mata [nome]";
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
+    }
+  }
+
+  // Rede
+  if (categoria === "rede") {
+    try {
+      const info = await pc.infoRede();
+      return `🌐 **Informações de Rede:**\n\`\`\`\n${info}\n\`\`\``;
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
+    }
+  }
+
+  // Bateria
+  if (categoria === "bateria") {
+    try {
+      const info = await pc.bateria();
+      return `🔋 **Bateria:**\n${info}`;
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
+    }
+  }
+
+  // Notificar (Windows toast)
+  if (categoria === "notificar") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/(?:"([^"]+)"(?:\s+)?([^"]*)|notifica|notificar|mostra\s+notificação|avisa|avisar|alerta|alertar|popup)\s+(?:com\s+)?(?:"?([^"]+?)"?\s*(?:dizendo|com\s+a\s+mensagem|mensagem)\s+(.+))/i);
+      let titulo = "Neon";
+      let msg = "";
+      if (m?.[1]) { titulo = m[1]; msg = m[2]?.trim() || ""; }
+      else if (m?.[3]) { titulo = m[3]; msg = m[4]?.trim() || ""; }
+      else if (!titulo) {
+        const limpo = lower.replace(/^(?:notifica|notificar|mostra\s+notificação|avisa|avisar|alerta|alertar|popup)\s+/i, "").trim();
+        if (limpo.includes(":")) { const [t, ...resto] = limpo.split(":"); titulo = t.trim(); msg = resto.join(":").trim(); }
+        else { msg = limpo; }
+      }
+      if (!msg && !titulo) return "❌ Use: notifica [título]: [mensagem]";
+      if (!msg) { msg = titulo; titulo = "Neon"; }
+      return await pc.notificar(titulo, msg);
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
+    }
+  }
+
+  // Email
+  if (categoria === "email") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/^(?:manda|mandar|enviar|envia)\s*(?:um\s+)?(?:email|e-mail|mail)\s+(?:pra|para)\s+(.+?)(?:\s+(?:com\s+)?(?:assunto|subject|titulo|sobre)\s+(.+?)(?:\s+(?:dizendo|corpo|mensagem|texto)\s+(.+))?)?/i);
+      if (!m) return "❌ Use: manda email pra [destino] com assunto [X] dizendo [Y]";
+      const para = m[1].trim();
+      const assunto = m[2]?.trim() || "Mensagem da Neon";
+      const corpo = m[3]?.trim() || (m[2]?.trim() ? "" : "Mensagem enviada pela Neon.");
+      return await pc.enviarEmail(para, assunto, corpo);
+    } catch (err) {
+      return `❌ Erro no email: ${err.message}`;
+    }
+  }
+
+  // Ações brasileiras (brapi.dev)
+  if (categoria === "acao") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/(?:acao|ação|ações|acoes|cotacao|cotação|preco|preço|valor)\s+(?:da|do|de)?\s*(\w{4,5}\d)/i);
+      const ticker = m?.[1]?.toUpperCase() || "PETR4";
+      const s = await cotacaoAcao(ticker);
+      const variacao = s.variacao >= 0 ? `+${s.variacao?.toFixed(2)}%` : `${s.variacao?.toFixed(2)}%`;
+      return `📈 **${s.nome} (${s.ticker})**\nPreço: **R$ ${s.preco?.toFixed(2)}** (${variacao})\nAbertura: R$ ${s.abertura?.toFixed(2)} | Máx: R$ ${s.maxima?.toFixed(2)} | Mín: R$ ${s.minima?.toFixed(2)}`;
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
     }
   }
 

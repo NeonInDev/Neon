@@ -1,53 +1,55 @@
 const path = require("path");
 const { log } = require("./logger");
-const pc = require("./pc");
 
 let pagina = null;
 let browser = null;
 let ativo = false;
 let ownerId = null;
-let ownerUsername = "dono";
+
+let readyResolve = null;
 
 async function iniciar(id, username) {
-  if (ativo) return false;
+  if (ativo) { log("INFO", "[VOICE] Já ativo"); return false; }
   ownerId = id;
-  ownerUsername = username || "dono";
+  ativo = true;
 
   try {
     const puppeteer = require("puppeteer");
     browser = await puppeteer.launch({
-      headless: true,
+      headless: "new",
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--use-fake-ui-for-media-stream",
         "--allow-file-access-from-files",
+        "--display-capture-permissions-policy-allowed",
       ],
     });
+
     pagina = await browser.newPage();
+    pagina.on("console", (msg) => log("CHROME", `${msg.type()}: ${msg.text()}`));
+    pagina.on("pageerror", (err) => log("CHROME", `pageerror: ${err.message}`));
     const pagePath = `file://${path.join(__dirname, "voice_page.html").replace(/\\/g, "/")}`;
 
-    // Ready promise: espera a pagina falar se o speech recognition funcionou
-    const ready = new Promise((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error("Timeout")), 15000);
-      pagina.exposeFunction("__neonSpeechReady", (ok, msg) => {
-        clearTimeout(timeout);
-        if (ok) resolve();
-        else reject(new Error(msg));
-      });
+    const readyPromise = new Promise((resolve) => {
+      readyResolve = resolve;
+      setTimeout(() => resolve(false), 12000);
     });
 
-    // Handler pra comandos de voz
+    pagina.exposeFunction("__neonSpeechReady2", (ok, msg) => {
+      log(ok ? "INFO" : "WARN", ok ? "[VOICE] Web Speech API pronta" : "[VOICE] Web Speech API falhou", ok ? {} : { msg });
+      if (readyResolve) { readyResolve(ok); readyResolve = null; }
+    });
+
     pagina.exposeFunction("__neonSpeechCmd", async (texto) => {
       if (!texto || texto.length < 2) return;
-      log("INFO", "[VOICE] Comando por voz (Web Speech)", { texto });
-      // Verifica se comeca com "neon"
+      log("INFO", "[VOICE] Comando por voz", { texto: texto.slice(0, 80) });
+
       const m = texto.match(/^[Nn][Ee][Oo][Nn][,\s]\s*(.*)/);
       const cmd = m ? m[1].trim() : texto.trim();
 
-      try {
-        await pc.tts(`Entendido: ${cmd.slice(0, 60)}`);
-      } catch {}
+      const pc = require("./pc");
+      try { await pc.tts(`Entendido: ${cmd.slice(0, 60)}`); } catch {}
 
       try {
         const { executarAcao } = require("./actions");
@@ -55,7 +57,6 @@ async function iniciar(id, username) {
         if (resultado) {
           const limpo = resultado.replace(/[*_`~|#]/g, "").slice(0, 200);
           await pc.tts(limpo);
-          if (global.__neonVoiceCb) global.__neonVoiceCb(cmd, resultado);
           return;
         }
       } catch (err) {
@@ -64,10 +65,9 @@ async function iniciar(id, username) {
 
       try {
         const { askNeon } = require("./ai");
-        const reply = await askNeon(ownerId, ownerUsername, cmd);
+        const reply = await askNeon(ownerId, "dono", cmd);
         const limpo = reply.replace(/[*_`~|#]/g, "").slice(0, 200);
         await pc.tts(limpo);
-        if (global.__neonVoiceCb) global.__neonVoiceCb(cmd, limpo);
       } catch (err) {
         log("ERROR", "[VOICE] IA falhou", { erro: err.message });
         try { await pc.tts("Desculpe, não entendi."); } catch {}
@@ -75,12 +75,18 @@ async function iniciar(id, username) {
     });
 
     await pagina.goto(pagePath, { waitUntil: "domcontentloaded", timeout: 15000 });
-    await ready;
-    ativo = true;
-    log("INFO", "[VOICE] Microfone ativado (Web Speech API via Chromium)");
+
+    const ready = await readyPromise;
+    if (!ready) {
+      log("WARN", "[VOICE] Web Speech API nao iniciou (timeout/falha)");
+      ativo = false;
+      return false;
+    }
+
+    log("INFO", "[VOICE] Microfone ativo (Web Speech API)");
     return true;
   } catch (err) {
-    log("WARN", "[VOICE] Falha ao iniciar microfone via Puppeteer", { erro: err.message });
+    log("WARN", "[VOICE] Falha ao iniciar", { erro: err.message });
     await parar();
     return false;
   }
@@ -88,9 +94,7 @@ async function iniciar(id, username) {
 
 async function parar() {
   if (pagina) {
-    try {
-      await pagina.evaluate(() => { window.__neonListening = false; });
-    } catch {}
+    try { await pagina.evaluate(() => { window.__neonListening = false; }); } catch {}
   }
   if (browser) {
     try { await browser.close(); } catch {}
@@ -106,8 +110,4 @@ function status() {
   return { ativo, ownerId };
 }
 
-function onComando(fn) {
-  global.__neonVoiceCb = fn;
-}
-
-module.exports = { iniciar, parar, status, onComando };
+module.exports = { iniciar, parar, status };

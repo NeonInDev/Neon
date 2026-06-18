@@ -4,6 +4,7 @@ const apiSpec = require("./api.json");
 const { DOCS_PORT } = require("../config");
 const { log } = require("../logger");
 const { askNeon } = require("../ai");
+const { executarAcao } = require("../actions");
 const voice = require("../voice");
 
 const app = express();
@@ -15,6 +16,9 @@ app.post("/api/ask", async (req, res) => {
   const { userId, username, message } = req.body;
   if (!message) return res.status(400).json({ error: "message é obrigatório" });
   try {
+    const resultadoAcao = await executarAcao(message, true, userId || "1442928336329379925");
+    if (resultadoAcao) return res.json({ reply: resultadoAcao });
+
     const reply = await askNeon(userId || "local", username || "local", message);
     res.json({ reply });
   } catch (err) {
@@ -23,14 +27,14 @@ app.post("/api/ask", async (req, res) => {
   }
 });
 
-app.post("/api/voice/toggle", (req, res) => {
+app.post("/api/voice/toggle", async (req, res) => {
   const st = voice.status();
   if (st.ativo) {
-    voice.parar();
-    res.json({ ativo: false, msg: "Microfone desativado." });
+    await voice.parar();
+    res.json({ ativo: false });
   } else {
-    voice.iniciar(req.body?.userId || "1442928336329379925", "Dono");
-    res.json({ ativo: true, msg: "Microfone ativado! Fale 'Neon, comando'." });
+    const ok = await voice.iniciar(req.body?.userId || "1442928336329379925", "Dono");
+    res.json({ ativo: ok });
   }
 });
 
