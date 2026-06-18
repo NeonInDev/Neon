@@ -1,6 +1,8 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 #Persistent
+TraySetIcon("imageres.dll", 179)
+TrayTip("Neon ativo", "Ctrl+Shift+N = falar com Neon`nCtrl+Shift+B = iniciar bot`nCtrl+Shift+V = VSCode + Neon", "Iconi")
 
 ^+N::
 {
@@ -18,14 +20,16 @@
 
 ^+B::
 {
-    RunWait('powershell -NoProfile -Command "node C:\Meus Projetos\Neon\index.js"', , "Hide")
+    ToolTip("Neon: iniciando bot...")
+    RunWait('powershell -NoProfile -Command "node index.js"', "C:\Meus Projetos\Neon", "Hide")
+    ToolTip()
 }
 
 ^+V::
 {
     ToolTip("Neon: iniciando VS Code + Neon...")
-    RunWait('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"', , "Max")
-    RunWait('powershell -NoProfile -Command "node C:\Meus Projetos\Neon\index.js"', , "Hide")
+    Run('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"', "C:\Meus Projetos\Neon")
+    RunWait('powershell -NoProfile -Command "node index.js"', "C:\Meus Projetos\Neon", "Hide")
     ToolTip()
 }
 
