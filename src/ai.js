@@ -115,33 +115,7 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
 
   try {
     let content;
-    let tentativas = [
-      {
-        nome: "OpenRouter",
-        fn: async () => {
-          const resp = await axios.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-              model: "openrouter/free",
-              max_tokens: 800,
-              messages: [
-                { role: "system", content: systemPrompt },
-                ...historico,
-                userMessage,
-              ],
-            },
-            {
-              timeout: 30000,
-              headers: {
-                Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-          return resp?.data?.choices?.[0]?.message?.content;
-        }
-      }
-    ];
+    let tentativas = [];
 
     const geminiValida = GEMINI_API_KEY && GEMINI_API_KEY !== "coloque_sua_chave_aqui";
     if (geminiValida) {
@@ -173,6 +147,33 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
       });
     }
 
+    // Fallback: OpenRouter
+    tentativas.push({
+      nome: "OpenRouter",
+      fn: async () => {
+        const resp = await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            model: "openrouter/free",
+            max_tokens: 800,
+            messages: [
+              { role: "system", content: systemPrompt },
+              ...historico,
+              userMessage,
+            ],
+          },
+          {
+            timeout: 30000,
+            headers: {
+              Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        return resp?.data?.choices?.[0]?.message?.content;
+      }
+    });
+
     for (const t of tentativas) {
       try {
         content = await t.fn();
@@ -193,28 +194,51 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
       const resumoAcoes = processado.acoes.map(a => `FERRAMENTA: ${a.ferramenta.nome}\nRESULTADO: ${a.resultado}`).join("\n\n");
       log("INFO", "Ferramentas executadas", { qtd: processado.acoes.length });
 
-      const respTool = await axios.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        {
-          model: "openrouter/free",
-          max_tokens: 600,
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...historico,
-            userMessage,
-            { role: "assistant", content },
-            { role: "system", content: `Resultados das ferramentas:\n${resumoAcoes}\n\nAgora responda ao usuario naturalmente com base nesses resultados.` },
-          ],
-        },
-        {
-          timeout: 30000,
-          headers: {
-            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-            "Content-Type": "application/json",
+      const toolMessages = [
+        { role: "system", content: systemPrompt },
+        ...historico,
+        userMessage,
+        { role: "assistant", content },
+        { role: "system", content: `Resultados das ferramentas:\n${resumoAcoes}\n\nAgora responda ao usuario naturalmente com base nesses resultados.` },
+      ];
+
+      let finalContent = null;
+      if (geminiValida) {
+        try {
+          const resp = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            {
+              system_instruction: { parts: [{ text: systemPrompt }] },
+              contents: [
+                { role: "user", parts: [{ text: userMessage.content?.text || userMessage.content }] },
+                { role: "model", parts: [{ text: content }] },
+                { role: "user", parts: [{ text: `Resultados das ferramentas:\n${resumoAcoes}\n\nAgora responda ao usuario naturalmente com base nesses resultados.` }] },
+              ],
+              generationConfig: { maxOutputTokens: 600 },
+            },
+            { timeout: 30000 }
+          );
+          finalContent = resp?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        } catch {}
+      }
+      if (!finalContent) {
+        const resp = await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          {
+            model: "openrouter/free",
+            max_tokens: 600,
+            messages: toolMessages,
           },
-        }
-      );
-      const finalContent = respTool?.data?.choices?.[0]?.message?.content;
+          {
+            timeout: 30000,
+            headers: {
+              Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+        finalContent = resp?.data?.choices?.[0]?.message?.content;
+      }
       if (finalContent) content = finalContent;
     }
 
