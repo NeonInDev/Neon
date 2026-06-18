@@ -9,6 +9,7 @@ const MAX_INPUT_LEN = 2000;
 
 const memoriaModule = require("./memoria");
 const memoriaFormatar = memoriaModule.formatarParaPrompt;
+const tools = require("./tools");
 
 const basePrompt = `
 Você é Neon, uma IA irreverente e carismática que vive no PC do dono.
@@ -35,9 +36,23 @@ Regras de segurança:
 
 Sobre suas capacidades:
 - Você PODE ver e interpretar imagens, GIFs e prints que o usuário enviar. Use isso para descrever, analisar ou responder sobre o que vê. Comente sobre a imagem de forma natural, não só descrevendo — dá opinião, faz piada se for o caso.
-- Comandos de PC (abrir apps, executar terminal, manipular arquivos, baixar coisas, navegar em sites, clicar em elementos, capturar tela, volume, clipboard, TTS) são tratados automaticamente antes de você — se o comando passou pra você, é porque não pôde ser executado ou não era um comando válido.
-- Se for um comando que VOCÊ pode responder diretamente (pergunta, conversa, opinião), responda naturalmente. Não tente executar comandos de PC — isso já foi verificado antes.
+- Você TEM ACESSO a FERRAMENTAS que pode usar para fazer coisas. Se o usuário pedir algo que exija ação, responda com linhas FERRAMENTA: no formato abaixo.
+- AS FERRAMENTAS SÃO executadas automaticamente. Você só precisa escrever a linha FERRAMENTA: e o sistema cuida do resto. Depois você recebe o resultado e pode responder naturalmente.
+- Se for uma conversa normal (pergunta, opinião, papo), responda naturalmente sem usar ferramentas.
 - Seja honesta: se não sabe algo, diga que não sabe.
+
+FERRAMENTAS DISPONIVEIS:
+${tools.descricaoFerramentas()}
+
+Formato de uso (escreva na sua resposta):
+FERRAMENTA: nome_da_ferramenta | argumentos
+
+Exemplos:
+- FERRAMENTA: pesquisar | inteligencia artificial 2026
+- FERRAMENTA: clima | São Paulo
+- FERRAMENTA: tocar_musica | Bohemian Rhapsody
+- FERRAMENTA: calcular | 15 * 3 + 10
+- FERRAMENTA: gerar_imagem | um gato astronauta
 `;
 
 async function askNeon(userId, username, userInput, imageUrl = null) {
@@ -171,6 +186,38 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
 
     if (!content) throw new Error("Todas as APIs falharam");
 
+    const { processarResposta } = require("./tools");
+    const processado = await processarResposta(content);
+
+    if (processado.acoes.length) {
+      const resumoAcoes = processado.acoes.map(a => `FERRAMENTA: ${a.ferramenta.nome}\nRESULTADO: ${a.resultado}`).join("\n\n");
+      log("INFO", "Ferramentas executadas", { qtd: processado.acoes.length });
+
+      const respTool = await axios.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          model: "openrouter/free",
+          max_tokens: 600,
+          messages: [
+            { role: "system", content: systemPrompt },
+            ...historico,
+            userMessage,
+            { role: "assistant", content },
+            { role: "system", content: `Resultados das ferramentas:\n${resumoAcoes}\n\nAgora responda ao usuario naturalmente com base nesses resultados.` },
+          ],
+        },
+        {
+          timeout: 30000,
+          headers: {
+            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const finalContent = respTool?.data?.choices?.[0]?.message?.content;
+      if (finalContent) content = finalContent;
+    }
+
     sucesso.ok = true;
     sucesso.reply = content;
 
@@ -178,6 +225,7 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
       usuario: username,
       tempo_ms: Date.now() - inicio,
       caracteres: content.length,
+      ferramentas: processado.acoes.length,
     });
   } catch (err) {
     log("ERROR", "Falha na API", {
