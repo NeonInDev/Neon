@@ -27,8 +27,8 @@ async function desligar(sinal) {
 }
 
 client.once("clientReady", async () => {
-  const ok = await voice.iniciar("1442928336329379925", "Dono");
-  if (ok) log("INFO", "[VOICE] Microfone auto-iniciado");
+  // Voice desligado no startup — Web Speech API nao funciona em headless no Windows
+  // Pra ativar manualmente: voice.iniciar("1442928336329379925", "Dono")
   monitor.iniciar(client);
   proativo.iniciar(client);
 });
