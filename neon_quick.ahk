@@ -40,6 +40,10 @@
     }
 }
 
+#HotIf
+
+; ─── Atalhos globais (funcionam de qualquer lugar) ───
+
 ; Enviar mensagem pra Neon
 ^+N::
 {
@@ -53,11 +57,6 @@
         SetTimer(() => ToolTip(), -8000)
     }
 }
-
-#HotIf
-
-; ─── Também funciona no VS Code / terminal pra gerenciar o bot ───
-#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe") or WinActive("ahk_exe Code.exe") or WinActive("ahk_exe WindowsTerminal.exe")
 
 ^+B::
 {
@@ -109,8 +108,6 @@
         Run('cmd /c "echo Bot encerrado. && timeout /t 3"', , "Max")
     }
 }
-
-#HotIf
 
 SendRequest(msg)
 {
