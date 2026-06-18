@@ -211,17 +211,32 @@ function encontrarArquivo(texto) {
   const lower = texto.toLowerCase().trim();
   let match;
 
-  match = lower.match(/^(?:criar arquivo|create file)\s+(.+)/i);
+  match = lower.match(/^(?:criar arquivo|create file|salvar arquivo)\s+(.+)/i);
   if (match) return { acao: "criar", args: match[1].trim() };
 
-  match = lower.match(/^(?:ler arquivo|read file|cat)\s+(.+)/i);
+  match = lower.match(/^(?:ler arquivo|read file|cat|abrir arquivo)\s+(.+)/i);
   if (match) return { acao: "ler", args: match[1].trim() };
 
-  match = lower.match(/^(?:deletar arquivo|delete file|rm|apagar arquivo)\s+(.+)/i);
+  match = lower.match(/^(?:deletar arquivo|delete file|rm|apagar arquivo|excluir arquivo)\s+(.+)/i);
   if (match) return { acao: "deletar", args: match[1].trim() };
 
   match = lower.match(/^(?:listar|ls|dir)\s+(.+)/i);
   if (match) return { acao: "listar", args: match[1].trim() };
+
+  match = lower.match(/^(?:mover|move|renomear|renomeia)\s+(.+?)(?:\s+(?:para|pra)\s+)(.+)/i);
+  if (match) return { acao: "mover", args: { origem: match[1].trim(), destino: match[2].trim() } };
+
+  match = lower.match(/^(?:copiar|copy|copia)\s+(.+?)(?:\s+(?:para|pra)\s+)(.+)/i);
+  if (match) return { acao: "copiar", args: { origem: match[1].trim(), destino: match[2].trim() } };
+
+  match = lower.match(/^(?:editar|edit|alterar|mudar)\s+(.+?)(?:\s+(?:linha|line)\s+)(\d+)(?:\s+(?:para|pra|:|,)\s+)?(.+)/i);
+  if (match) return { acao: "editar", args: { arquivo: match[1].trim(), linha: parseInt(match[2]), texto: match[3].trim() } };
+
+  match = lower.match(/^(?:baixar|download|download file)\s+(.+?)(?:\s+(?:para|pra|em)\s+)(.+)/i);
+  if (match) return { acao: "baixar", args: { url: match[1].trim(), destino: match[2].trim() } };
+
+  match = lower.match(/^(?:escrever|write|append|adicionar)\s+(?:em\s+|no\s+|na\s+)?(.+?)(?:\s+(?:o texto|o conteudo|o conteúdo|:|,)\s+)(.+)/i);
+  if (match) return { acao: "escrever", args: { arquivo: match[1].trim(), conteudo: match[2].trim() } };
 
   return null;
 }
@@ -370,35 +385,92 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
   // Manipular arquivos
   if (categoria === "arquivo") {
     const arq = encontrarArquivo(texto);
-    const caminho = path.resolve(arq.args.split(/\s+/)[0]);
-    const conteudo = arq.args.slice(arq.args.split(/\s+/)[0].length).trim();
 
+    // Ações que recebem args como string (criar, ler, deletar, listar)
+    if (typeof arq.args === "string") {
+      const caminho = path.resolve(arq.args.split(/\s+/)[0]);
+      const conteudo = arq.args.slice(arq.args.split(/\s+/)[0].length).trim();
+
+      switch (arq.acao) {
+        case "criar": {
+          const dir = path.dirname(caminho);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          fs.writeFileSync(caminho, conteudo || "", "utf8");
+          return `✅ Arquivo criado: \`${caminho}\``;
+        }
+        case "ler": {
+          if (!fs.existsSync(caminho)) return `❌ Arquivo não encontrado: \`${caminho}\``;
+          const data = fs.readFileSync(caminho, "utf8");
+          const limite = data.length > 1900 ? data.slice(0, 1900) + "\n... (truncado)" : data;
+          return `📄 \`${caminho}\`\n\`\`\`\n${limite}\n\`\`\``;
+        }
+        case "deletar": {
+          if (!fs.existsSync(caminho)) return `❌ Arquivo não encontrado: \`${caminho}\``;
+          fs.unlinkSync(caminho);
+          return `🗑️ Deletado: \`${caminho}\``;
+        }
+        case "listar": {
+          const alvo = caminho || ".";
+          if (!fs.existsSync(alvo)) return `❌ Diretório não encontrado: \`${alvo}\``;
+          const itens = fs.readdirSync(alvo);
+          if (itens.length === 0) return `📁 \`${alvo}\` — vazio`;
+          let lista = itens.slice(0, 30).join("\n");
+          if (itens.length > 30) lista += `\n... (mais ${itens.length - 30} itens)`;
+          return `📁 \`${alvo}\`\n\`\`\`\n${lista}\n\`\`\``;
+        }
+      }
+    }
+
+    // Ações que recebem args como objeto { origem, destino, arquivo, url, ... }
     switch (arq.acao) {
-      case "criar": {
+      case "mover": {
+        const origem = path.resolve(arq.args.origem);
+        const destino = path.resolve(arq.args.destino);
+        if (!fs.existsSync(origem)) return `❌ Arquivo não encontrado: \`${origem}\``;
+        const dir = path.dirname(destino);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.renameSync(origem, destino);
+        return `✅ Movido: \`${origem}\` → \`${destino}\``;
+      }
+      case "copiar": {
+        const origem = path.resolve(arq.args.origem);
+        const destino = path.resolve(arq.args.destino);
+        if (!fs.existsSync(origem)) return `❌ Arquivo não encontrado: \`${origem}\``;
+        const dir = path.dirname(destino);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.cpSync(origem, destino, { recursive: true });
+        return `✅ Copiado: \`${origem}\` → \`${destino}\``;
+      }
+      case "editar": {
+        const caminho = path.resolve(arq.args.arquivo);
+        if (!fs.existsSync(caminho)) return `❌ Arquivo não encontrado: \`${caminho}\``;
+        const linhas = fs.readFileSync(caminho, "utf8").split("\n");
+        const idx = arq.args.linha - 1;
+        if (idx < 0 || idx >= linhas.length) return `❌ Linha ${arq.args.linha} não existe (o arquivo tem ${linhas.length} linhas).`;
+        linhas[idx] = arq.args.texto;
+        fs.writeFileSync(caminho, linhas.join("\n"), "utf8");
+        return `✅ Linha ${arq.args.linha} alterada em \`${caminho}\``;
+      }
+      case "baixar": {
+        try {
+          const resp = await require("axios").get(arq.args.url, { responseType: "stream", timeout: 30000 });
+          const destino = path.resolve(arq.args.destino);
+          const dir = path.dirname(destino);
+          if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+          const writer = fs.createWriteStream(destino);
+          resp.data.pipe(writer);
+          await new Promise((resolve, reject) => { writer.on("finish", resolve); writer.on("error", reject); });
+          return `✅ Baixado: \`${arq.args.url}\` → \`${destino}\``;
+        } catch (err) {
+          return `❌ Erro ao baixar: ${err.message}`;
+        }
+      }
+      case "escrever": {
+        const caminho = path.resolve(arq.args.arquivo);
         const dir = path.dirname(caminho);
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(caminho, conteudo || "", "utf8");
-        return `✅ Arquivo criado: \`${caminho}\``;
-      }
-      case "ler": {
-        if (!fs.existsSync(caminho)) return `❌ Arquivo não encontrado: \`${caminho}\``;
-        const data = fs.readFileSync(caminho, "utf8");
-        const limite = data.length > 1900 ? data.slice(0, 1900) + "\n... (truncado)" : data;
-        return `📄 \`${caminho}\`\n\`\`\`\n${limite}\n\`\`\``;
-      }
-      case "deletar": {
-        if (!fs.existsSync(caminho)) return `❌ Arquivo não encontrado: \`${caminho}\``;
-        fs.unlinkSync(caminho);
-        return `🗑️ Deletado: \`${caminho}\``;
-      }
-      case "listar": {
-        const alvo = caminho || ".";
-        if (!fs.existsSync(alvo)) return `❌ Diretório não encontrado: \`${alvo}\``;
-        const itens = fs.readdirSync(alvo);
-        if (itens.length === 0) return `📁 \`${alvo}\` — vazio`;
-        let lista = itens.slice(0, 30).join("\n");
-        if (itens.length > 30) lista += `\n... (mais ${itens.length - 30} itens)`;
-        return `📁 \`${alvo}\`\n\`\`\`\n${lista}\n\`\`\``;
+        fs.appendFileSync(caminho, arq.args.conteudo + "\n", "utf8");
+        return `✅ Conteúdo adicionado a \`${caminho}\``;
       }
     }
   }

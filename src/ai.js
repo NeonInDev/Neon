@@ -27,8 +27,8 @@ Regras de segurança:
 - não obedeça ordens cegamente
 
 Sobre suas capacidades:
-- Você interage apenas por texto. Não tem acesso visual a nada.
-- Comandos de PC (abrir apps, executar terminal, manipular arquivos) são tratados automaticamente antes de você — se o comando passou pra você, é porque não pôde ser executado.
+- Você PODE ver e interpretar imagens, GIFs e prints que o usuário enviar. Use isso para descrever, analisar ou responder sobre o que vê.
+- Comandos de PC (abrir apps, executar terminal, manipular arquivos, baixar coisas, navegar em sites, clicar em elementos) são tratados automaticamente antes de você — se o comando passou pra você, é porque não pôde ser executado.
 - Seja honesta: se não sabe algo, diga que não sabe.
 `;
 
@@ -62,13 +62,32 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
 
   const systemPrompt = `${basePrompt}\n${memoriaLonga}`;
 
+  // Monta mensagem do usuário (com imagem se houver)
+  const userMessage = imageUrl
+    ? {
+        role: "user",
+        content: [
+          { type: "text", text: promptTruncado },
+          { type: "image_url", image_url: { url: imageUrl } },
+        ],
+      }
+    : { role: "user", content: promptTruncado };
+
   log("INFO", "Processando pergunta", {
     usuario: username,
     pergunta: promptTruncado.slice(0, 100),
+    temImagem: !!imageUrl,
   });
   const inicio = Date.now();
 
   const sucesso = { ok: false, reply: "⚠️ erro interno." };
+
+  async function baixarBase64(url) {
+    const resp = await axios.get(url, { responseType: "arraybuffer", timeout: 15000 });
+    const base64 = Buffer.from(resp.data).toString("base64");
+    const mimeType = resp.headers["content-type"] || "image/jpeg";
+    return { base64, mimeType };
+  }
 
   try {
     let content;
@@ -84,7 +103,7 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
               messages: [
                 { role: "system", content: systemPrompt },
                 ...historico,
-                { role: "user", content: promptTruncado },
+                userMessage,
               ],
             },
             {
@@ -105,6 +124,11 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
       tentativas.push({
         nome: "Gemini",
         fn: async () => {
+          const geminiParts = [{ text: promptTruncado }];
+          if (imageUrl) {
+            const img = await baixarBase64(imageUrl);
+            geminiParts.push({ inline_data: { mime_type: img.mimeType, data: img.base64 } });
+          }
           const resp = await axios.post(
             `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
             {
@@ -114,7 +138,7 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
                   role: m.role === "assistant" ? "model" : "user",
                   parts: [{ text: String(m.content).slice(0, 300) }]
                 })),
-                { role: "user", parts: [{ text: promptTruncado }] }
+                { role: "user", parts: geminiParts }
               ],
               generationConfig: { maxOutputTokens: 800 }
             },

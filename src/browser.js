@@ -121,12 +121,37 @@ async function executarAcao(page, acao) {
     await el.type(acao.texto, { delay: 50 });
   }
 
+  if (acao.tipo === "escrever") {
+    const sel = "input[type='text'], input:not([type]), textarea, [contenteditable='true']";
+    let el = acao.seletor ? await page.$(`input[name='${acao.seletor}'], input[placeholder*='${acao.seletor}'], input[id*='${acao.seletor}'], label:has-text('${acao.seletor}') + input`) : null;
+    if (!el) el = await page.$(sel);
+    await el.click({ clickCount: 3 });
+    await el.type(acao.texto, { delay: 50 });
+  }
+
+  if (acao.tipo === "extrair") {
+    let el;
+    if (acao.seletor && acao.seletor !== "pagina" && acao.seletor !== "página") {
+      el = await page.$(`p, h1, h2, h3, h4, span, div, a, li, ${acao.seletor}`);
+    }
+    if (!el) el = await page.$("body");
+    const textoExtraido = await el.evaluate(el => el.textContent.trim().slice(0, 3000));
+    acao.textoExtraido = textoExtraido;
+  }
+
   if (acao.tipo === "esperar") {
     await sleep(acao.tempo || 2000);
   }
 
   if (acao.tipo === "scrollar") {
-    await page.evaluate(() => window.scrollBy(0, acao.quantidade || 500));
+    const amount = acao.quantidade;
+    if (amount === -99999) {
+      await page.evaluate(() => window.scrollTo(0, 0));
+    } else if (amount === 99999) {
+      await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    } else {
+      await page.evaluate((q) => window.scrollBy(0, q), amount);
+    }
   }
 
   if (acao.tipo === "pip") {
@@ -164,22 +189,29 @@ async function interpretarAcaoTexto(texto) {
   if (m) return { tipo: "tocar_video", termo: m[1].trim() };
 
   m = lower.match(/^(?:pesquisa|pesquisar|busca|buscar|search)\s+(.+?)(?:\s+e\s+(?:coloca|colocar|toca|tocar|da play|dá play|play|assiste|assistir|pip|picture in picture)\s*(?:(?:o|a|em)\s+)?(?:video|vídeo|ele|ela|pip)?)?\s*$/i);
-  if (m) {
-    let termo = m[1].trim();
-    return { tipo: "tocar_video", termo };
-  }
+  if (m) return { tipo: "tocar_video", termo: m[1].trim() };
 
-  m = lower.match(/^(?:clica|clicar|click|aperta|apertar|entra|entrar)\s+(?:em\s+|no|na)?(.+)/i);
+  m = lower.match(/^(?:clica|clicar|click|aperta|apertar|entra|entrar|toca|tocar em)\s+(?:em\s+|no|na|em)?(.+)/i);
   if (m) return { tipo: "clicar", texto: m[1].trim() };
 
-  m = lower.match(/^(?:digita|digitar|type|escreve|escrever)\s+(.+)/i);
+  m = lower.match(/^(?:digita|digitar|type)\s+(.+)/i);
   if (m) return { tipo: "digitar", texto: m[1].trim() };
 
-  m = lower.match(/^(?:espera|esperar|wait)\s+(\d+)/i);
+  m = lower.match(/^(?:escreve|escrever|preenche|preencher)\s+(?:em\s+|no|na)?(.+?)(?:\s+(?:com|:|,)\s+(.+))/i);
+  if (m) return { tipo: "escrever", seletor: m[1].trim(), texto: m[2].trim() };
+
+  m = lower.match(/^(?:espera|esperar|wait|aguarda|aguardar)\s+(\d+)/i);
   if (m) return { tipo: "esperar", tempo: parseInt(m[1]) * 1000 };
 
-  m = lower.match(/^(?:rola|rolar|scroll|scrollar)\s+(?:para\s+)?(baixo|cima|(\d+))/i);
-  if (m) return { tipo: "scrollar", quantidade: m[1] === "cima" ? -500 : m[2] ? parseInt(m[2]) : 500 };
+  m = lower.match(/^(?:rola|rolar|scroll|scrollar|desce|descer|sobe|subir)\s+(?:para\s+|ate\s+)?(baixo|cima|topo|fim|fundo|(\d+))/i);
+  if (m) {
+    if (m[1] === "topo" || m[1] === "cima") return { tipo: "scrollar", quantidade: -99999 };
+    if (m[1] === "fim" || m[1] === "fundo" || m[1] === "baixo") return { tipo: "scrollar", quantidade: 99999 };
+    return { tipo: "scrollar", quantidade: m[2] ? parseInt(m[2]) : 500 };
+  }
+
+  m = lower.match(/^(?:extrai|extrair|pega|pegar|captura|capturar|ler|lê)\s+(?:o\s+)?(?:texto\s+)?(?:da\s+|do\s+)?(.+)/i);
+  if (m) return { tipo: "extrair", seletor: m[1].trim() };
 
   m = lower.match(/^(?:pip|picture in picture|tela flutuante|mini player)/i);
   if (m) return { tipo: "pip" };
@@ -273,6 +305,8 @@ async function executarRoteiro(texto) {
         if (acao.tipo === "pesquisar") descricao = `pesquisei "${acao.termo}"`;
         if (acao.tipo === "clicar") descricao = `cliquei em "${acao.texto}"`;
         if (acao.tipo === "digitar") descricao = `digitei "${acao.texto}"`;
+        if (acao.tipo === "escrever") descricao = `escrevi "${acao.texto}" no campo`;
+        if (acao.tipo === "extrair") descricao = `extraí o texto da página:\n\n${acao.textoExtraido || "(vazio)"}`;
         if (acao.tipo === "pip") descricao = `ativei o picture-in-picture`;
         return { ok: true, msg: `🌐 Abri ${cmd.site} e ${descricao}.` };
       } catch (err) {
@@ -290,10 +324,14 @@ async function executarRoteiro(texto) {
 // ─── Spotify Web ───
 async function tocarSpotify(termo) {
   const page = await abrirPagina(`https://open.spotify.com/search/${encodeURIComponent(termo)}`);
-  // Espera a página de busca carregar completamente
-  await sleep(6000);
+  // Espera a página de busca carregar — até 15s
+  await sleep(4000);
+  try {
+    await page.waitForSelector("[data-testid='search-page'], section[data-testid='search-page'], div[role='row'], a[href*='/track/']", { timeout: 15000 });
+  } catch {}
+  await sleep(2000);
 
-  // Tenta clicar no primeiro resultado por vários seletores
+  // Estratégia 1: botão de play no primeiro resultado (vários seletores)
   const playSelectors = [
     "div[data-testid='search-page'] section:first-of-type div[role='row']:first-child button[data-testid='play-button']",
     "div[data-testid='search-page'] div[data-testid='track-list'] div[role='row']:first-child button",
@@ -302,6 +340,8 @@ async function tocarSpotify(termo) {
     "section[data-testid='search-page'] div[role='row']:first-child div[role='cell']:nth-child(2) button",
     "[data-testid='herocard'] button",
     "button[data-testid='play-button']",
+    "[role='row']:first-child button:has(svg)",
+    "[role='row']:first-child button svg",
   ];
   for (const sel of playSelectors) {
     const btns = await page.$$(sel);
@@ -316,13 +356,36 @@ async function tocarSpotify(termo) {
     }
   }
 
-  // Fallback: clica no primeiro card/link de track que aparece
-  const cards = await page.$$("a[href*='/track/'], div[data-testid='tracklist-row'], div[role='row']");
-  if (cards.length > 0) {
-    await cards[0].click();
-    await sleep(3000);
-    return `🎵 Tocando "${termo}" no Spotify Web.`;
+  // Estratégia 2: clica no primeiro link de track, depois espera tocar
+  const trackLinks = await page.$$("a[href*='/track/']");
+  if (trackLinks.length > 0) {
+    try {
+      await trackLinks[0].click();
+      await sleep(4000);
+      // Tenta clicar em play na página da track
+      const playBtns = await page.$$("button[data-testid='play-button'], button[aria-label*='Play'], button[aria-label*='Tocar']");
+      for (const btn of playBtns) {
+        try {
+          await btn.click();
+          await sleep(2000);
+          return `🎵 Tocando "${termo}" no Spotify Web.`;
+        } catch {}
+      }
+      return `🎵 Abri "${termo}" no Spotify Web.`;
+    } catch {}
   }
+
+  // Estratégia 3: pressiona Enter no primeiro item
+  try {
+    const primeiroItem = await page.$("div[role='row']:first-child, [data-testid='tracklist-row']:first-child");
+    if (primeiroItem) {
+      await primeiroItem.click();
+      await sleep(1000);
+      await page.keyboard.press("Enter");
+      await sleep(3000);
+      return `🎵 Tocando "${termo}" no Spotify Web.`;
+    }
+  } catch {}
 
   throw new Error("Não achei resultados no Spotify Web");
 }
