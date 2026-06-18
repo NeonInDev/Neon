@@ -259,6 +259,8 @@ function detectarCategoria(texto) {
 
 async function executarAcao(texto, usuarioMestre = false, userId = null) {
   const podePC = permitido(userId);
+  // Remove prefixo "Neon," "Neon." "Neon " (vindo de DM sem strip)
+  texto = texto.replace(/^[Nn][Ee][Oo][Nn][,\s\.]\s*/, "");
   const lower = texto.toLowerCase().trim();
 
   // ─── Daddy is home ───
@@ -453,29 +455,30 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
   // Spotify — tocar música (app desktop + fallback web)
   if (categoria === "spotify") {
     const musica = encontrarSpotify(texto);
+    let desktopOk = false;
     // Tenta pelo app desktop com teclas de atalho
     const buscaCmd = `start spotify:search:${encodeURIComponent(musica)}`;
     const r1 = await tentar(buscaCmd);
     if (r1.ok) {
       await sleep(3000);
       const psCmds = [
-        // Variações de navegação por Tab + setas
         'powershell -Command "$w = New-Object -ComObject wscript.shell; if ($w.AppActivate(\'Spotify\')) { Start-Sleep 1; $w.SendKeys(\'{TAB}\'); Start-Sleep 0.3; $w.SendKeys(\'{DOWN}\'); Start-Sleep 0.3; $w.SendKeys(\'{ENTER}\') }"',
         'powershell -Command "$w = New-Object -ComObject wscript.shell; if ($w.AppActivate(\'Spotify\')) { Start-Sleep 1; $w.SendKeys(\'{TAB}{TAB}{DOWN}{ENTER}\') }"',
         'powershell -Command "$w = New-Object -ComObject wscript.shell; $w.AppActivate(\'Spotify\'); Start-Sleep 1.5; $w.SendKeys(\'{TAB}{DOWN}{ENTER}\')"',
       ];
       for (const cmd of psCmds) {
         const r2 = await tentar(cmd);
-        if (r2.ok) break;
+        if (r2.ok) { desktopOk = true; break; }
       }
-      return `🎵 Tocando "${musica}" no Spotify.`;
+      if (desktopOk) return `🎵 Tocando "${musica}" no Spotify.`;
     }
     // Fallback: tenta pelo Spotify Web (Puppeteer)
     try {
       const msg = await tocarSpotify(musica);
       return msg;
     } catch {
-      return `🔍 Abri o Spotify procurando "${musica}". Dá um play lá?`;
+      if (r1.ok) return `🔍 Abri o Spotify procurando "${musica}". Dá um play lá?`;
+      return `❌ Não consegui abrir o Spotify para tocar "${musica}".`;
     }
   }
 

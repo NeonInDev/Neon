@@ -1,22 +1,26 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 
-; ─── InputHook global captura texto antes do Enter ───
+; ─── InputHook global — reinicia em QUALQUER Enter ───
 global neonIH := InputHook("V", "Enter")
 neonIH.Start()
 
-; ─── "Neon, comando" → "/neon comando" sem modificar original ───
-#HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
+; ─── "Neon, comando" → "/neon comando" (só em Discord/Chrome/Opera) ───
 ~Enter::
 {
     global neonIH
-    buf := neonIH.Input
+    try buf := neonIH.Input
+    catch buf := ""
     neonIH := InputHook("V", "Enter")
     neonIH.Start()
-    if RegExMatch(buf, "iO)^neon,\s*(.+)", &m)
+
+    if !WinActive("ahk_exe Discord.exe") and !WinActive("ahk_class Chrome_WidgetWin_1") and !WinActive("ahk_exe opera.exe")
+        return
+
+    try if RegExMatch(buf, "iO)^neon,\s*(.+)", &m)
         SendInput "/neon " m[1] "{Enter}"
 }
-#HotIf
+
 
 ^+N::
 {

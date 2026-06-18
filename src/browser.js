@@ -6,7 +6,17 @@ const OPERA_PATH = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera
 const USER_DATA = "C:\\Users\\Pichau\\AppData\\Local\\Temp\\neon_opera_profile";
 
 async function iniciar() {
-  if (browser) return browser;
+  if (browser) {
+    try {
+      if (browser.connected) {
+        await browser.pages();
+        return browser;
+      }
+    } catch {}
+    try { await browser.close(); } catch {}
+    browser = null;
+    log("INFO", "[BROWSER] Navegador anterior fechado, criando novo");
+  }
   try {
     const puppeteer = require("puppeteer");
     browser = await puppeteer.launch({
@@ -17,6 +27,7 @@ async function iniciar() {
         "--disable-setuid-sandbox",
         `--user-data-dir=${USER_DATA}`,
         "--start-maximized",
+        "--remote-debugging-port=0",
       ],
     });
     log("INFO", "[BROWSER] Opera GX iniciado");

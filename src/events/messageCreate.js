@@ -52,9 +52,10 @@ module.exports = {
       let userInput = content;
 
       const lowerContent = content.toLowerCase();
-      if (lowerContent.startsWith("neon,") || lowerContent.startsWith("neon ")) {
+      const neonMatch = lowerContent.match(/^neon[,\s\.]\s*(.*)/);
+      if (neonMatch) {
         ativar = true;
-        userInput = content.slice(5).trim();
+        userInput = neonMatch[1] || "";
       }
 
       if (message.reference && !ativar) {
