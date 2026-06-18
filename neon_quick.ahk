@@ -9,7 +9,8 @@
         res := SendRequest(ib.Value)
         if res = ""
             res := "(sem resposta - servidor offline?)"
-        MsgBox(res, "Neon", 4096)
+        ToolTip(res)
+        SetTimer(() => ToolTip(), -8000)
     }
 }
 
@@ -34,6 +35,7 @@ SendRequest(msg)
     safe := JsonEncode(msg)
 
     try {
+        http.SetTimeouts(5000, 5000, 5000, 10000)
         http.Open("POST", "http://localhost:3000/api/ask", false)
         http.SetRequestHeader("Content-Type", "application/json")
         http.Send('{"userId":"ahk_local","username":"Atalho","message":' safe '}')
