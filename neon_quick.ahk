@@ -26,6 +26,12 @@
     Run('cmd /k "title Neon Bot && cd /d C:\Meus Projetos\Neon && node index.js"', , "Max")
 }
 
+^+X::
+{
+    RunWait('powershell -NoProfile -Command "Stop-Process -Name node -Force"', , "Hide")
+    Run('cmd /c "title Neon Bot && echo Bot encerrado. && timeout /t 3"', , "Max")
+}
+
 SendRequest(msg)
 {
     static http := ""
