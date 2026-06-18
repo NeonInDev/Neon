@@ -39,8 +39,25 @@ function checkCooldown(userId) {
 }
 
 async function enviarResposta(message, texto) {
-  // Detecta URLs de imagem no texto e baixa pra enviar como attachment
-  const urlMatch = texto?.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp)[^\s]*)|(https?:\/\/image\.pollinations\.ai\/prompt[^\s]*)/i);
+  if (!texto) { await message.reply("❌ erro interno"); return; }
+
+  // Arquivo local (screenshot, etc): __FILE__:C:\path\to\file.png
+  const fileMatch = texto.match(/^__FILE__:(.+)/);
+  if (fileMatch) {
+    try {
+      const { AttachmentBuilder } = require("discord.js");
+      const filePath = fileMatch[1].trim();
+      const nome = `neon_${Date.now()}_${require("path").basename(filePath)}`;
+      const attachment = new AttachmentBuilder(filePath, { name: nome });
+      await message.reply({ files: [attachment] });
+    } catch {
+      await message.reply("❌ Erro ao enviar arquivo.");
+    }
+    return;
+  }
+
+  // URLs de imagem — baixa e envia como attachment
+  const urlMatch = texto.match(/(https?:\/\/[^\s]+\.(?:png|jpg|jpeg|gif|webp)[^\s]*)|(https?:\/\/image\.pollinations\.ai\/prompt[^\s]*)/i);
   if (urlMatch) {
     try {
       const resp = await axios.get(urlMatch[1] || urlMatch[2], {
@@ -55,7 +72,6 @@ async function enviarResposta(message, texto) {
       await message.reply({ content: txt || undefined, files: [attachment] });
       return;
     } catch {
-      // Fallback: envia URL pura (Discord pode embedar automaticamente)
       await message.reply(texto);
       return;
     }
@@ -101,7 +117,7 @@ module.exports = {
       if (checkCooldown(message.author.id)) return;
 
       const mestre = db.data.users?.[message.author.id]?.mestre || false;
-      const resultadoAcao = await executarAcao(userInput, mestre, message.author.id);
+      const resultadoAcao = await executarAcao(userInput, mestre, message.author.id, message);
       if (resultadoAcao) {
         await enviarResposta(message, resultadoAcao);
         return;

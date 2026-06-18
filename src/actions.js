@@ -5,6 +5,10 @@ const path = require("path");
 const { log } = require("./logger");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
 const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, fatoAleatorio, meuIP, gerarImagem, buscarImagem, imagemAleatoria } = require("./api");
+const pc = require("./pc");
+const { traduzir } = require("./translate");
+const { detectar: detectarCustom, adicionar: addCustom, remover: removeCustom, listar: listarCustom } = require("./custom_commands");
+const { criarLembrete } = require("./timers");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function limparFiller(t) {
@@ -279,6 +283,60 @@ function encontrarMostrarImagem(texto) {
   return false;
 }
 
+function encontrarVolume(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/volume\s+(?:maximo|max|maximo|minimo|min|0)/i.test(lower)) return true;
+  if (/^(?:aumenta|diminui|aumentar|diminuir|sobe|desce|subir|descer)\s+(?:o\s+)?volume/i.test(lower)) return true;
+  if (/^(?:muta|mutar|desmuta|desmutar|silencia|silenciar)\s*(?:o\s+)?(?:audio|som|volume|pc)?/i.test(lower)) return true;
+  if (/^volume\s+\d+/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarScreenshot(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:tira|tirar|faz|fazer|captura|capturar)\s+(?:um\s+)?(?:print|screenshot|captura|foto|fotografia)\s*(?:da\s+tela|do\s+pc|do\s+monitor|da\s+area\s+de\s+trabalho)?/i.test(lower)) return true;
+  if (/^(?:printa|printar|screenshotar)\s/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarPCInfo(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:como\s+)?(?:ta|tá|esta|está)\s+(?:o\s+)?pc|status\s+(?:do\s+)?pc|info\s+(?:do\s+)?pc|monitorar|desempenho/i.test(lower)) return true;
+  if (/como\s+ta\s+o\s+(?:pc|computador|desempenho|sistema)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarClipboard(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:copia|copiar|cola|colar)\s*(?:isso|isto|texto|clipboard|area\s*de\s*transferencia|pra\s+area)?/i.test(lower)) return true;
+  if (/(?:copia|copiar)\s+(?:pra|para)\s+(?:area|a\s*area)\s+(?:de\s+)?transferencia/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarTTS(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:fala|falar|diz|dizer|pronuncia|pronunciar)\s+(?:algo|isso|isto|em\s+voz\s+alta|em\s+audio|pelas\s+caixas)/i.test(lower)) return true;
+  if (/^(?:leia|le|ler)\s+(?:em\s+voz\s+alta|pra\s+mim|para\s+mim|esse\s+texto)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarTraducao(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:traduz|traduzir|traducao|tradução|translate)\s+(.+?)(?:\s+(?:pra|para|em)\s+(.+))?/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarLembrete(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:me\s+)?(?:lembra|lembrar|lembrete|alarme|alerta|timer|despertador|lembre)\s+(?:de|pra|para|em)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarCustomCommand(texto) {
+  const cmd = detectarCustom(texto);
+  return !!cmd;
+}
+
 function encontrarBrowser(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
@@ -347,11 +405,14 @@ function permitido(userId) {
 }
 
 function detectarCategoria(texto) {
+  // Custom commands (usuário define) — maior prioridade
+  if (encontrarCustomCommand(texto)) return "customCommand";
   if (isWin()) {
     const jogo = encontrarJogo(texto);
     if (jogo && jogo.id !== undefined) return "jogo";
   }
   if (encontrarApp(texto)) return "app";
+  if (encontrarScreenshot(texto)) return "screenshot";
   if (isWin() && encontrarPcCommand(texto)) return "pcCommand";
   if (isWin() && encontrarExec(texto)) return "exec";
   if (encontrarArquivo(texto)) return "arquivo";
@@ -361,6 +422,12 @@ function detectarCategoria(texto) {
   if (encontrarPesquisa(texto)) return "pesquisa";
   if (encontrarDigitar(texto)) return "digitar";
   if (isWin() && encontrarJogo(texto)) return "jogo";
+  if (encontrarVolume(texto)) return "volume";
+  if (encontrarPCInfo(texto)) return "pcInfo";
+  if (encontrarClipboard(texto)) return "clipboard";
+  if (encontrarTTS(texto)) return "tts";
+  if (encontrarTraducao(texto)) return "traducao";
+  if (encontrarLembrete(texto)) return "lembrete";
   if (encontrarBrowser(texto)) return "browser";
   if (encontrarNavegar(texto)) return "navegar";
   if (encontrarCotacao(texto)) return "cotacao";
@@ -377,7 +444,7 @@ function detectarCategoria(texto) {
   return null;
 }
 
-async function executarAcao(texto, usuarioMestre = false, userId = null) {
+async function executarAcao(texto, usuarioMestre = false, userId = null, message = null) {
   const podePC = permitido(userId);
   // Remove prefixo "Neon," "Neon." "Neon " (vindo de DM sem strip)
   texto = texto.replace(/^[Nn][Ee][Oo][Nn][,\s\.]\s*/, "");
@@ -820,6 +887,139 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
       return `🔍 Aqui está uma imagem de "${query}":\n${url}`;
     } catch (err) {
       return `❌ Erro ao buscar imagem: ${err.message}`;
+    }
+  }
+
+  // Custom commands (usuário)
+  if (categoria === "customCommand") {
+    const cmd = detectarCustom(texto);
+    if (!cmd) return null;
+    if (cmd.action === "responder") return cmd.response;
+    if (cmd.action === "executar") {
+      const r = await tentar(cmd.value);
+      return cmd.response || (r.ok ? `✅ Comando executado.` : `❌ Falha ao executar.`);
+    }
+    return cmd.response || `✅ Comando personalizado: ${cmd.patterns[0]}`;
+  }
+
+  // Volume do sistema
+  if (categoria === "volume") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      if (/^(?:muta|mutar|desmuta|desmutar|silencia|silenciar)/i.test(lower)) return await pc.volume("mute");
+      if (/(?:maximo|max|maximo|100)/i.test(lower)) return await pc.volume("set", 100);
+      if (/(?:minimo|min|0)/i.test(lower)) return await pc.volume("set", 0);
+      if (/^(?:aumenta|aumentar|sobe|subir)/i.test(lower)) {
+        const m = lower.match(/(\d+)/);
+        return await pc.volume("up", m?.[1] || "10");
+      }
+      if (/^(?:diminui|diminuir|desce|descer)/i.test(lower)) {
+        const m = lower.match(/(\d+)/);
+        return await pc.volume("down", m?.[1] || "10");
+      }
+      const volM = lower.match(/^volume\s+(\d+)/i);
+      if (volM) return await pc.volume("set", volM[1]);
+      return await pc.volume("mute");
+    } catch (err) {
+      return `❌ Erro no volume: ${err.message}`;
+    }
+  }
+
+  // Screenshot
+  if (categoria === "screenshot") {
+    try {
+      const path = await pc.screenshot();
+      return `📸 Print tirado!\n__FILE__:${path}`;
+    } catch (err) {
+      return `❌ Erro ao tirar print: ${err.message}`;
+    }
+  }
+
+  // Informação do PC
+  if (categoria === "pcInfo") {
+    try {
+      const info = await pc.pcInfo();
+      return `🖥️ **Status do PC:**\n${info}`;
+    } catch (err) {
+      return `❌ Erro ao monitorar: ${err.message}`;
+    }
+  }
+
+  // Clipboard
+  if (categoria === "clipboard") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      if (/^(?:copia|copiar)/i.test(lower)) {
+        // Pega o resto do texto como conteúdo
+        const m = lower.match(/^(?:copia|copiar)\s+(?:isso|isto|pra\s+area\s+de\s+transferencia|para\s+a\s+area\s+de\s+transferencia)?\s*(.+)/i);
+        const conteudo = m?.[1]?.trim() || texto.replace(/^(?:copia|copiar)\s*/i, "").trim();
+        if (conteudo && conteudo.length > 2) return await pc.clipboard("copiar", conteudo);
+        return "❌ O que você quer copiar?";
+      }
+      if (/^(?:cola|colar)/i.test(lower)) return await pc.clipboard("colar");
+      return await pc.clipboard("colar");
+    } catch (err) {
+      return `❌ Erro no clipboard: ${err.message}`;
+    }
+  }
+
+  // Text-to-speech
+  if (categoria === "tts") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/^(?:fala|falar|diz|dizer|pronuncia|pronunciar|leia|le|ler)\s+(?:algo|isso|isto|em\s+voz\s+alta|em\s+audio|pelas\s+caixas|pra\s+mim|para\s+mim|esse\s+texto)?\s*(.+)/i);
+      const fala = m?.[1]?.trim() || texto.replace(/^(?:fala|falar|diz|dizer|pronuncia|pronunciar|leia|le|ler)\s*(?:algo|isso|isto|em\s+voz\s+alta|em\s+audio|pelas\s+caixas|pra\s+mim|para\s+mim|esse\s+texto)?\s*/i, "").trim();
+      if (!fala || fala.length < 2) return "❌ O que você quer que eu fale?";
+      return await pc.tts(fala);
+    } catch (err) {
+      return `❌ Erro no TTS: ${err.message}`;
+    }
+  }
+
+  // Tradução
+  if (categoria === "traducao") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      // Pattern: traduz [texto] de [origem] pra [alvo] ou traduz [texto] pra [alvo]
+      let m = lower.match(/^(?:traduz|traduzir|traducao|tradução|translate)\s+(.+?)\s+(?:de|do|da)\s+(\w+)\s+(?:pra|para|em)\s+(\w+)/i);
+      if (m) {
+        const resultado = await traduzir(m[1].trim(), m[3], m[2]);
+        return `🌍 **${m[1].trim()}** (${m[2]} → ${m[3]}):\n${resultado}`;
+      }
+      m = lower.match(/^(?:traduz|traduzir|traducao|tradução|translate)\s+(.+?)\s+(?:pra|para|em)\s+(\w+)/i);
+      if (m) {
+        const resultado = await traduzir(m[1].trim(), m[2]);
+        return `🌍 **Tradução (→ ${m[2]}):**\n${resultado}`;
+      }
+      // Só "traduz <texto>" — detecta automaticamente
+      m = lower.match(/^(?:traduz|traduzir|traducao|tradução|translate)\s+(.+)/i);
+      if (m) {
+        const resultado = await traduzir(m[1].trim());
+        return `🌍 **Tradução:**\n${resultado}`;
+      }
+      return "❌ Use: traduz [texto] pra [idioma]";
+    } catch (err) {
+      return `❌ Erro na tradução: ${err.message}`;
+    }
+  }
+
+  // Lembrete
+  if (categoria === "lembrete") {
+    try {
+      if (!message) return "❌ Lembrete só funciona no Discord.";
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/(\d+)\s*(?:min|minutos|minuto|s|seg|segundos|segundo|h|hora|horas)\s*(?:pra|para|em|de)?\s*(.+)/i);
+      if (!m) return "❌ Use: me lembra em X minutos de Y";
+      const valor = parseInt(m[1]);
+      const unidade = m[2].includes("h") || /horas?/.test(m[2]) ? "h" : "min";
+      // Extrai a mensagem após o tempo
+      const msgMatch = lower.match(/(?:pra|para|em|de)\s+(?:me\s+)?(?:lembrar\s+)?(?:de\s+)?(.+)/i);
+      const mensagem = msgMatch?.[1]?.trim() || texto;
+      const delayMs = unidade === "h" ? valor * 3600000 : valor * 60000;
+      const id = await criarLembrete(message.author.id, message.channel, delayMs, mensagem);
+      return `⏰ Lembrete criado! Vou te avisar em ${valor} ${unidade === "h" ? "hora(s)" : "minuto(s)"}: "${mensagem}"`;
+    } catch (err) {
+      return `❌ Erro ao criar lembrete: ${err.message}`;
     }
   }
 
