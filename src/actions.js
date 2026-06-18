@@ -247,8 +247,8 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarExec(texto)) return "exec";
   if (encontrarArquivo(texto)) return "arquivo";
   if (encontrarMensagem(texto)) return "mensagem";
-  if (encontrarYouTube(texto)) return "youtube";
   if (encontrarSpotify(texto)) return "spotify";
+  if (encontrarYouTube(texto)) return "youtube";
   if (encontrarPesquisa(texto)) return "pesquisa";
   if (encontrarDigitar(texto)) return "digitar";
   if (isWin() && encontrarJogo(texto)) return "jogo";
@@ -394,23 +394,34 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
 
     let usuarioDiscord = null;
 
-    // Primeiro tenta buscar por ID (se for um número)
+    // 1. Tenta buscar por ID diretamente (mais rápido)
     if (/^\d{17,19}$/.test(alvo)) {
       try {
         usuarioDiscord = await dc.users.fetch(alvo);
       } catch {}
     }
 
-    // Depois procura nos servidores que compartilha
+    // 2. Procura no cache dos servidores (sem API call)
+    if (!usuarioDiscord) {
+      for (const guild of dc.guilds.cache.values()) {
+        const encontrado = guild.members.cache.find(m =>
+          m.user.username.toLowerCase() === alvo ||
+          (m.nickname && m.nickname.toLowerCase() === alvo) ||
+          (m.user.globalName && m.user.globalName.toLowerCase() === alvo)
+        );
+        if (encontrado) { usuarioDiscord = encontrado.user; break; }
+      }
+    }
+
+    // 3. Último recurso: fetch dos membros (mais lento, pode rate limit)
     if (!usuarioDiscord) {
       for (const guild of dc.guilds.cache.values()) {
         try {
-          const membros = await guild.members.fetch({ cache: false });
+          const membros = await guild.members.fetch();
           const encontrado = membros.find(m =>
             m.user.username.toLowerCase() === alvo ||
             (m.nickname && m.nickname.toLowerCase() === alvo) ||
-            (m.user.globalName && m.user.globalName.toLowerCase() === alvo) ||
-            (m.user.tag && m.user.tag.toLowerCase() === alvo)
+            (m.user.globalName && m.user.globalName.toLowerCase() === alvo)
           );
           if (encontrado) { usuarioDiscord = encontrado.user; break; }
         } catch {
@@ -439,16 +450,31 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
     }
   }
 
-  // Spotify — tocar música via navegador (Spotify Web)
+  // Spotify — tocar música (app desktop + fallback web)
   if (categoria === "spotify") {
     const musica = encontrarSpotify(texto);
+    // Tenta pelo app desktop com teclas de atalho
+    const buscaCmd = `start spotify:search:${encodeURIComponent(musica)}`;
+    const r1 = await tentar(buscaCmd);
+    if (r1.ok) {
+      await sleep(3000);
+      const psCmds = [
+        // Variações de navegação por Tab + setas
+        'powershell -Command "$w = New-Object -ComObject wscript.shell; if ($w.AppActivate(\'Spotify\')) { Start-Sleep 1; $w.SendKeys(\'{TAB}\'); Start-Sleep 0.3; $w.SendKeys(\'{DOWN}\'); Start-Sleep 0.3; $w.SendKeys(\'{ENTER}\') }"',
+        'powershell -Command "$w = New-Object -ComObject wscript.shell; if ($w.AppActivate(\'Spotify\')) { Start-Sleep 1; $w.SendKeys(\'{TAB}{TAB}{DOWN}{ENTER}\') }"',
+        'powershell -Command "$w = New-Object -ComObject wscript.shell; $w.AppActivate(\'Spotify\'); Start-Sleep 1.5; $w.SendKeys(\'{TAB}{DOWN}{ENTER}\')"',
+      ];
+      for (const cmd of psCmds) {
+        const r2 = await tentar(cmd);
+        if (r2.ok) break;
+      }
+      return `🎵 Tocando "${musica}" no Spotify.`;
+    }
+    // Fallback: tenta pelo Spotify Web (Puppeteer)
     try {
       const msg = await tocarSpotify(musica);
       return msg;
-    } catch (err) {
-      // fallback: tenta pelo app desktop
-      const buscaCmd = `start spotify:search:${encodeURIComponent(musica)}`;
-      await tentar(buscaCmd);
+    } catch {
       return `🔍 Abri o Spotify procurando "${musica}". Dá um play lá?`;
     }
   }

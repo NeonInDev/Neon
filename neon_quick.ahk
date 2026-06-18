@@ -1,11 +1,20 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 
-; ─── Hotstring: "Neon," → "/neon " (só no Discord) ───
+; ─── InputHook global captura texto antes do Enter ───
+global neonIH := InputHook("V", "Enter")
+neonIH.Start()
+
+; ─── "Neon, comando" → "/neon comando" sem modificar original ───
 #HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
-::neon,::
+~Enter::
 {
-    SendInput("/neon ")
+    global neonIH
+    buf := neonIH.Input
+    neonIH := InputHook("V", "Enter")
+    neonIH.Start()
+    if RegExMatch(buf, "iO)^neon,\s*(.+)", &m)
+        SendInput "/neon " m[1] "{Enter}"
 }
 #HotIf
 

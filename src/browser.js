@@ -177,38 +177,43 @@ async function interpretarAcaoTexto(texto) {
 }
 
 async function pesquisarYouTube(page, termo) {
-  const searchBox = await page.$("input#search, input[name='search_query'], input[aria-label='Pesquisar'], input[aria-label='Search']");
+  // Espera o campo de busca carregar
+  const searchBox = await page.waitForSelector("input#search, input[name='search_query'], input[aria-label='Pesquisar'], input[aria-label='Search']", { timeout: 10000 });
   if (!searchBox) throw new Error("Campo de busca do YouTube não encontrado");
   await searchBox.click({ clickCount: 3 });
-  await searchBox.type(termo, { delay: 60 });
+  await searchBox.type(termo, { delay: 80 });
   await page.keyboard.press("Enter");
-  await sleep(4000);
+  // Aguarda os resultados carregarem
+  await sleep(5000);
+
   // Tenta clicar no primeiro vídeo por vários seletores
   const selectors = [
+    "ytd-video-renderer:first-child a#thumbnail",
     "ytd-video-renderer a#thumbnail",
     "ytd-item-section-renderer a#thumbnail",
-    "ytd-video-renderer:first-child a#thumbnail",
     "#contents ytd-video-renderer:first-child a#thumbnail",
     "a#video-title",
     "ytd-video-renderer:first-child",
+    "ytd-video-renderer:first-child ytd-thumbnail a",
   ];
-  let firstVideo = null;
   for (const sel of selectors) {
-    firstVideo = await page.$(sel);
-    if (firstVideo) break;
+    const vids = await page.$$(sel);
+    for (const vid of vids) {
+      try {
+        await vid.evaluate(el => el.scrollIntoView({ behavior: "smooth", block: "center" }));
+        await sleep(300);
+        await vid.click();
+        await sleep(3000);
+        return;
+      } catch {}
+    }
   }
-  if (firstVideo) {
-    await firstVideo.evaluate(el => el.scrollIntoView({ behavior: "smooth", block: "center" }));
-    await sleep(300);
-    await firstVideo.click();
-    await sleep(3000);
-    return;
-  }
-  // Fallback: pressiona Tab + Enter pra navegar no primeiro resultado
+
+  // Fallback: navega via teclado
   await page.keyboard.press("Tab");
-  await sleep(300);
+  await sleep(500);
   await page.keyboard.press("Tab");
-  await sleep(300);
+  await sleep(500);
   await page.keyboard.press("Enter");
   await sleep(3000);
 }
@@ -274,29 +279,34 @@ async function executarRoteiro(texto) {
 // ─── Spotify Web ───
 async function tocarSpotify(termo) {
   const page = await abrirPagina(`https://open.spotify.com/search/${encodeURIComponent(termo)}`);
-  await sleep(5000);
+  // Espera a página de busca carregar completamente
+  await sleep(6000);
 
-  // Tenta clicar no primeiro resultado
+  // Tenta clicar no primeiro resultado por vários seletores
   const playSelectors = [
+    "div[data-testid='search-page'] section:first-of-type div[role='row']:first-child button[data-testid='play-button']",
+    "div[data-testid='search-page'] div[data-testid='track-list'] div[role='row']:first-child button",
     "div[data-testid='tracklist-row']:first-child button[data-testid='play-button']",
     "div[data-testid='tracklist-row']:first-child button",
-    "div[data-testid='track-list'] div[role='row']:first-child button",
     "section[data-testid='search-page'] div[role='row']:first-child div[role='cell']:nth-child(2) button",
     "[data-testid='herocard'] button",
+    "button[data-testid='play-button']",
   ];
   for (const sel of playSelectors) {
-    const btn = await page.$(sel);
-    if (btn) {
-      await btn.evaluate(el => el.scrollIntoView({ block: "center" }));
-      await sleep(500);
-      await btn.click();
-      await sleep(2000);
-      return `🎵 Tocando "${termo}" no Spotify Web.`;
+    const btns = await page.$$(sel);
+    for (const btn of btns) {
+      try {
+        await btn.evaluate(el => el.scrollIntoView({ block: "center" }));
+        await sleep(300);
+        await btn.click();
+        await sleep(2000);
+        return `🎵 Tocando "${termo}" no Spotify Web.`;
+      } catch {}
     }
   }
 
-  // Fallback: clica no primeiro card que aparece
-  const cards = await page.$$("a[href*='/track/'], div[data-testid='tracklist-row']");
+  // Fallback: clica no primeiro card/link de track que aparece
+  const cards = await page.$$("a[href*='/track/'], div[data-testid='tracklist-row'], div[role='row']");
   if (cards.length > 0) {
     await cards[0].click();
     await sleep(3000);
