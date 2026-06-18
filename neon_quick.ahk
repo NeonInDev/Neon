@@ -1,11 +1,11 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 
-; ─── Só ativo no Discord / Chrome / Opera pra não atrapalhar o terminal ───
+; ─── Só ativo no Discord / Chrome / Opera (não pega no terminal) ───
 #HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
 
-; "Neon, comando" → tbm manda "/neon comando"
-~Enter::
+; Bloqueia Enter ($) e re-envia: se "Neon," → "/neon ...", senão → mensagem original
+$Enter::
 {
     static sending := false
     if sending {
@@ -16,9 +16,9 @@
         saved := A_Clipboard
         A_Clipboard := ""
         SendInput "^a"
-        Sleep 50
+        Sleep 30
         SendInput "^c"
-        Sleep 100
+        Sleep 50
         text := A_Clipboard
         A_Clipboard := saved
         if RegExMatch(text, "i)^neon,\s*(.+)") {
@@ -33,6 +33,10 @@
             cmd := StrReplace(cmd, "}", "{}}")
             SendInput "/neon " cmd
             SendInput "{Enter}"
+        } else {
+            ; Mensagem sem "Neon," → re-envia original na hora
+            SendInput text
+            SendInput "{Enter}"
         }
     } catch as err {
         ToolTip "Neon AHK erro:`n" err.Message "`n`nLine: " err.Line
@@ -44,11 +48,9 @@
 
 ; ─── Atalhos globais (funcionam de qualquer lugar) ───
 
-; Enviar mensagem pra Neon (só Discord/Chrome/Opera)
+; Enviar mensagem pra Neon
 ^+N::
 {
-    if !WinActive("ahk_exe Discord.exe") and !WinActive("ahk_class Chrome_WidgetWin_1") and !WinActive("ahk_exe opera.exe")
-        return
     ib := InputBox("Digite sua mensagem para a Neon:", "Neon", "w400 h130")
     if ib.Result = "OK" and ib.Value != ""
     {
@@ -60,12 +62,8 @@
     }
 }
 
-; Iniciar bot (só Discord/Chrome/Opera/VSCode/Terminal)
 ^+B::
 {
-    target := WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe") or WinActive("ahk_exe Code.exe") or WinActive("ahk_exe WindowsTerminal.exe")
-    if !target
-        return
     if !WinExist("ahk_exe Code.exe")
     {
         Run('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"')
@@ -85,9 +83,6 @@
 
 ^+V::
 {
-    target := WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe") or WinActive("ahk_exe Code.exe")
-    if !target
-        return
     Run('C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe "C:\Meus Projetos\Neon"')
     Sleep(5000)
     Send("^+p")
@@ -99,9 +94,6 @@
 
 ^+X::
 {
-    target := WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe") or WinActive("ahk_exe Code.exe") or WinActive("ahk_exe WindowsTerminal.exe")
-    if !target
-        return
     if WinExist("ahk_exe Code.exe")
     {
         WinActivate("ahk_exe Code.exe")
