@@ -561,16 +561,19 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
   // Spotify — tocar música (app desktop + fallback web)
   if (categoria === "spotify") {
     const musica = encontrarSpotify(texto);
+    // Tenta pelo app desktop: abre busca + Down + Enter
     let desktopOk = false;
-    // Tenta pelo app desktop com teclas de atalho
     const buscaCmd = `start spotify:search:${encodeURIComponent(musica)}`;
     const r1 = await tentar(buscaCmd);
     if (r1.ok) {
-      await sleep(3000);
+      await sleep(4000);
       const psCmds = [
-        'powershell -Command "$w = New-Object -ComObject wscript.shell; if ($w.AppActivate(\'Spotify\')) { Start-Sleep 1; $w.SendKeys(\'{TAB}\'); Start-Sleep 0.3; $w.SendKeys(\'{DOWN}\'); Start-Sleep 0.3; $w.SendKeys(\'{ENTER}\') }"',
-        'powershell -Command "$w = New-Object -ComObject wscript.shell; if ($w.AppActivate(\'Spotify\')) { Start-Sleep 1; $w.SendKeys(\'{TAB}{TAB}{DOWN}{ENTER}\') }"',
-        'powershell -Command "$w = New-Object -ComObject wscript.shell; $w.AppActivate(\'Spotify\'); Start-Sleep 1.5; $w.SendKeys(\'{TAB}{DOWN}{ENTER}\')"',
+        // Tenta Down + Enter (busca → primeiro resultado → toca)
+        `powershell -Command "$w = New-Object -ComObject wscript.shell;if($w.AppActivate('Spotify Premium')){Start-Sleep 1.5;$w.SendKeys('{DOWN}');Start-Sleep 0.5;$w.SendKeys('{ENTER}')}"`,
+        `powershell -Command "$w = New-Object -ComObject wscript.shell;if($w.AppActivate('Spotify Free')){Start-Sleep 1.5;$w.SendKeys('{DOWN}');Start-Sleep 0.5;$w.SendKeys('{ENTER}')}"`,
+        `powershell -Command "$w = New-Object -ComObject wscript.shell;if($w.AppActivate('Spotify')){Start-Sleep 1.5;$w.SendKeys('{DOWN}');Start-Sleep 0.5;$w.SendKeys('{ENTER}')}"`,
+        // Fallback: Enter direto (se já tiver foco no resultado)
+        `powershell -Command "$w = New-Object -ComObject wscript.shell;if($w.AppActivate('Spotify')){Start-Sleep 2;$w.SendKeys('{ENTER}')}"`,
       ];
       for (const cmd of psCmds) {
         const r2 = await tentar(cmd);
@@ -578,12 +581,12 @@ async function executarAcao(texto, usuarioMestre = false, userId = null) {
       }
       if (desktopOk) return `🎵 Tocando "${musica}" no Spotify.`;
     }
-    // Fallback: tenta pelo Spotify Web (Puppeteer)
+    // Fallback: tenta pelo Spotify Web (Puppeteer) — perfil persistente agora
     try {
       const msg = await tocarSpotify(musica);
       return msg;
     } catch {
-      if (r1.ok) return `🔍 Abri o Spotify procurando "${musica}". Dá um play lá?`;
+      if (r1.ok) return `🔍 Abri o Spotify procurando "${musica}". Se não tocar, faz login uma vez no Opera da Neon que fica salvo.`;
       return `❌ Não consegui abrir o Spotify para tocar "${musica}".`;
     }
   }
