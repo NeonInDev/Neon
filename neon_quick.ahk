@@ -1,22 +1,10 @@
 #Requires AutoHotkey >=2.0
 #SingleInstance Force
 
-; ─── "Neon, comando" → "/neon comando" (só Discord/Chrome/Opera) ───
+; ─── "Neon, comando" → tbm manda "/neon comando" ───
 #HotIf WinActive("ahk_exe Discord.exe") or WinActive("ahk_class Chrome_WidgetWin_1") or WinActive("ahk_exe opera.exe")
-$Enter::
+~Enter::
 {
-    static sending := false
-    if sending {
-        sending := false
-        return
-    }
-
-    ; Shift+Enter = nova linha, só passa adiante
-    if GetKeyState("Shift", "P") {
-        SendInput "{Shift down}{Enter}{Shift up}"
-        return
-    }
-
     saved := A_Clipboard
     A_Clipboard := ""
     SendInput "^a"
@@ -26,25 +14,8 @@ $Enter::
     text := A_Clipboard
     A_Clipboard := saved
 
-    if text = "" {
-        SendInput "{Enter}"
-        return
-    }
-
-    ; Limpa input e re-envia escapando tudo
-    SendInput "{Delete}"
-    Sleep 20
-    esc := StrReplace(text, "`r", "")
-    esc := StrReplace(esc, "`n", "{Shift down}{Enter}{Shift up}")
-    esc := StrReplace(esc, "!", "{!}")
-    esc := StrReplace(esc, "^", "{^}")
-    esc := StrReplace(esc, "+", "{+}")
-    esc := StrReplace(esc, "#", "{#}")
-    esc := StrReplace(esc, "{", "{{}")
-    esc := StrReplace(esc, "}", "{}}")
-
     if RegExMatch(text, "iO)^neon,\s*(.+)", &m) {
-        sending := true
+        Sleep 300
         cmd := m[1]
         cmd := StrReplace(cmd, "!", "{!}")
         cmd := StrReplace(cmd, "^", "{^}")
@@ -52,13 +23,7 @@ $Enter::
         cmd := StrReplace(cmd, "#", "{#}")
         cmd := StrReplace(cmd, "{", "{{}")
         cmd := StrReplace(cmd, "}", "{}}")
-        SendInput esc
-        SendInput "{Enter}"
-        Sleep 500
         SendInput "/neon " cmd
-        SendInput "{Enter}"
-    } else {
-        SendInput esc
         SendInput "{Enter}"
     }
 }
