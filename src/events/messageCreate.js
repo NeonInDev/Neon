@@ -94,6 +94,10 @@ module.exports = {
     processando.add(message.id);
 
     try {
+      // Audio do Discord (voice message) — processa SEMPRE
+      const { processarAudioMessage } = require("../discord_audio");
+      if (await processarAudioMessage(message)) return;
+
       const content = message.content;
       let ativar = false;
       let userInput = content;

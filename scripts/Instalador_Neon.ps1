@@ -159,11 +159,28 @@ try {
 } catch { logMSG "  [!] Opencode: $_" -color "Yellow" }
 Pop-Location
 
-# -- 7. .env --
+# -- 7. .env (decripitar se existir neon_env.enc) --
 step -num 7 -total 9 -msg "Arquivo .env"
 $envFile = Join-Path $DESTINO ".env"
-if (-not (Test-Path $envFile)) {
-@"
+$encFile = Join-Path $PSScriptRoot "neon_env.enc"
+$cripitarJs = Join-Path $DESTINO "scripts\cripitar.js"
+if (Test-Path $encFile -and -not (Test-Path $envFile)) {
+  logMSG "  Arquivo criptografado detectado!" -color "Yellow"
+  do {
+    $sec = Read-Host "  Digite a senha do .env" -AsSecureString
+    $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+    $pass = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+    if ($pass) {
+      $result = & $nodeCmd $cripitarJs decripitar "$encFile" "$envFile" "$pass" 2>&1
+      if ($LASTEXITCODE -eq 0 -and (Test-Path $envFile)) {
+        logMSG "  [OK] .env decriptado" -color "Green"; break
+      }
+    }
+    logMSG "  [!] Senha incorreta! Tente novamente." -color "Red"
+  } while ($true)
+} elseif (-not (Test-Path $envFile)) {
+  @"
 DISCORD_TOKEN=seu_token_aqui
 GEMINI_API_KEY=sua_chave_aqui
 TELEGRAM_TOKEN=seu_token_aqui
