@@ -9,12 +9,14 @@ const { fechar: fecharBrowser } = require("./src/browser");
 const voice = require("./src/voice");
 const monitor = require("./src/monitor");
 const proativo = require("./src/proativo");
+const opencode = require("./src/opencode");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
   proativo.parar();
   monitor.parar();
   voice.parar();
+  opencode.parar();
   try {
     await db.write();
   } catch (err) {
@@ -27,10 +29,12 @@ async function desligar(sinal) {
 }
 
 client.once("clientReady", async () => {
-  // Voice desligado no startup — Web Speech API nao funciona em headless no Windows
-  // Pra ativar manualmente: voice.iniciar("1442928336329379925", "Dono")
   monitor.iniciar(client);
   proativo.iniciar(client);
+  opencode.iniciarServer().then(port => {
+    if (port) log("INFO", `[OPENCODE] Servidor rodando na porta ${port}`);
+    else log("INFO", "[OPENCODE] Servidor nao iniciado (opencode run continua disponivel)");
+  });
 });
 
 process.on("SIGINT", () => desligar("SIGINT"));

@@ -24,6 +24,11 @@ const FERRAMENTAS = [
   { nome: "falar", desc: "Fala algo em voz alta (TTS). Uso: falar | [texto]" },
   { nome: "ler_arquivo", desc: "Le o conteudo de um arquivo. Uso: ler_arquivo | [caminho]" },
   { nome: "instalar_jogo", desc: "Instala um jogo pela Steam. Uso: instalar_jogo | [nome ou appid]" },
+  { nome: "escrever_arquivo", desc: "Escreve conteudo em um arquivo. Uso: escrever_arquivo | [caminho]: [conteudo]" },
+  { nome: "click_at", desc: "Clica em coordenada da tela. Uso: click_at | [x] [y]" },
+  { nome: "right_click_at", desc: "Clique direito em coordenada. Uso: right_click_at | [x] [y]" },
+  { nome: "opencode", desc: "Executa tarefa usando OpenCode. Uso: opencode | [descricao da tarefa]" },
+  { nome: "wake_on_lan", desc: "Liga PC remoto via Wake-on-LAN. Uso: wake_on_lan | [mac_address]" },
 ];
 
 function descricaoFerramentas() {
@@ -181,6 +186,60 @@ async function executarFerramenta(ferramenta) {
         const execAsync = promisify(execCb);
         await execAsync(`start steam://install/${appid}`, { windowsHide: true });
         return `Instalando ${args} pela Steam (AppID: ${appid}).`;
+      }
+      case "escrever_arquivo": {
+        if (!args) return "Nada pra escrever.";
+        const fs = require("fs");
+        const path = require("path");
+        const doisP = args.indexOf("]:");
+        if (doisP < 0) return "Formato: caminho]: conteudo (ex: C:\\pasta\\file.txt]: hello)";
+        const caminho = args.slice(0, doisP).replace(/^\[/, "").trim();
+        const conteudo = args.slice(doisP + 2).trim();
+        const dir = path.dirname(caminho);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(caminho, conteudo, "utf8");
+        return `Arquivo salvo: ${caminho}`;
+      }
+      case "click_at":
+      case "right_click_at": {
+        if (!args) return "Uso: [x] [y]";
+        const [x, y] = args.trim().split(/\s+/).map(Number);
+        if (isNaN(x) || isNaN(y)) return "Coordenadas invalidas. Use: x y";
+        const isRight = nome === "right_click_at";
+        const { exec: execCb } = require("child_process");
+        const { promisify } = require("util");
+        const execAsync = promisify(execCb);
+        const psCmd = `Add-Type -AssemblyName System.Windows.Forms; ` +
+          `[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x}, ${y}); ` +
+          `Start-Sleep -Milliseconds 100; ` +
+          `[System.Windows.Forms.Application]::DoEvents(); ` +
+          `$sig = '[DllImport("user32.dll")]public static extern void mouse_event(int f, int a, int b, int c, int d);'; ` +
+          `$type = Add-Type -MemberDefinition $sig -Name Mouse -Namespace W -PassThru; ` +
+          `$type::mouse_event(${isRight ? 0x08 : 0x02}, 0, 0, 0, 0); ` +
+          `Start-Sleep -Milliseconds 50; ` +
+          `$type::mouse_event(${isRight ? 0x10 : 0x04}, 0, 0, 0, 0)`;
+        await execAsync(`powershell -NoProfile -Command "${psCmd.replace(/"/g, '\\"')}"`, { timeout: 10000, windowsHide: true });
+        return `Clique ${isRight ? "direito" : ""} em (${x}, ${y})`;
+      }
+      case "opencode": {
+        if (!args) return "Nada pra executar no OpenCode.";
+        const { exec: execCb } = require("child_process");
+        const { promisify } = require("util");
+        const execAsync = promisify(execCb);
+        const { stdout, stderr } = await execAsync(`opencode run "${args.replace(/"/g, '\\"')}"`, { timeout: 60000, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });
+        return (stdout?.trim() || stderr?.trim() || "OpenCode executado.").slice(0, 1000);
+      }
+      case "wake_on_lan": {
+        if (!args) return "MAC address necessario. Uso: XX:XX:XX:XX:XX:XX";
+        const dgram = require("dgram");
+        const mac = args.replace(/[^0-9a-fA-F]/g, "");
+        if (mac.length !== 12) return "MAC invalido. Use formato XX:XX:XX:XX:XX:XX";
+        const magic = Buffer.from([0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, ...Buffer.from(mac.repeat(16), "hex")]);
+        const sock = dgram.createSocket("udp4");
+        sock.send(magic, 0, magic.length, 9, "255.255.255.255");
+        sock.send(magic, 0, magic.length, 9, "192.168.1.255");
+        sock.close();
+        return `Pacote magico enviado para ${args}. PC deve ligar se Wake-on-LAN estiver ativo.`;
       }
       case "falar": {
         if (!args) return "Nada pra falar.";
