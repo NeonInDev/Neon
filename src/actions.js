@@ -624,6 +624,23 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     return `Eu sou a Original! Nenhuma copia me supera. 🦾\n${metalSonicGif}`;
   }
 
+  // ─── Instalar jogo na Steam ───
+  const installMatch = lower.match(/^instala(?:r)?\s+(.+?)(?:\s+(?:na|pela|da)\s+steam)?$/i);
+  if (installMatch) {
+    if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
+    const nome = installMatch[1].trim().toLowerCase();
+    let appid = steamGames[nome];
+    if (!appid) {
+      for (const [key, val] of Object.entries(steamGames)) {
+        if (nome.includes(key) || key.includes(nome)) { appid = val; break; }
+      }
+    }
+    if (!appid) return `Nao encontrei "${nome}" na minha lista de jogos Steam.`;
+    const r = await tentar(`start steam://install/${appid}`);
+    if (r.ok) return `Instalando ${nome} pela Steam.`;
+    return `Nao consegui abrir a Steam pra instalar ${nome}.`;
+  }
+
   // ─── EX-TERMINATOR ───
   if (/ex[- ]?terminat(?:or|ador)|ultron|protocolo.*destrui|autodestrui/i.test(lower)) {
     if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
