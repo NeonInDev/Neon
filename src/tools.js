@@ -4,6 +4,7 @@ const pc = require("./pc");
 const { lembrar } = require("./memoria");
 const { abrirUrlNoOpera, tocarSpotify, tocarVideoYouTube } = require("./browser");
 const axios = require("axios");
+const ffmpeg = require("./ffmpeg");
 
 const FERRAMENTAS = [
   { nome: "pesquisar", desc: "Pesquisa algo na web. Uso: pesquisar | [consulta]" },
@@ -31,6 +32,7 @@ const FERRAMENTAS = [
   { nome: "wake_on_lan", desc: "Liga PC remoto via Wake-on-LAN. Uso: wake_on_lan | [mac_address]" },
   { nome: "navegar", desc: "Navega em site com acoes (scroll, clicar, pesquisar). Uso: navegar | [url] > [acao]" },
   { nome: "blender", desc: "Abre o Blender 3D (opcional: arquivo). Uso: blender | [caminho_do_arquivo]" },
+  { nome: "ffmpeg", desc: "Converte/processa midia com FFmpeg. Uso: ffmpeg | [parametros]" },
 ];
 
 function descricaoFerramentas() {
@@ -328,6 +330,60 @@ async function executarFerramenta(ferramenta) {
           return r.ok ? `✅ ${r.msg}` : r.msg;
         }
         return `Arquivo não encontrado: ${caminho}`;
+      }
+      case "ffmpeg": {
+        if (!args) return "Uso: ffmpeg | [acao]: [parametros]. Acoes: converter, audio, cortar, comprimir, gif, info, screenshot.";
+        const partes = args.split(":").map(s => s.trim());
+        const acao = partes[0].toLowerCase();
+        const resto = partes.slice(1).join(":").trim();
+        if (!resto) return "Parametros insuficientes.";
+        const params = resto.split(",").map(s => s.trim());
+        switch (acao) {
+          case "converter": {
+            const [input, output, opts] = params;
+            if (!input || !output) return "Uso: ffmpeg | converter: [input], [output], [opcoes]";
+            const r = await ffmpeg.converter(input, output, opts || "");
+            return r.ok ? `Convertido: ${input} -> ${output}` : `Erro: ${r.stderr?.slice(0, 200)}`;
+          }
+          case "audio": {
+            const [input, output] = params;
+            if (!input) return "Uso: ffmpeg | audio: [input], [output]";
+            const saida = output || input.replace(/\.[^.]+$/, "") + ".mp3";
+            const r = await ffmpeg.extrairAudio(input, saida);
+            return r.ok ? `Audio extraido: ${saida}` : `Erro: ${r.stderr?.slice(0, 200)}`;
+          }
+          case "cortar": {
+            const [input, inicio, duracao, output] = params;
+            if (!input || !inicio || !duracao) return "Uso: ffmpeg | cortar: [input], [inicio], [duracao], [output]";
+            const r = await ffmpeg.cortarVideo(input, inicio, duracao, output);
+            return r.ok ? `Video cortado: ${output || "ok"}` : `Erro: ${r.stderr?.slice(0, 200)}`;
+          }
+          case "comprimir": {
+            const [input, output, qualidade] = params;
+            if (!input) return "Uso: ffmpeg | comprimir: [input], [output], [qualidade 0-51]";
+            const r = await ffmpeg.comprimirVideo(input, output, parseInt(qualidade) || 28);
+            return r.ok ? `Video comprimido` : `Erro: ${r.stderr?.slice(0, 200)}`;
+          }
+          case "gif": {
+            const [input, output, fps, scale] = params;
+            if (!input) return "Uso: ffmpeg | gif: [input], [output], [fps], [scale]";
+            const r = await ffmpeg.gif(input, output, parseInt(fps) || 10, parseInt(scale) || 480);
+            return r.ok ? `GIF criado` : `Erro: ${r.stderr?.slice(0, 200)}`;
+          }
+          case "info": {
+            const i = await ffmpeg.info(params[0] || resto);
+            if (!i) return "Nao foi possivel ler info do arquivo.";
+            return JSON.stringify({ formato: i.format?.format_name, duracao: i.format?.duration, codec: i.streams?.[0]?.codec_name, resolucao: `${i.streams?.[0]?.width}x${i.streams?.[0]?.height}` }, null, 2).slice(0, 500);
+          }
+          case "screenshot": {
+            const [input, time, output] = params;
+            if (!input) return "Uso: ffmpeg | screenshot: [input], [time], [output]";
+            const r = await ffmpeg.screenshot(input, time || "00:00:01", output);
+            return r.ok ? `Screenshot salvo` : `Erro: ${r.stderr?.slice(0, 200)}`;
+          }
+          default:
+            return `Acao desconhecida: ${acao}. Acoes: converter, audio, cortar, comprimir, gif, info, screenshot.`;
+        }
       }
       case "falar": {
         if (!args) return "Nada pra falar.";
