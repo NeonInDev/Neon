@@ -122,10 +122,23 @@ try { & git remote set-url --push origin http://nopush.invalid 2>&1 | Out-Null; 
 Pop-Location
 
 # ─── 7. Dependências ───
-Write-Host "[7/7] Instalando dependências..." -ForegroundColor Yellow
+Write-Host "[7/8] Instalando dependências..." -ForegroundColor Yellow
 Push-Location $DESTINO
 try { & npm install --production 2>&1 | Out-Null; Write-Host "  ✓ Dependências instaladas" -ForegroundColor Green } catch { Write-Host "  ✗ npm install falhou: $_" -ForegroundColor Red }
 Pop-Location
+
+# ─── 8. Opencode ───
+Write-Host "[8/8] Instalando Opencode..." -ForegroundColor Yellow
+try {
+    $oc = Get-Command "opencode" -ErrorAction SilentlyContinue
+    if (-not $oc) {
+        & npm install -g opencode-ai 2>&1 | Out-Null
+        Write-Host "  ✓ Opencode instalado globalmente" -ForegroundColor Green
+    } else {
+        $ocVer = & opencode --version 2>&1
+        Write-Host "  ✓ Opencode já instalado ($ocVer)" -ForegroundColor Green
+    }
+} catch { Write-Host "  ⚠ Falha ao instalar Opencode: $_" -ForegroundColor Yellow }
 
 # ─── Atalhos ───
 $WScriptShell = New-Object -ComObject WScript.Shell
