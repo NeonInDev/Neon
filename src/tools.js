@@ -33,6 +33,8 @@ const FERRAMENTAS = [
   { nome: "navegar", desc: "Navega em site com acoes (scroll, clicar, pesquisar). Uso: navegar | [url] > [acao]" },
   { nome: "blender", desc: "Abre o Blender 3D (opcional: arquivo). Uso: blender | [caminho_do_arquivo]" },
   { nome: "ffmpeg", desc: "Converte/processa midia com FFmpeg. Uso: ffmpeg | [parametros]" },
+  { nome: "camera", desc: "Tira foto pela camera do celular (IP Webcam). Uso: camera | snapshot" },
+  { nome: "camera_url", desc: "Define URL da camera IP Webcam. Uso: camera_url | [url]" },
 ];
 
 function descricaoFerramentas() {
@@ -408,6 +410,20 @@ async function executarFerramenta(ferramenta) {
         if (!args) return "Nada pra falar.";
         try { await pc.tts(args); } catch {}
         return `Falei: ${args.slice(0, 100)}`;
+      }
+      case "camera": {
+        try {
+          const camera = require("./camera")
+          const caminho = await camera.salvarFrameTemp()
+          return `Foto salva em ${caminho}`
+        } catch (err) {
+          return `Erro camera: ${err.message}. Configure a URL com camera_url | [url]`
+        }
+      }
+      case "camera_url": {
+        if (!args) return "Uso: camera_url | [url]. Ex: camera_url | http://192.168.1.50:8080"
+        const camera = require("./camera")
+        return await camera.definirUrl(args)
       }
       default: {
         try {

@@ -6,6 +6,7 @@ $installStart = Get-Date
 $REPO_URL   = "https://github.com/NeonInDev/Neon"
 $DESTINO    = Join-Path $env:USERPROFILE "Neon"
 $FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+$GIT_URL    = "https://github.com/git-for-windows/git/releases/download/v2.48.1.windows.1/Git-2.48.1-64-bit.exe"
 $LOG_FILE   = Join-Path $env:USERPROFILE "Desktop\neon_install_log.txt"
 
 function logMSG {
@@ -23,11 +24,10 @@ function step {
 }
 
 function runWinget {
-  param($name, $wingetId)
-  logMSG "  Instalando $name via winget (pode levar minutos)..." -color "Gray"
-  $output = & winget install $wingetId --silent --accept-package-agreements 2>&1
-  $exitCode = $LASTEXITCODE
-  $output | ForEach-Object { Write-Host "    $_" -ForegroundColor DarkGray }
+  param($name, $wingetId, $timeoutSec = 120)
+  logMSG "  Instalando $name via winget..." -color "Gray"
+  $proc = Start-Process -FilePath "winget" -ArgumentList "install $wingetId --silent --accept-package-agreements" -NoNewWindow -PassThru -Wait -WindowStyle Hidden
+  $exitCode = $proc.ExitCode
   if ($exitCode -eq 0) { logMSG "  [OK] $name instalado" -color "Green"; return $true }
   logMSG "  [!] winget $name falhou (codigo $exitCode)" -color "Yellow"
   return $false
@@ -35,7 +35,7 @@ function runWinget {
 
 Add-Content -Path $LOG_FILE -Value "=== Neon Installer $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
 logMSG "+------------------------------------------+" -color "Cyan"
-logMSG "|         NEON INSTALLER v2.1              |" -color "Cyan"
+logMSG "|         NEON INSTALLER v3.0              |" -color "Cyan"
 logMSG "|     Instala tudo pra rodar a Neon        |" -color "Cyan"
 logMSG "+------------------------------------------+" -color "Cyan"
 logMSG ""
@@ -54,73 +54,67 @@ try {
 step -num 1 -total 9 -msg "Winget"
 $winget = Get-Command "winget" -ErrorAction SilentlyContinue
 if ($winget) { logMSG "  [OK] winget disponivel" -color "Green" }
-else { logMSG "  [!] winget nao encontrado (algumas instalacoes podem falhar)" -color "Yellow" }
+else { logMSG "  [!] winget nao encontrado" -color "Yellow" }
 
-# -- 2. Git --
+# -- 2. Git (portatil, sem winget) --
 step -num 2 -total 9 -msg "Git"
-$gitPath = (Get-Command "git" -ErrorAction SilentlyContinue).Source
-if (-not $gitPath -and $winget) {
-  $ok = runWinget "Git" "Git.Git"
-  if (-not $ok) {
-    logMSG "  Tente instalar manualmente: winget install Git.Git" -color "Yellow"
-  }
-} elseif ($gitPath) { logMSG "  [OK] Git encontrado" -color "Green" }
-else { logMSG "  [FALHA] Git necessario. Instale: winget install Git.Git" -color "Red" }
-
-# -- 3. Node.js --
-step -num 3 -total 9 -msg "Node.js"
-$nodeCmd = Get-Command "node" -ErrorAction SilentlyContinue
-if (-not $nodeCmd) {
-  if ($winget) {
-    $ok = runWinget "Node.js" "OpenJS.NodeJS.LTS"
-    $nodeCmd = Get-Command "node" -ErrorAction SilentlyContinue
-  }
-  if (-not $nodeCmd) {
-    logMSG "  Baixando Node.js portatil..." -color "Gray"
-    try {
-      $nodeVer = "22.14.0"
-      $nodeUrl = "https://nodejs.org/dist/v$nodeVer/node-v$nodeVer-win-x64.zip"
-      $zipPath = Join-Path $env:TEMP "node.zip"
-      logMSG "  Download de $nodeUrl ..." -color "Gray"
-      Invoke-WebRequest -Uri $nodeUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 120
-      $destNode = Join-Path $DESTINO "node"
-      Expand-Archive -Path $zipPath -DestinationPath $destNode -Force
-      $env:PATH = "$(Join-Path $destNode "node-v$nodeVer-win-x64");$env:PATH"
-      logMSG "  [OK] Node.js $nodeVer em $destNode" -color "Green"
-    } catch { logMSG "  [FALHA] Node.js: $_" -color "Red"; pause; exit 1 }
+New-Item -ItemType Directory -Path "$env:USERPROFILE\Neon\git" -Force | Out-Null
+$gitPortable = "$env:USERPROFILE\Neon\git\cmd\git.exe"
+if (-not (Test-Path $gitPortable)) {
+  logMSG "  Baixando Git portatil..." -color "Gray"
+  try {
+    $zipUrl = "https://github.com/git-for-windows/git/releases/download/v2.48.1.windows.1/PortableGit-2.48.1-64-bit.7z.exe"
+    $exePath = Join-Path $env:TEMP "git-portable.exe"
+    logMSG "  Download de $zipUrl ..." -color "Gray"
+    Invoke-WebRequest -Uri $zipUrl -OutFile $exePath -UseBasicParsing -TimeoutSec 120
+    $destGit = "$env:USERPROFILE\Neon\git"
+    logMSG "  Extraindo..." -color "Gray"
+    Start-Process -FilePath $exePath -ArgumentList "-o$destGit -y" -NoNewWindow -Wait
+    if (Test-Path $gitPortable) {
+      $env:PATH = "$env:USERPROFILE\Neon\git\cmd;$env:PATH"
+      logMSG "  [OK] Git portatil instalado" -color "Green"
+    } else {
+      logMSG "  [FALHA] Git portatil nao extraiu corretamente" -color "Red"
+      pause; exit 1
+    }
+  } catch {
+    logMSG "  [FALHA] Git portatil: $_" -color "Red"
+    pause; exit 1
   }
 } else {
-  $v = & node --version
+  logMSG "  [OK] Git ja instalado" -color "Green"
+  $env:PATH = "$env:USERPROFILE\Neon\git\cmd;$env:PATH"
+}
+
+# -- 3. Node.js (portatil, sem winget) --
+step -num 3 -total 9 -msg "Node.js"
+New-Item -ItemType Directory -Path "$env:USERPROFILE\Neon\node" -Force | Out-Null
+$nodeCmd = "$env:USERPROFILE\Neon\node\node.exe"
+if (-not (Test-Path $nodeCmd)) {
+  logMSG "  Baixando Node.js portatil..." -color "Gray"
+  try {
+    $nodeVer = "22.14.0"
+    $nodeUrl = "https://nodejs.org/dist/v$nodeVer/node-v$nodeVer-win-x64.zip"
+    $zipPath = Join-Path $env:TEMP "node.zip"
+    logMSG "  Download de $nodeUrl ..." -color "Gray"
+    Invoke-WebRequest -Uri $nodeUrl -OutFile $zipPath -UseBasicParsing -TimeoutSec 120
+    Expand-Archive -Path $zipPath -DestinationPath "$env:USERPROFILE\Neon\node_tmp" -Force
+    Move-Item -Path "$env:USERPROFILE\Neon\node_tmp\node-v$nodeVer-win-x64\*" -Destination "$env:USERPROFILE\Neon\node" -Force
+    Remove-Item -Path "$env:USERPROFILE\Neon\node_tmp" -Recurse -Force -ErrorAction SilentlyContinue
+    $env:PATH = "$env:USERPROFILE\Neon\node;$env:PATH"
+    $v = & $nodeCmd --version
+    logMSG "  [OK] Node.js $v" -color "Green"
+  } catch { logMSG "  [FALHA] Node.js: $_" -color "Red"; pause; exit 1 }
+} else {
+  $env:PATH = "$env:USERPROFILE\Neon\node;$env:PATH"
+  $v = & $nodeCmd --version
   logMSG "  [OK] Node.js $v" -color "Green"
 }
 
-# -- 4. VS Code --
-step -num 4 -total 9 -msg "VS Code (opcional)"
-$codeCmd = Get-Command "code" -ErrorAction SilentlyContinue
-if (-not $codeCmd -and $winget) {
-  runWinget "VS Code" "Microsoft.VisualStudioCode"
-  $codeCmd = Get-Command "code" -ErrorAction SilentlyContinue
-}
-if ($codeCmd) { logMSG "  [OK] VS Code encontrado" -color "Green" }
-else { logMSG "  [-] VS Code nao instalado (opcional)" -color "Gray" }
-
-# -- 5. Blender --
-step -num 5 -total 9 -msg "Blender (opcional)"
-$blenderFound = $false
-$blenderPaths = @("$env:ProgramFiles\Blender Foundation\*\blender.exe", "${env:ProgramFiles(x86)}\Blender Foundation\*\blender.exe", "$env:LOCALAPPDATA\Blender Foundation\*\blender.exe")
-foreach ($p in $blenderPaths) { if (Get-ChildItem $p -ErrorAction SilentlyContinue) { $blenderFound = $true; break } }
-if (-not $blenderFound) { $blenderFound = (Get-Command "blender" -ErrorAction SilentlyContinue).Source }
-if (-not $blenderFound) {
-  logMSG "  Deseja instalar Blender? [S/N]" -color "White"
-  $key = [Console]::ReadKey($true).KeyChar
-  if ($key -eq 's' -or $key -eq 'S') { runWinget "Blender" "BlenderFoundation.Blender" }
-  else { logMSG "  [-] Pulando Blender" -color "Gray" }
-} else { logMSG "  [OK] Blender encontrado" -color "Green" }
-
-# -- 6. FFmpeg --
-step -num 6 -total 9 -msg "FFmpeg"
+# -- 4. FFmpeg --
+step -num 4 -total 9 -msg "FFmpeg"
 if (-not (Test-Path "C:\ffmpeg\ffmpeg.exe")) {
-  logMSG "  Baixando FFmpeg (pode levar minutos)..." -color "Gray"
+  logMSG "  Baixando FFmpeg..." -color "Gray"
   try {
     $zipPath = Join-Path $env:TEMP "ffmpeg.zip"
     Invoke-WebRequest -Uri $FFMPEG_URL -OutFile $zipPath -UseBasicParsing -TimeoutSec 180
@@ -134,6 +128,7 @@ if (-not (Test-Path "C:\ffmpeg\ffmpeg.exe")) {
       $oldPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
       if ($oldPath -notlike "*C:\ffmpeg*") {
         [Environment]::SetEnvironmentVariable("Path", "$oldPath;C:\ffmpeg", "Machine")
+        $env:PATH = "$env:PATH;C:\ffmpeg"
       }
       logMSG "  [OK] FFmpeg em C:\ffmpeg" -color "Green"
     }
@@ -141,31 +136,43 @@ if (-not (Test-Path "C:\ffmpeg\ffmpeg.exe")) {
   } catch { logMSG "  [!] Falha FFmpeg: $_" -color "Yellow" }
 } else { logMSG "  [OK] FFmpeg ja instalado" -color "Green" }
 
-# -- 7. Clonar --
-step -num 7 -total 9 -msg "Clonando repositório"
+# -- 5. Clonar --
+step -num 5 -total 9 -msg "Clonando repositorio"
 if (Test-Path (Join-Path $DESTINO "index.js")) {
   logMSG "  Repositorio ja existe. Atualizando..." -color "Gray"
   Push-Location $DESTINO
-  try { & git pull --ff-only 2>&1 | Out-Null; logMSG "  [OK] Atualizado" -color "Green" } catch { logMSG "  [!] git pull falhou: $_" -color "Yellow" }
+  try { & $gitPortable pull --ff-only 2>&1 | Out-Null; logMSG "  [OK] Atualizado" -color "Green" } catch { logMSG "  [!] git pull falhou: $_" -color "Yellow" }
   Pop-Location
 } else {
-  try { & git clone $REPO_URL $DESTINO 2>&1; logMSG "  [OK] Clonado" -color "Green" }
+  try { & $gitPortable clone $REPO_URL $DESTINO 2>&1; logMSG "  [OK] Clonado" -color "Green" }
   catch { logMSG "  [FALHA] git clone: $_" -color "Red"; pause; exit 1 }
 }
 
-# -- 8. Dependencias --
-step -num 8 -total 9 -msg "Instalando dependencias"
+# -- 6. Dependencias --
+step -num 6 -total 9 -msg "Instalando dependencias"
 Push-Location $DESTINO
 try { & npm install --production 2>&1 | Out-Null; logMSG "  [OK] npm install" -color "Green" } catch { logMSG "  [!] npm falhou: $_" -color "Yellow" }
 try {
   $oc = Get-Command "opencode" -ErrorAction SilentlyContinue
-  if (-not $oc) { & npm install -g opencode-ai 2>&1 | Out-Null; logMSG "  [OK] Opencode global" -color "Green" }
+  if (-not $oc) { & $nodeCmd (Join-Path $DESTINO "node_modules\.bin\opencode.cmd") --version 2>&1 | Out-Null; if (-not $?) { & npm install -g opencode-ai 2>&1 | Out-Null }; logMSG "  [OK] Opencode" -color "Green" }
   else { logMSG "  [OK] Opencode ja instalado" -color "Green" }
-} catch { logMSG "  [!] Opencode falhou: $_" -color "Yellow" }
+} catch { logMSG "  [!] Opencode: $_" -color "Yellow" }
 Pop-Location
 
-# -- 9. Atalhos --
-step -num 9 -total 9 -msg "Criando atalhos"
+# -- 7. .env --
+step -num 7 -total 9 -msg "Arquivo .env"
+$envFile = Join-Path $DESTINO ".env"
+if (-not (Test-Path $envFile)) {
+@"
+DISCORD_TOKEN=seu_token_aqui
+GEMINI_API_KEY=sua_chave_aqui
+TELEGRAM_TOKEN=seu_token_aqui
+"@ | Set-Content -Path $envFile -Encoding UTF8
+  logMSG "  [OK] .env criado (configure os tokens)" -color "Green"
+} else { logMSG "  [OK] .env ja existe" -color "Green" }
+
+# -- 8. Atalhos --
+step -num 8 -total 9 -msg "Criando atalhos"
 $shell = New-Object -ComObject WScript.Shell
 $desktop = [Environment]::GetFolderPath("Desktop")
 $iniciarBat = Join-Path $DESTINO "iniciar_neon.bat"
@@ -178,6 +185,7 @@ fltmc >nul 2>&1 || (
     exit /b
 )
 cd /d "%~dp0"
+set PATH=%~dp0git\cmd;%~dp0node;%PATH%
 :MENU
 cls
 echo.
@@ -187,17 +195,10 @@ echo ========================================
 echo.
 if not exist ".env" (
     echo [AVISO] .env nao encontrado
-    echo Crie o arquivo com DISCORD_TOKEN e GEMINI_API_KEY
     pause
 )
 echo [INICIANDO NEON...]
 echo.
-where node >nul 2>&1
-if errorlevel 1 (
-    echo [ERRO] Node.js nao encontrado!
-    pause
-    exit /b 1
-)
 node index.js
 if errorlevel 1 pause
 goto MENU
@@ -210,12 +211,16 @@ $lnk.WorkingDirectory = $DESTINO
 $lnk.WindowStyle = 1
 $lnk.Description = "Iniciar Neon"
 $lnk.Save()
-$lnk2 = $shell.CreateShortcut((Join-Path $desktop "Neon - Documentacao.lnk"))
+$lnk2 = $shell.CreateShortcut((Join-Path $desktop "Neon - Dashboard.lnk"))
 $lnk2.TargetPath = "http://localhost:3000"
-$lnk2.Description = "Neon Docs"
+$lnk2.Description = "Neon Dashboard"
 $lnk2.Save()
-& git -C $DESTINO remote set-url --push origin http://nopush.invalid 2>&1 | Out-Null
 logMSG "  [OK] Atalhos criados" -color "Green"
+
+# -- 9. Limpeza --
+step -num 9 -total 9 -msg "Finalizando"
+try { & $gitPortable -C $DESTINO remote set-url --push origin http://nopush.invalid 2>&1 | Out-Null } catch {}
+logMSG "  Push remoto desabilitado (seguranca)" -color "Gray"
 
 Write-Progress -Activity "Instalando Neon" -Completed
 $elapsed = [math]::Round(((Get-Date) - $installStart).TotalSeconds)

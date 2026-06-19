@@ -70,6 +70,36 @@ app.get("/api/logs", async (req, res) => {
   }
 });
 
+app.get("/api/camera", async (req, res) => {
+  try {
+    const camera = require("../camera");
+    const st = await camera.status();
+    res.json(st);
+  } catch {
+    res.json({ online: false, erro: "camera module unavailable" });
+  }
+});
+
+app.post("/api/camera/snapshot", async (req, res) => {
+  try {
+    const camera = require("../camera");
+    const buf = await camera.capturarFrame();
+    res.type("image/jpeg").send(buf);
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
+app.post("/api/camera/url", async (req, res) => {
+  try {
+    const camera = require("../camera");
+    const msg = await camera.definirUrl(req.body.url);
+    res.json({ ok: true, msg });
+  } catch (err) {
+    res.status(500).json({ erro: err.message });
+  }
+});
+
 app.get("/api/memoria", async (req, res) => {
   try {
     const { listar, estatisticas } = require("../memoria");

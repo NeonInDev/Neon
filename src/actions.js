@@ -291,12 +291,23 @@ function encontrarVolume(texto) {
   return false;
 }
 
+function encontrarCamera(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:tira|tirar|faz|fazer|captura|capturar)\s+(?:uma\s+|um\s+)?(?:foto|fotografia)(?!\s+de\s+)/i.test(lower) && !lower.includes("tela") && !lower.includes("pc") && !lower.includes("monitor")) return true;
+  if (/^(?:me\s+)?(?:ve|olha|mostra|mostrar|ver)\s+(?:pela|pelo|na|no|com\s+a)\s+(?:camera|câmera|cam)/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarScreenshot(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
-  if (/^(?:tira|tirar|faz|fazer|captura|capturar)\s+(?:um\s+)?(?:print|screenshot|captura|foto|fotografia)\s*(?:da\s+tela|do\s+pc|do\s+monitor|da\s+area\s+de\s+trabalho)?/i.test(lower)) return true;
+  if (/^(?:tira|tirar|faz|fazer|captura|capturar)\s+(?:um\s+)?(?:print|screenshot|captura|foto|fotografia)\s+(?:da\s+tela|do\s+pc|do\s+monitor|da\s+area\s+de\s+trabalho)/i.test(lower)) return true;
   if (/^(?:printa|printar|screenshotar)\s/i.test(lower)) return true;
   return false;
 }
+
+function encontrarPCInfo(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:como\s+)?(?:ta|tá|esta|está)\s+(?:o\s+)?pc|status\s+(?:do\s+)?pc|info\s+(?:do\s+)?pc|monitorar|desempenho/i.test(lower)) return true;
 
 function encontrarPCInfo(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
