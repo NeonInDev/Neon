@@ -29,6 +29,7 @@ const FERRAMENTAS = [
   { nome: "right_click_at", desc: "Clique direito em coordenada. Uso: right_click_at | [x] [y]" },
   { nome: "opencode", desc: "Executa tarefa usando OpenCode. Uso: opencode | [descricao da tarefa]" },
   { nome: "wake_on_lan", desc: "Liga PC remoto via Wake-on-LAN. Uso: wake_on_lan | [mac_address]" },
+  { nome: "navegar", desc: "Navega em site com acoes (scroll, clicar, pesquisar). Uso: navegar | [url] > [acao]" },
 ];
 
 function descricaoFerramentas() {
@@ -71,6 +72,79 @@ async function executarFerramenta(ferramenta) {
         if (!/^https?:\/\//i.test(url)) url = "https://" + url;
         await abrirUrlNoOpera(url);
         return `Abri o site: ${url}`;
+      }
+      case "navegar": {
+        if (!args) return "Uso: navegar | [url] > [acoes]";
+        const { abrirPagina, interpretarAcaoTexto, executarAcao } = require("./browser");
+        const partes = args.split(">").map(s => s.trim());
+        let url = partes[0];
+        if (!/^https?:\/\//i.test(url)) url = "https://" + url;
+        const acoes = partes.slice(1).filter(Boolean);
+        const page = await abrirPagina(url);
+        const resultados = [];
+        try {
+          for (const acaoTexto of acoes) {
+            const acao = await interpretarAcaoTexto(acaoTexto);
+            if (!acao) { resultados.push(`Acao ignorada: "${acaoTexto}"`); continue; }
+            if (acao.tipo === "scrollar") {
+              if (acao.quantidade === -99999) await page.evaluate(() => window.scrollTo(0, 0));
+              else if (acao.quantidade === 99999) await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+              else await page.evaluate((q) => window.scrollBy(0, q), acao.quantidade);
+              resultados.push(`Scroll ${acao.quantidade === -99999 ? "topo" : acao.quantidade === 99999 ? "fim" : acao.quantidade + "px"}`);
+            } else if (acao.tipo === "clicar") {
+              const els = await page.$$("a, button, [role='button'], [onclick], img, video, [class*='title'], [class*='video'], [id*='video'], ytd-video-renderer, ytmusic-responsive-list-item-renderer");
+              let found = false;
+              for (const el of els) {
+                const txt = await el.evaluate(e => (e.textContent || "").trim().toLowerCase());
+                const alt = await el.evaluate(e => (e.alt || "").trim().toLowerCase());
+                const title = await el.evaluate(e => (e.title || "").trim().toLowerCase());
+                if (txt.includes(acao.texto.toLowerCase()) || alt.includes(acao.texto.toLowerCase()) || title.includes(acao.texto.toLowerCase())) {
+                  await el.evaluate(e => e.scrollIntoView({ behavior: "smooth", block: "center" }));
+                  await new Promise(r => setTimeout(r, 500));
+                  await el.click();
+                  resultados.push(`Cliquei em "${acao.texto}"`);
+                  found = true;
+                  break;
+                }
+              }
+              if (!found) {
+                try {
+                  const [el] = await page.$x(`//*[contains(text(), "${acao.texto}")]`);
+                  if (el) { await el.click(); resultados.push(`Cliquei em "${acao.texto}" (XPath)`); found = true; }
+                } catch {}
+              }
+              if (!found) resultados.push(`Nao achei "${acao.texto}" na pagina`);
+            } else if (acao.tipo === "pesquisar") {
+              const sel = "input[type='text'], input[name='q'], input[type='search'], textarea, input[role='combobox'], input[aria-label*='Pesquisar'], input[aria-label*='Search']";
+              const input = await page.$(sel);
+              if (input) {
+                await input.click({ clickCount: 3 });
+                await input.type(acao.termo, { delay: 50 });
+                await page.keyboard.press("Enter");
+                await new Promise(r => setTimeout(r, 3000));
+                resultados.push(`Pesquisei "${acao.termo}"`);
+              } else resultados.push("Campo de busca nao encontrado");
+            } else if (acao.tipo === "extrair") {
+              const bodyText = await page.evaluate(() => document.body.textContent.trim().slice(0, 2000));
+              resultados.push(`Texto: ${bodyText}`);
+            } else if (acao.tipo === "esperar") {
+              await new Promise(r => setTimeout(r, acao.tempo || 2000));
+              resultados.push(`Esperei ${(acao.tempo || 2000) / 1000}s`);
+            } else if (acao.tipo === "digitar") {
+              const sel = "input:not([type='hidden']), textarea, [contenteditable='true']";
+              const input = await page.$(sel);
+              if (input) { await input.type(acao.texto, { delay: 30 }); resultados.push(`Digitei "${acao.texto}"`); }
+              else resultados.push("Campo de texto nao encontrado");
+            } else {
+              await executarAcao(page, acao);
+              resultados.push(`Acao "${acao.tipo}" executada`);
+            }
+          }
+        } catch (err) {
+          resultados.push(`Erro: ${err.message.slice(0, 100)}`);
+        }
+        await page.close().catch(() => {});
+        return `Naveguei em ${url}:\n${resultados.join("\n")}`;
       }
       case "abrir_app": {
         if (!args) return "Nada pra abrir.";
