@@ -9,6 +9,7 @@ const MAX_INPUT_LEN = 2000;
 
 const memoriaModule = require("./memoria");
 const memoriaFormatar = memoriaModule.formatarParaPrompt;
+const contextoModule = require("./contexto");
 const tools = require("./tools");
 
 const basePrompt = `
@@ -84,7 +85,8 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
   ].join("\n");
 
   const memoriaGlobal = memoriaFormatar();
-  const systemPrompt = `${basePrompt}\n${memoriaLonga}\n${memoriaGlobal}`;
+  const contextoRecente = contextoModule.formatarParaPrompt(userId);
+  const systemPrompt = `${basePrompt}\n${memoriaLonga}\n${memoriaGlobal}\n\nHistorico recente da conversa:\n${contextoRecente || "(nenhuma mensagem anterior)"}`;
 
   // Monta mensagem do usuário (com imagem se houver)
   const userMessage = imageUrl

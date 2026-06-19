@@ -540,6 +540,29 @@ function encontrarWhatsApp(texto) {
   return null;
 }
 
+function encontrarAlarme(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:cria|criar|agenda|agendar|define|definir|marca|marcar)\s+(?:um\s+)?(?:alarme|despertador|alerta)\s+(?:pra|para|em)\s+(.+?)\s+(?:dizendo|com|falando|mensagem|pra)\s+(.+)/i.test(lower)) return true;
+  if (/^(?:alarme|despertador)/i.test(lower) && /(?:as|às|para|pra|em)/i.test(lower)) return true;
+  if (/^(?:lista|listar|mostra|mostrar|quais)\s+(?:meus\s+)?(?:alarmes|alertas|despertadores)/i.test(lower)) return true;
+  if (/^(?:cancela|cancelar|remove|remover|deleta|deletar)\s+(?:meu\s+)?(?:alarme|alerta|despertador)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarCalendario(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:o\s+)?(?:que\s+)?(?:tem\s+)?(?:na\s+)?(?:agenda|calendario|compromisso|compromissos|evento|eventos)\s*(?:hoje|amanha|amanhã|pra\s+hoje|pra\s+amanha)?/i.test(lower)) return true;
+  if (/^(?:lista|listar|mostra|mostrar|veja|ver)\s+(?:meus\s+)?(?:eventos|compromissos|agenda)/i.test(lower)) return true;
+  if (/^(?:adiciona|adicionar|cria|criar|marca|marcar)\s+(?:um\s+)?(?:evento|compromisso)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarAudit(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:audit|auditoria|log|logs|historico|histórico)\s*(?:de\s+)?(?:comandos|auditoria)?/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarMemoria(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const lembrarM = lower.match(/^(?:me\s+)?(?:lembra|lembre|guarda|guarde|salva|salve|anota|anote|memoriza|memorize|guarda\s+na\s+memoria)\s+(?:que|disso|isto|disso:|disso,)?\s*(.+)/i);
@@ -600,6 +623,9 @@ function detectarCategoria(texto) {
   if (encontrarRede(texto)) return "rede";
   if (encontrarBateria(texto)) return "bateria";
   if (isWin() && encontrarWhatsApp(texto)) return "whatsapp";
+  if (encontrarAlarme(texto)) return "alarme";
+  if (encontrarCalendario(texto)) return "calendario";
+  if (encontrarAudit(texto)) return "audit";
   if (encontrarMemoria(texto)) return "memoria";
   // Detecta nome de app sem "abrir" (ex: "steam", "valorant") — só se for app conhecido
   if (isWin() && texto.trim().length > 3) {
@@ -1574,7 +1600,9 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       const para = m[1].trim();
       const assunto = m[2]?.trim() || "Mensagem da Neon";
       const corpo = m[3]?.trim() || (m[2]?.trim() ? "" : "Mensagem enviada pela Neon.");
-      return await pc.enviarEmail(para, assunto, corpo);
+      const { enviar: enviarEmail } = require("./email");
+      const r = await enviarEmail(para, assunto, corpo);
+      return r.ok ? `✅ Email enviado pra ${para}` : `❌ ${r.erro}`;
     } catch (err) {
       return `❌ Erro no email: ${err.message}`;
     }
@@ -1587,9 +1615,72 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       const info = encontrarWhatsApp(texto);
       if (!info || !info.contato || !info.mensagem) return "❌ Use: manda zap pra [contato]: [mensagem]";
       const whatsapp = require("./whatsapp");
-      return await whatsapp.enviarMensagem(info.contato, info.mensagem);
+      const r = await whatsapp.enviar(info.contato, info.mensagem);
+      return r.ok ? r.mensagem : `❌ ${r.erro}`;
     } catch (err) {
       return `❌ Erro no WhatsApp: ${err.message}`;
+    }
+  }
+
+  // Alarme (lembrete_alarme)
+  if (categoria === "alarme") {
+    try {
+      const { criar, listar, cancelar, cancelarTodos } = require("./lembrete_alarme");
+      const lower = limparFiller(texto.toLowerCase().trim());
+      if (/^(?:lista|listar|mostra|mostrar|quais)/i.test(lower)) {
+        const alarmes = listar(userId);
+        if (!alarmes.length) return "Nao tenho alarmes ativos.";
+        return "🔔 **Alarmes ativos:**\n" + alarmes.map(a => `- **${new Date(a.dataHora).toLocaleString("pt-BR")}**: ${a.mensagem.slice(0, 100)} (ID: ${a.id.slice(-8)})`).join("\n");
+      }
+      if (/^(?:cancela|cancelar|remove|remover)/i.test(lower)) {
+        const m = lower.match(/[a-z0-9_]{8}$/i);
+        if (m && cancelar(m[0])) return "✅ Alarme cancelado.";
+        const count = cancelarTodos(userId);
+        return count > 0 ? `✅ ${count} alarme(s) cancelado(s).` : "Nenhum alarme ativo pra cancelar.";
+      }
+      const m = lower.match(/(?:pra|para|em)\s+(.+?)\s+(?:dizendo|com|falando|mensagem|pra)\s+(.+)/i);
+      if (!m) return "❌ Use: cria alarme pra [data/hora] dizendo [mensagem]";
+      const dataHora = m[1].trim();
+      const mensagem = m[2].trim();
+      const alarme = criar(dataHora, mensagem, userId);
+      return `🔔 Alarme criado pra ${new Date(alarme.dataHora).toLocaleString("pt-BR")}: "${mensagem}"`;
+    } catch (err) {
+      return `❌ Erro no alarme: ${err.message}`;
+    }
+  }
+
+  // Calendario
+  if (categoria === "calendario") {
+    try {
+      const { eventosHoje, listarEventos, status } = require("./calendario");
+      const st = await status();
+      if (!st.autenticado) return "❌ Google Calendar nao configurado. Coloque google_credentials.json na pasta do Neon.";
+      const lower = limparFiller(texto.toLowerCase().trim());
+      if (/(?:hoje|amanha|amanhã)/i.test(lower)) {
+        const r = await eventosHoje();
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.eventos.length) return "Nao tenho eventos pra hoje. 📅";
+        return "📅 **Eventos de hoje:**\n" + r.eventos.map(e => `- **${e.titulo}** (${new Date(e.inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })})${e.local ? ` em ${e.local}` : ""}`).join("\n");
+      }
+      const r = await listarEventos(5);
+      if (!r.ok) return `❌ ${r.erro}`;
+      if (!r.eventos.length) return "Nao tenho eventos futuros. 📅";
+      return "📅 **Proximos eventos:**\n" + r.eventos.map(e => `- **${e.titulo}** (${new Date(e.inicio).toLocaleString("pt-BR")})`).join("\n");
+    } catch (err) {
+      return `❌ Erro no calendario: ${err.message}`;
+    }
+  }
+
+  // Auditoria
+  if (categoria === "audit") {
+    if (!podePC) return "❌ Só o chefão pode ver logs de auditoria.";
+    try {
+      const { lerAudit } = require("./permissions");
+      const linhas = lerAudit(15);
+      if (!linhas.length) return "Nenhum log de auditoria encontrado.";
+      return "📋 **Auditoria (ultimos comandos):**\n```\n" + linhas.join("\n").slice(0, 1900) + "\n```";
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
     }
   }
 

@@ -39,6 +39,14 @@ const FERRAMENTAS = [
   { nome: "spotify_control", desc: "Controla reproducao do Spotify. Uso: spotify_control | next / previous / pause / play / volume [0-100]" },
   { nome: "youtube_pip", desc: "Coloca video do YouTube em Picture-in-Picture. Uso: youtube_pip" },
   { nome: "youtube_fullscreen", desc: "Coloca video do YouTube em tela cheia. Uso: youtube_fullscreen" },
+  { nome: "clima_tempo", desc: "Previsao do tempo com detalhes. Uso: clima_tempo | [cidade]" },
+  { nome: "alarme", desc: "Cria um alarme com som. Uso: alarme | [data/hora] | [mensagem]" },
+  { nome: "whatsapp", desc: "Envia mensagem no WhatsApp. Uso: whatsapp | [contato] | [mensagem]" },
+  { nome: "email", desc: "Envia email. Uso: email | [destino] | [assunto] | [corpo]" },
+  { nome: "calendario", desc: "Lista eventos do Google Calendar. Uso: calendario | hoje / proximos" },
+  { nome: "contexto", desc: "Mostra o historico da conversa atual. Uso: contexto" },
+  { nome: "fila_status", desc: "Mostra status da fila de tarefas. Uso: fila_status" },
+  { nome: "audit", desc: "Mostra logs de auditoria. Uso: audit" },
 ];
 
 function descricaoFerramentas() {
@@ -494,6 +502,72 @@ async function executarFerramenta(ferramenta) {
         if (!args) return "Uso: camera_url | [url]. Ex: camera_url | http://192.168.1.50:8080"
         const camera = require("./camera")
         return await camera.definirUrl(args)
+      }
+      case "clima_tempo": {
+        const { clima } = require("./clima")
+        const c = await clima(args || "São Paulo")
+        return `Clima em ${c.cidade}: ${c.condicao}, ${c.temperatura} (sensação ${c.sensacao}), umidade ${c.umidade}, vento ${c.vento}`
+      }
+      case "alarme": {
+        if (!args) return "Uso: alarme | [data/hora] | [mensagem]"
+        const partes = args.split("|").map(s => s.trim())
+        const { criar, listar } = require("./lembrete_alarme")
+        if (partes[0] === "listar") {
+          const alarmes = listar()
+          return alarmes.length ? "Alarmes:\n" + alarmes.map(a => `- ${new Date(a.dataHora).toLocaleString("pt-BR")}: ${a.mensagem}`).join("\n") : "Nenhum alarme ativo."
+        }
+        const dataHora = partes[0]
+        const mensagem = partes[1] || "Alarme!"
+        const alarme = criar(dataHora, mensagem, "system")
+        return `Alarme criado para ${new Date(alarme.dataHora).toLocaleString("pt-BR")}`
+      }
+      case "whatsapp": {
+        if (!args) return "Uso: whatsapp | [contato] | [mensagem]"
+        const partes = args.split("|").map(s => s.trim())
+        if (partes.length < 2) return "Formato: whatsapp | [contato] | [mensagem]"
+        const { enviar } = require("./whatsapp")
+        const r = await enviar(partes[0], partes[1])
+        return r.ok ? r.mensagem : `Erro: ${r.erro}`
+      }
+      case "email": {
+        if (!args) return "Uso: email | [destino] | [assunto] | [corpo]"
+        const partes = args.split("|").map(s => s.trim())
+        if (partes.length < 1) return "Formato: email | [destino] | [assunto] | [corpo]"
+        const destino = partes[0]
+        const assunto = partes[1] || "Mensagem da Neon"
+        const corpo = partes[2] || "Mensagem enviada pela Neon."
+        const { enviar } = require("./email")
+        const r = await enviar(destino, assunto, corpo)
+        return r.ok ? `Email enviado para ${destino}` : `Erro: ${r.erro}`
+      }
+      case "calendario": {
+        const { eventosHoje, listarEventos, status } = require("./calendario")
+        const st = await status()
+        if (!st.autenticado) return "Google Calendar nao configurado."
+        const cmd = args?.trim().toLowerCase() || "proximos"
+        if (cmd === "hoje" || cmd === "hoje ") {
+          const r = await eventosHoje()
+          if (!r.ok) return r.erro
+          return r.eventos.length ? "Eventos hoje:\n" + r.eventos.map(e => `- ${e.titulo} (${new Date(e.inicio).toLocaleTimeString("pt-BR")})`).join("\n") : "Nenhum evento hoje."
+        }
+        const r = await listarEventos(5)
+        if (!r.ok) return r.erro
+        return r.eventos.length ? "Proximos eventos:\n" + r.eventos.map(e => `- ${e.titulo} (${new Date(e.inicio).toLocaleString("pt-BR")})`).join("\n") : "Nenhum evento futuro."
+      }
+      case "contexto": {
+        const { get, formatarParaPrompt, estatisticas } = require("./contexto")
+        const stats = estatisticas()
+        return `Contexto: ${stats.totalUsuarios} usuarios, ${stats.totalMensagens} mensagens no total.`
+      }
+      case "fila_status": {
+        const { listar, status } = require("./fila")
+        const filas = listar()
+        return filas.length ? `Filas ativas:\n${filas.map(f => `- Usuario ${f.userId.slice(0, 8)}: ${f.queueLength} na fila, ${f.processing ? "processando" : "parado"}`).join("\n")}` : "Nenhuma fila ativa."
+      }
+      case "audit": {
+        const { lerAudit } = require("./permissions")
+        const linhas = lerAudit(20)
+        return linhas.length ? `Auditoria:\n\`\`\`\n${linhas.join("\n").slice(0, 1500)}\n\`\`\`` : "Nenhum log de auditoria."
       }
       default: {
         try {

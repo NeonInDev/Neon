@@ -6,6 +6,9 @@ const { getOrCreateUser } = require("../user");
 const { estaNaBlacklist } = require("../moderation");
 const { MASTER_KEY } = require("../config");
 const { log } = require("../logger");
+const { verificarRateLimit, permitido, auditar } = require("../permissions");
+const { enfileirar } = require("../fila");
+const { add: addContexto } = require("../contexto");
 const axios = require("axios");
 
 const processando = new Set();
@@ -94,60 +97,81 @@ module.exports = {
     if (processando.has(message.id)) return;
     processando.add(message.id);
 
-    try {
-      // Audio do Discord (voice message) — processa SEMPRE
-      const { processarAudioMessage } = require("../discord_audio");
-      if (await processarAudioMessage(message)) return;
-
-      const content = message.content;
-      let ativar = false;
-      let userInput = content;
-
-      const lowerContent = content.toLowerCase();
-      if (!ativar) {
-        const slashMatch = lowerContent.match(/^\/neon\s+(.*)/);
-        if (slashMatch) {
-          ativar = true;
-          userInput = slashMatch[1] || "";
-        }
-      }
-
-      if (message.reference && !ativar) {
-        try {
-          const replied = await message.channel.messages.fetch(message.reference.messageId);
-          if (replied.author.id === message.client.user.id) ativar = true;
-        } catch {
-          log("WARN", "Falha ao buscar mensagem respondida");
-        }
-      }
-
-      if (message.channel.type === ChannelType.DM && !ativar) {
-        if (content.trim().length >= 2) ativar = true;
-      }
-
-      if (!ativar) return;
-      if (checkCooldown(message.author.id)) return;
-
-      const mestre = db.data.users?.[message.author.id]?.mestre || false;
-      const resultadoAcao = await executarAcao(userInput, mestre, message.author.id, message);
-      if (resultadoAcao) {
-        await enviarResposta(message, resultadoAcao);
-        return;
-      }
-
-      await message.channel.sendTyping();
-      const imageUrl = message.attachments.first()?.url || null;
-      const reply = await askNeon(message.author.id, message.author.username, userInput, imageUrl);
-      if (!message.replied) {
-        await enviarResposta(message, reply);
-      }
-    } catch (err) {
-      log("ERROR", "Erro ao processar mensagem", { usuario: message.author.username, erro: err.message });
-      try {
-        await message.reply("❌ erro interno");
-      } catch {}
-    } finally {
+    // Rate limiting
+    const rl = verificarRateLimit(message.author.id);
+    if (!rl.permitido) {
       processando.delete(message.id);
+      const seg = Math.ceil(rl.tempoRestante / 1000);
+      if (seg > 0) {
+        try { await message.reply(`⏳ Calma la! Aguarde ${seg}s entre os comandos.`); } catch {}
+      }
+      return;
     }
+
+    enfileirar(message.author.id, async () => {
+      try {
+        // Audio do Discord (voice message) — processa SEMPRE
+        const { processarAudioMessage } = require("../discord_audio");
+        if (await processarAudioMessage(message)) return;
+
+        const content = message.content;
+        let ativar = false;
+        let userInput = content;
+
+        const lowerContent = content.toLowerCase();
+        if (!ativar) {
+          const slashMatch = lowerContent.match(/^\/neon\s+(.*)/);
+          if (slashMatch) {
+            ativar = true;
+            userInput = slashMatch[1] || "";
+          }
+        }
+
+        if (message.reference && !ativar) {
+          try {
+            const replied = await message.channel.messages.fetch(message.reference.messageId);
+            if (replied.author.id === message.client.user.id) ativar = true;
+          } catch {
+            log("WARN", "Falha ao buscar mensagem respondida");
+          }
+        }
+
+        if (message.channel.type === ChannelType.DM && !ativar) {
+          if (content.trim().length >= 2) ativar = true;
+        }
+
+        if (!ativar) return;
+        if (checkCooldown(message.author.id)) return;
+
+        const mestre = db.data.users?.[message.author.id]?.mestre || false;
+        const userId = message.author.id;
+        const username = message.author.username;
+
+        await message.channel.sendTyping();
+        const resultadoAcao = await executarAcao(userInput, mestre, userId, message);
+        if (resultadoAcao) {
+          addContexto(userId, username, userInput, resultadoAcao);
+          auditar(userId, username, userInput, resultadoAcao.slice(0, 100));
+          await enviarResposta(message, resultadoAcao);
+          return;
+        }
+
+        await message.channel.sendTyping();
+        const imageUrl = message.attachments.first()?.url || null;
+        const reply = await askNeon(userId, username, userInput, imageUrl);
+        if (!message.replied) {
+          addContexto(userId, username, userInput, reply);
+          auditar(userId, username, userInput, reply?.slice(0, 100));
+          await enviarResposta(message, reply);
+        }
+      } catch (err) {
+        log("ERROR", "Erro ao processar mensagem", { usuario: message.author.username, erro: err.message });
+        try {
+          await message.reply("❌ erro interno");
+        } catch {}
+      } finally {
+        processando.delete(message.id);
+      }
+    });
   },
 };
