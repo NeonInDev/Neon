@@ -1,7 +1,10 @@
 @echo off
 title Neon - Assistente IA
+fltmc >nul 2>&1 || (
+    powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0' -WorkingDirectory '%~dp0'"
+    exit /b
+)
 cd /d "%~dp0"
-
 :MENU
 cls
 echo.
@@ -10,38 +13,19 @@ echo         NEON - Assistente Pessoal
 echo ========================================
 echo.
 if not exist ".env" (
-    echo [AVISO] Arquivo .env nao encontrado!
-    echo Crie um arquivo .env com:
-    echo   DISCORD_TOKEN=seu_token
-    echo   GEMINI_API_KEY=sua_key
-    echo   OPENROUTER_API_KEY=sua_key
+    echo [AVISO] .env nao encontrado
+    echo Crie o arquivo com DISCORD_TOKEN e GEMINI_API_KEY
     echo.
-    echo Pressione qualquer tecla para continuar mesmo assim,
-    echo ou feche a janela para criar o .env primeiro.
-    pause >nul
-    cls
+    pause
 )
-
 echo [INICIANDO NEON...]
 echo.
-echo Data: %DATE% %TIME%
-echo.
-
-:: Verifica se o Node esta instalado
 where node >nul 2>&1
-if %errorlevel% neq 0 (
+if errorlevel 1 (
     echo [ERRO] Node.js nao encontrado!
-    echo Execute o instalador: scripts\instalar_neon.ps1
-    echo Ou instale manualmente: winget install OpenJS.NodeJS
     pause
     exit /b 1
 )
-
 node index.js
-
-if %errorlevel% neq 0 (
-    echo.
-    echo [ERRO] Neon fechou com codigo %errorlevel%
-    pause
-    goto MENU
-)
+if errorlevel 1 pause
+goto MENU

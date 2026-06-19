@@ -20,9 +20,10 @@ $REPO_URL    = "https://github.com/NeonInDev/Neon"
 $DESTINO     = Join-Path $env:USERPROFILE "Neon"
 $NODE_VER    = "22.14.0"
 $VSCODE_VER  = "latest"
+$FFMPEG_URL  = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 
 # ─── 1. Verifica Winget ───
-Write-Host "[1/7] Verificando winget..." -ForegroundColor Yellow
+Write-Host "[1/8] Verificando winget..." -ForegroundColor Yellow
 $winget = Get-Command "winget" -ErrorAction SilentlyContinue
 if (-not $winget) {
     Write-Host "  ⚠ winget não encontrado. Instale os App Installer da Microsoft Store." -ForegroundColor Yellow
@@ -31,7 +32,7 @@ if (-not $winget) {
 }
 
 # ─── 2. Node.js ───
-Write-Host "[2/7] Verificando Node.js..." -ForegroundColor Yellow
+Write-Host "[2/8] Verificando Node.js..." -ForegroundColor Yellow
 $nodePath = (Get-Command "node" -ErrorAction SilentlyContinue).Source
 if (-not $nodePath) {
     Write-Host "  Node.js não encontrado. Instalando via winget..." -ForegroundColor Gray
@@ -56,7 +57,7 @@ if (-not $nodePath) {
 }
 
 # ─── 3. VS Code ───
-Write-Host "[3/7] Verificando VS Code..." -ForegroundColor Yellow
+Write-Host "[3/8] Verificando VS Code..." -ForegroundColor Yellow
 $codePath = (Get-Command "code" -ErrorAction SilentlyContinue).Source
 if (-not $codePath) {
     Write-Host "  VS Code não encontrado. Instalando via winget..." -ForegroundColor Gray
@@ -72,7 +73,7 @@ if (-not $codePath) {
 }
 
 # ─── 4. Blender ───
-Write-Host "[4/7] Blender..." -ForegroundColor Yellow
+Write-Host "[4/8] Blender..." -ForegroundColor Yellow
 $blenderPath = (Get-Command "blender" -ErrorAction SilentlyContinue).Source
 $blenderFound = $blenderPath -or (Get-ChildItem "$env:ProgramFiles\Blender Foundation\*\blender.exe" -ErrorAction SilentlyContinue)
 $blenderLocal = Get-ChildItem "$env:LOCALAPPDATA\Blender Foundation\*\blender.exe" -ErrorAction SilentlyContinue
@@ -103,8 +104,35 @@ if ($blenderFound -or $blenderLocal) {
     }
 }
 
-# ─── 5. Clona/Puxa repositório ───
-Write-Host "[5/7] Clonando Neon..." -ForegroundColor Yellow
+# ─── 5. FFmpeg ───
+Write-Host "[5/8] FFmpeg..." -ForegroundColor Yellow
+$ffmpegPath = "C:\ffmpeg\ffmpeg.exe"
+if (-not (Test-Path $ffmpegPath)) {
+    Write-Host "  Baixando FFmpeg..." -ForegroundColor Gray
+    try {
+        $zipPath = Join-Path $env:TEMP "ffmpeg.zip"
+        Invoke-WebRequest -Uri $FFMPEG_URL -OutFile $zipPath -UseBasicParsing
+        $tempExtract = Join-Path $env:TEMP "ffmpeg_extract"
+        Expand-Archive -Path $zipPath -DestinationPath $tempExtract -Force
+        $ffExe = Get-ChildItem -Path $tempExtract -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+        if ($ffExe) {
+            New-Item -ItemType Directory -Path "C:\ffmpeg" -Force | Out-Null
+            Copy-Item -Path "$($ffExe.Directory.FullName)\*" -Destination "C:\ffmpeg" -Recurse -Force
+            Write-Host "  ✓ FFmpeg instalado em C:\ffmpeg" -ForegroundColor Green
+            $oldPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
+            if ($oldPath -notlike "*C:\ffmpeg*") {
+                [Environment]::SetEnvironmentVariable("Path", "$oldPath;C:\ffmpeg", "Machine")
+                Write-Host "  ✓ FFmpeg adicionado ao PATH do sistema" -ForegroundColor Green
+            }
+        }
+        Remove-Item -Path $tempExtract -Recurse -Force -ErrorAction SilentlyContinue
+    } catch { Write-Host "  ⚠ Falha ao baixar FFmpeg: $_" -ForegroundColor Yellow }
+} else {
+    Write-Host "  ✓ FFmpeg já instalado" -ForegroundColor Green
+}
+
+# ─── 6. Clona/Puxa repositório ───
+Write-Host "[6/8] Clonando Neon..." -ForegroundColor Yellow
 if (Test-Path (Join-Path $DESTINO "index.js")) {
     Write-Host "  Repositório já existe. Atualizando..." -ForegroundColor Gray
     Push-Location $DESTINO
@@ -115,20 +143,20 @@ if (Test-Path (Join-Path $DESTINO "index.js")) {
     catch { Write-Host "  ✗ Falha ao clonar. Instale git: winget install Git.Git" -ForegroundColor Red; exit 1 }
 }
 
-# ─── 6. Bloqueia push ───
-Write-Host "[6/7] Bloqueando git push..." -ForegroundColor Yellow
+# ─── 7. Bloqueia push ───
+Write-Host "[7/8] Bloqueando git push..." -ForegroundColor Yellow
 Push-Location $DESTINO
 try { & git remote set-url --push origin http://nopush.invalid 2>&1 | Out-Null; Write-Host "  ✓ Push desabilitado" -ForegroundColor Green } catch { Write-Host "  ⚠ Não foi possível bloquear push" -ForegroundColor Yellow }
 Pop-Location
 
-# ─── 7. Dependências ───
-Write-Host "[7/8] Instalando dependências..." -ForegroundColor Yellow
+# ─── 8. Dependências ───
+Write-Host "[8/9] Instalando dependências..." -ForegroundColor Yellow
 Push-Location $DESTINO
 try { & npm install --production 2>&1 | Out-Null; Write-Host "  ✓ Dependências instaladas" -ForegroundColor Green } catch { Write-Host "  ✗ npm install falhou: $_" -ForegroundColor Red }
 Pop-Location
 
-# ─── 8. Opencode ───
-Write-Host "[8/8] Instalando Opencode..." -ForegroundColor Yellow
+# ─── 9. Opencode ───
+Write-Host "[9/9] Instalando Opencode..." -ForegroundColor Yellow
 try {
     $oc = Get-Command "opencode" -ErrorAction SilentlyContinue
     if (-not $oc) {
@@ -145,10 +173,12 @@ $WScriptShell = New-Object -ComObject WScript.Shell
 $desktop = [Environment]::GetFolderPath("Desktop")
 
 $iniciarBat = Join-Path $DESTINO "iniciar_neon.bat"
-if (-not (Test-Path $iniciarBat)) {
-    @"
-@echo off
+@"@echo off
 title Neon - Assistente IA
+fltmc >nul 2>&1 || (
+    powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0' -WorkingDirectory '%~dp0'"
+    exit /b
+)
 cd /d "%~dp0"
 :MENU
 cls
@@ -174,7 +204,6 @@ node index.js
 if errorlevel 1 pause
 goto MENU
 "@ | Set-Content -Path $iniciarBat -Encoding ASCII
-}
 
 $atalho = $WScriptShell.CreateShortcut((Join-Path $desktop "Neon.lnk"))
 $atalho.TargetPath = "cmd.exe"
