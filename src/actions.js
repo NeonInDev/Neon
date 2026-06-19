@@ -122,7 +122,7 @@ function encontrarApp(texto) {
     if (app.so === "win32" && !isWin()) return false;
     return app.nomes.some((n) => nomeBuscado.includes(n));
   });
-  return candidato || { nomes: [nomeBuscado], url: `https://${nomeBuscado}.com` };
+  return candidato || null;
 }
 
 function encontrarPcCommand(texto) {
@@ -619,13 +619,13 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   }
 
   // ─── Quem é o Neon original? ───
-  if (/quem\s+[eé]\s+o\s+neon\s+original/i.test(lower) || /neon\s+original/i.test(lower)) {
+  if (/(?:quem\s+[eé]\s+)?(?:a|o)\s+neon\s+original/i.test(lower) || /neon\s+original/i.test(lower) || /(?:você|voce|vc)\s+[eé]\s+(?:a|o)\s+original/i.test(lower)) {
     const metalSonicGif = "https://media4.giphy.com/media/Cc792DqABMRCqm6JF2/giphy.gif";
     return `Eu sou a Original! Nenhuma copia me supera. 🦾\n${metalSonicGif}`;
   }
 
   // ─── EX-TERMINATOR ───
-  if (/ex.?terminator|ultron|protocolo.*destrui|autodestrui/i.test(lower) && /(?:ativa|ativar|iniciar|executar|rodar|liga|ligar)/i.test(lower)) {
+  if (/ex[- ]?terminat(?:or|ador)|ultron|protocolo.*destrui|autodestrui/i.test(lower)) {
     if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
     // TTS opcional com timeout — nao trava o comando
     (async () => {
@@ -669,7 +669,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
 
   // Apps
   if (categoria === "app") {
-    const app = encontrarApp(texto) || encontrarApp("abrir " + texto);
+    const app = encontrarApp(texto);
     if (!app) return "❌ App não encontrado.";
     const label = app.nomes[0];
     log("INFO", "[ACTION] app detectado", { label, texto, url: app.url, comando: app.comando });
