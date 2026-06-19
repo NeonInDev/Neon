@@ -30,6 +30,7 @@ const FERRAMENTAS = [
   { nome: "opencode", desc: "Executa tarefa usando OpenCode. Uso: opencode | [descricao da tarefa]" },
   { nome: "wake_on_lan", desc: "Liga PC remoto via Wake-on-LAN. Uso: wake_on_lan | [mac_address]" },
   { nome: "navegar", desc: "Navega em site com acoes (scroll, clicar, pesquisar). Uso: navegar | [url] > [acao]" },
+  { nome: "blender", desc: "Abre o Blender 3D (opcional: arquivo). Uso: blender | [caminho_do_arquivo]" },
 ];
 
 function descricaoFerramentas() {
@@ -314,6 +315,19 @@ async function executarFerramenta(ferramenta) {
         sock.send(magic, 0, magic.length, 9, "192.168.1.255");
         sock.close();
         return `Pacote magico enviado para ${args}. PC deve ligar se Wake-on-LAN estiver ativo.`;
+      }
+      case "blender": {
+        const blender = require("./blender");
+        if (!args) {
+          const r = await blender.abrir();
+          return r.ok ? r.msg : r.msg;
+        }
+        const caminho = args.trim();
+        if (/\.blend$/i.test(caminho) || require("fs").existsSync(caminho)) {
+          const r = await blender.abrir(caminho);
+          return r.ok ? `✅ ${r.msg}` : r.msg;
+        }
+        return `Arquivo não encontrado: ${caminho}`;
       }
       case "falar": {
         if (!args) return "Nada pra falar.";

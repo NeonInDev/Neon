@@ -4,286 +4,271 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Neon Interface</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💠</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>◆</text></svg>">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-    background: #0a0a1a;
-    color: #e0e0e0;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    background: #080818;
+    color: #c0c0e0;
     height: 100vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
+
   header {
-    background: linear-gradient(135deg, #0f0f2e, #1a1a3e);
-    padding: 16px 24px;
-    border-bottom: 1px solid #2a2a5e;
+    background: linear-gradient(90deg, #0a0a1e, #12122a, #0a0a1e);
+    padding: 12px 24px;
+    border-bottom: 1px solid #1a1a3e;
     display: flex;
     align-items: center;
     gap: 16px;
     flex-shrink: 0;
   }
-  header h1 {
-    font-size: 20px;
-    font-weight: 600;
-    background: linear-gradient(90deg, #00d4ff, #7b2ff7);
+  header .logo {
+    font-size: 18px;
+    font-weight: 700;
+    background: linear-gradient(135deg, #00d4ff, #7b2ff7);
     -webkit-text-fill-color: transparent;
     -webkit-background-clip: text;
     background-clip: text;
+    letter-spacing: 2px;
+  }
+  header .sub {
+    color: #3a3a5a;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
   }
   header .status {
     margin-left: auto;
     display: flex;
     align-items: center;
     gap: 8px;
-    font-size: 13px;
-    color: #888;
+    font-size: 11px;
+    color: #3a3a5a;
+    text-transform: uppercase;
+    letter-spacing: 1px;
   }
-  .status-dot {
-    width: 8px; height: 8px;
+  .dot {
+    width: 6px; height: 6px;
     border-radius: 50%;
-    background: #00ff88;
     display: inline-block;
-    animation: pulse 2s infinite;
   }
+  .dot.online { background: #00ff88; box-shadow: 0 0 8px #00ff8866; animation: pulse 2s infinite; }
   @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-  #chat {
+  .dot.offline { background: #ff4444; }
+
+  #terminal {
     flex: 1;
     overflow-y: auto;
     padding: 16px 24px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 2px;
     scroll-behavior: smooth;
   }
-  .msg {
-    max-width: 80%;
-    padding: 10px 16px;
-    border-radius: 12px;
-    line-height: 1.5;
-    font-size: 14px;
-    animation: fadeIn 0.3s ease;
-  }
-  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  .msg.user {
-    align-self: flex-end;
-    background: linear-gradient(135deg, #1a5bbf, #2d7de5);
-    color: white;
-    border-bottom-right-radius: 4px;
-  }
-  .msg.neon {
-    align-self: flex-start;
-    background: #1a1a3e;
-    color: #d0d0ff;
-    border: 1px solid #2a2a5e;
-    border-bottom-left-radius: 4px;
-  }
-  .msg.neon .time {
-    font-size: 11px;
-    color: #666;
-    margin-top: 4px;
-    display: block;
-  }
-  .msg.system {
-    align-self: center;
-    background: transparent;
-    color: #666;
-    font-size: 12px;
-    font-style: italic;
-    border: none;
-    padding: 4px 16px;
-  }
-  .typing {
-    align-self: flex-start;
-    color: #888;
+  #terminal::-webkit-scrollbar { width: 4px; }
+  #terminal::-webkit-scrollbar-track { background: transparent; }
+  #terminal::-webkit-scrollbar-thumb { background: #1a1a3e; border-radius: 2px; }
+
+  .line {
+    padding: 4px 0;
+    line-height: 1.6;
     font-size: 13px;
-    padding: 8px 16px;
-    display: flex;
-    gap: 4px;
+    animation: fadeIn 0.2s ease;
+    white-space: pre-wrap;
+    word-break: break-word;
   }
-  .typing span {
-    animation: dotPulse 1.4s infinite;
-    font-size: 20px;
-    line-height: 1;
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .line.prompt-user::before {
+    content: '❯ ';
+    color: #00d4ff;
+    font-weight: bold;
   }
-  .typing span:nth-child(2) { animation-delay: 0.2s; }
-  .typing span:nth-child(3) { animation-delay: 0.4s; }
-  @keyframes dotPulse { 0%, 60%, 100% { opacity: 0.3; } 30% { opacity: 1; } }
-  #input-area {
-    border-top: 1px solid #1a1a3e;
-    padding: 12px 24px;
+  .line.prompt-neon::before {
+    content: '◆ ';
+    color: #7b2ff7;
+  }
+  .line.prompt-system {
+    color: #3a3a5a;
+    font-size: 11px;
+    text-align: center;
+    padding: 8px 0;
+  }
+  .line.prompt-system::before, .line.prompt-system::after {
+    content: ' ─── ';
+    color: #1a1a3e;
+  }
+  .line .highlight { color: #00d4ff; }
+  .line .success { color: #00ff88; }
+  .line .error { color: #ff4444; }
+  .line .warning { color: #ffaa00; }
+
+  #input-line {
     display: flex;
-    gap: 12px;
-    background: #0d0d20;
+    align-items: center;
+    padding: 8px 24px 12px;
+    border-top: 1px solid #0e0e24;
+    background: #060612;
+    gap: 8px;
     flex-shrink: 0;
+  }
+  #input-line .prompt {
+    color: #00d4ff;
+    font-size: 14px;
+    font-weight: bold;
   }
   #input {
     flex: 1;
-    background: #1a1a3e;
-    border: 1px solid #2a2a5e;
-    border-radius: 8px;
-    padding: 10px 16px;
-    color: white;
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.2s;
-  }
-  #input:focus { border-color: #00d4ff; }
-  #input::placeholder { color: #555; }
-  #send {
-    background: linear-gradient(135deg, #00d4ff, #7b2ff7);
-    color: white;
+    background: transparent;
     border: none;
-    border-radius: 8px;
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: transform 0.1s, opacity 0.2s;
+    color: #e0e0ff;
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    caret-color: #00d4ff;
   }
-  #send:active { transform: scale(0.96); }
-  #send:disabled { opacity: 0.5; cursor: not-allowed; }
-  .quick-actions {
-    display: flex;
-    gap: 8px;
-    padding: 8px 24px;
-    flex-wrap: wrap;
-    flex-shrink: 0;
+  #input::placeholder { color: #2a2a4a; }
+
+  .scanline {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,212,255,0.015) 2px, rgba(0,212,255,0.015) 4px);
+    pointer-events: none;
+    z-index: 999;
   }
-  .quick-btn {
-    background: #1a1a3e;
-    border: 1px solid #2a2a5e;
-    border-radius: 16px;
-    padding: 4px 14px;
-    color: #aaa;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .quick-btn:hover { background: #2a2a5e; color: white; border-color: #00d4ff; }
-  pre { background: #0d0d1a; padding: 8px; border-radius: 6px; overflow-x: auto; font-size: 13px; margin: 4px 0; }
-  code { font-family: 'Cascadia Code', 'Fira Code', monospace; }
+
   @media (max-width: 600px) {
-    .msg { max-width: 95%; }
-    #chat { padding: 12px; }
-    #input-area { padding: 12px; }
+    #terminal { padding: 12px; }
+    #input-line { padding: 8px 12px 12px; }
   }
 </style>
 </head>
 <body>
+<div class="scanline"></div>
 
 <header>
-  <h1>◆ NEON</h1>
-  <span style="font-size:13px;color:#666">assistente pessoal</span>
+  <span class="logo">◆ NEON</span>
+  <span class="sub">assistente pessoal</span>
   <div class="status">
-    <span class="status-dot"></span>
+    <span class="dot online" id="statusDot"></span>
     <span id="statusText">online</span>
   </div>
 </header>
 
-<div id="chat">
-  <div class="msg system">◆ Neon iniciado. Use /help para comandos, ou apenas converse.</div>
+<div id="terminal">
+  <div class="line prompt-system">Neon v1.0 — Sistema iniciado. Digite /help para comandos.</div>
+  <div class="line prompt-system">Web UI rodando em localhost:3000</div>
 </div>
 
-<div class="quick-actions">
-  <button class="quick-btn" onclick="enviar('status do pc')">🖥 Status PC</button>
-  <button class="quick-btn" onclick="enviar('clima em São Paulo')">🌤 Clima</button>
-  <button class="quick-btn" onclick="enviar('noticias')">📰 Notícias</button>
-  <button class="quick-btn" onclick="enviar('memorias')">💾 Memórias</button>
-  <button class="quick-btn" onclick="enviar('horas')">🕐 Hora</button>
-  <button class="quick-btn" onclick="enviar('cotacao')">💰 Cotação</button>
-</div>
-
-<div id="input-area">
-  <input id="input" type="text" placeholder="Digite sua mensagem..." autofocus>
-  <button id="send" onclick="enviar()">Enviar</button>
+<div id="input-line">
+  <span class="prompt">❯</span>
+  <input id="input" type="text" placeholder="digite sua mensagem..." autofocus spellcheck="false">
 </div>
 
 <script>
-const chat = document.getElementById('chat');
+const term = document.getElementById('terminal');
 const input = document.getElementById('input');
-const sendBtn = document.getElementById('send');
 const API = '/api/ask';
 let enviando = false;
+let historico = [];
+let histIdx = -1;
 
-function adicionarMsg(texto, tipo) {
+function log(tipo, texto) {
   const div = document.createElement('div');
-  div.className = 'msg ' + tipo;
+  div.className = 'line ' + tipo;
+
   if (tipo === 'neon') {
-    const conteudo = texto.replace(/\`\`\`(\w*)\n([\s\S]*?)\`\`\`/g, '<pre><code>$2</code></pre>');
-    const p = document.createElement('div');
-    p.innerHTML = conteudo.replace(/\n/g, '<br>');
-    div.appendChild(p);
-    const time = document.createElement('span');
-    time.className = 'time';
-    time.textContent = new Date().toLocaleTimeString('pt-BR');
-    div.appendChild(time);
+    const html = texto
+      .replace(/```(\w*)\n([\s\S]*?)```/g, (_, lang, code) => {
+        return `<span style="color:#3a3a5a">┌─ ${lang||'code'} ─────────────────────</span>\n<pre style="margin:0;padding:4px 0 4px 16px;color:#8888aa;font-size:12px;border-left:1px solid #1a1a3e">${code.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>\n<span style="color:#3a3a5a">└─────────────────────────────</span>`;
+      })
+      .replace(/\*\*(.*?)\*\*/g, '<span class="highlight">$1</span>')
+      .replace(/✅/g, '<span class="success">✅</span>')
+      .replace(/❌/g, '<span class="error">❌</span>')
+      .replace(/⚠️/g, '<span class="warning">⚠️</span>')
+      .replace(/\n/g, '<br>');
+    div.innerHTML = html;
   } else {
     div.textContent = texto;
   }
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+
+  term.appendChild(div);
+  term.scrollTop = term.scrollHeight;
 }
 
-function mostrarTyping() {
-  const div = document.createElement('div');
-  div.className = 'typing';
-  div.id = 'typing-indicator';
-  div.innerHTML = '<span>●</span><span>●</span><span>●</span>';
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
+function typing(ativo) {
+  let el = document.getElementById('typing');
+  if (!ativo) { if (el) el.remove(); return; }
+  if (el) return;
+  const d = document.createElement('div');
+  d.id = 'typing';
+  d.className = 'line';
+  d.style.color = '#3a3a5a';
+  d.textContent = '◆ processando...';
+  term.appendChild(d);
+  term.scrollTop = term.scrollHeight;
 }
 
-function removerTyping() {
-  const el = document.getElementById('typing-indicator');
-  if (el) el.remove();
-}
-
-async function enviar(texto) {
-  if (enviando) return;
-  const msg = texto || input.value.trim();
-  if (!msg) return;
+async function enviar() {
+  const msg = input.value.trim();
+  if (!msg || enviando) return;
   input.value = '';
   enviando = true;
-  sendBtn.disabled = true;
 
-  adicionarMsg(msg, 'user');
-  mostrarTyping();
+  historico.push(msg);
+  histIdx = -1;
+
+  log('prompt-user', msg);
+  typing(true);
 
   try {
     const res = await fetch(API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId: 'web_local',
-        username: 'Web',
-        message: msg
-      })
+      body: JSON.stringify({ userId: 'web_ui', username: 'Web', message: msg })
     });
     const data = await res.json();
-    removerTyping();
+    typing(false);
     if (data.reply) {
-      adicionarMsg(data.reply, 'neon');
+      log('neon', data.reply);
     } else if (data.error) {
-      adicionarMsg('❌ ' + data.error, 'system');
+      log('neon', '<span class="error">❌ ' + data.error + '</span>');
     } else {
-      adicionarMsg('❌ Resposta vazia', 'system');
+      log('neon', '<span class="warning">⚠ resposta vazia</span>');
     }
   } catch (err) {
-    removerTyping();
-    adicionarMsg('❌ Erro de conexão: ' + err.message, 'system');
+    typing(false);
+    log('neon', '<span class="error">❌ erro de conexao: ' + err.message + '</span>');
   }
   enviando = false;
-  sendBtn.disabled = false;
   input.focus();
 }
 
 input.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter') { e.preventDefault(); enviar(); return; }
+  if (e.key === 'ArrowUp') {
     e.preventDefault();
-    enviar();
+    if (historico.length === 0) return;
+    histIdx = Math.min(histIdx + 1, historico.length - 1);
+    input.value = historico[historico.length - 1 - histIdx];
+    return;
+  }
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    if (histIdx <= 0) { histIdx = -1; input.value = ''; return; }
+    histIdx--;
+    input.value = historico[historico.length - 1 - histIdx];
+    return;
+  }
+  if (e.key === 'l' && e.ctrlKey) {
+    e.preventDefault();
+    term.innerHTML = '';
+    log('prompt-system', 'terminal limpo');
+    return;
   }
 });
 </script>

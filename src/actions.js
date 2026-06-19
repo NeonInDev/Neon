@@ -101,6 +101,7 @@ const apps = [
                                             url: "https://primevideo.com" },
   { nomes: ["spotify web", "spotify web player"],
                                             url: "https://open.spotify.com" },
+  { nomes: ["blender", "blender 3d"],        comando: "start blender", so: "win32" },
 ];
 
 const pcCommands = [
