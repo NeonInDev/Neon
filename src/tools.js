@@ -17,7 +17,7 @@ const FERRAMENTAS = [
   { nome: "screenshot", desc: "Tira um print da tela. Uso: screenshot" },
   { nome: "volume", desc: "Define o volume (0-100). Uso: volume | [0-100]" },
   { nome: "executar", desc: "Executa comando no terminal. Uso: executar | [comando]" },
-  { nome: "lembrar", desc: "Salva algo na memoria. Uso: lembrar | [chave]: [valor]" },
+  { nome: "lembrar", desc: "Salva algo na memoria. Uso: lembrar | [chave]: [valor] | [categoria] | [prioridade 1-5]" },
   { nome: "tocar_musica", desc: "Toca musica no Spotify. Uso: tocar_musica | [nome]" },
   { nome: "tocar_video", desc: "Toca video no YouTube. Uso: tocar_video | [nome]" },
   { nome: "gerar_imagem", desc: "Gera uma imagem por IA. Uso: gerar_imagem | [prompt]" },
@@ -212,13 +212,20 @@ async function executarFerramenta(ferramenta) {
       }
       case "lembrar": {
         if (!args) return "Nada pra lembrar.";
-        const doisP = args.indexOf(":");
+        const pipes = args.split("|").map(s => s.trim())
+        const chaveValor = pipes[0]
+        const doisP = chaveValor.indexOf(":");
+        let chave, valor, categoria = "outro", prioridade = 3
         if (doisP > 0) {
-          const chave = args.slice(0, doisP).trim();
-          const valor = args.slice(doisP + 1).trim();
-          return await lembrar(chave, valor);
+          chave = chaveValor.slice(0, doisP).trim()
+          valor = chaveValor.slice(doisP + 1).trim()
+        } else {
+          chave = "info"
+          valor = chaveValor
         }
-        return await lembrar("info", args);
+        if (pipes[1]) categoria = pipes[1]
+        if (pipes[2]) prioridade = parseInt(pipes[2]) || 3
+        return await lembrar(chave, valor, categoria, prioridade);
       }
       case "tocar_musica": {
         if (!args) return "Nada pra tocar.";

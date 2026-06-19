@@ -1532,13 +1532,23 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   if (categoria === "memoria") {
     try {
       const info = encontrarMemoria(texto);
-      if (!info) return "❌ Não entendi o comando de memória.";
+      if (!info) return "Nao entendi o comando de memoria.";
       if (info.acao === "lembrar") {
         const partes = info.args.match(/^(.+?)(?:\s+(?:que|é|e|são|sao|significa|vale|tem|possui|pode|faz|foi|era|está|esta|tá|ta|seria|seja|fosse))\s+(.+)/i);
         if (partes) return await memoriaModule.lembrar(partes[1].trim(), partes[2].trim());
-        const doisPontos = info.args.indexOf(":");
-        if (doisPontos > 0) return await memoriaModule.lembrar(info.args.slice(0, doisPontos).trim(), info.args.slice(doisPontos + 1).trim());
-        return await memoriaModule.lembrar("info", info.args);
+        const pipes = info.args.split("|").map(s => s.trim())
+        const doisPontos = pipes[0].indexOf(":");
+        let chave, valor, categoria = "outro", prioridade = 3
+        if (doisPontos > 0) {
+          chave = pipes[0].slice(0, doisPontos).trim();
+          valor = pipes[0].slice(doisPontos + 1).trim();
+        } else {
+          chave = "info";
+          valor = info.args;
+        }
+        if (pipes[1]) categoria = pipes[1]
+        if (pipes[2]) prioridade = parseInt(pipes[2]) || 3
+        return await memoriaModule.lembrar(chave, valor, categoria, prioridade);
       }
       if (info.acao === "esquecer") return await memoriaModule.esquecer(info.args);
       if (info.acao === "buscar") {
@@ -1546,19 +1556,19 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
         const query = m?.[1] || info.args.replace(/^(?:o\s+)?(?:que\s+)?(?:voce\s+)?(?:sabe|lembra|conhece)\s+(?:sobre|de)?/i, "").trim();
         if (!query) {
           const todas = await memoriaModule.listar();
-          if (!todas.length) return "📭 Não tenho nenhuma memória guardada.";
-          return "🧠 **Minhas memórias:**\n" + todas.map(t => `- **${t.chave}**: ${t.valor.slice(0, 200)}`).join("\n");
+          if (!todas.length) return "Nao tenho nenhuma memoria guardada.";
+          return "**Minhas memorias:**\n" + todas.map(t => `- **${t.chave}** (${t.categoria || "outro"}): ${(t.valor || "").slice(0, 200)}`).join("\n");
         }
         const res = await memoriaModule.buscar(query);
-        if (!res.length) return `❓ Não lembro de nada sobre "${query}".`;
-        return "🧠 **Memórias encontradas:**\n" + res.map(r => `- **${r.chave}**: ${r.valor.slice(0, 200)}`).join("\n");
+        if (!res.length) return `Nao lembro de nada sobre "${query}".`;
+        return "**Memorias encontradas:**\n" + res.map(r => `- [${r.categoria || "outro"}] **${r.chave}**: ${(r.valor || "").slice(0, 200)}`).join("\n");
       }
       if (info.acao === "listar") {
         const todas = await memoriaModule.listar();
-        if (!todas.length) return "📭 Não tenho nenhuma memória guardada.";
-        return "🧠 **Minhas memórias:**\n" + todas.map(t => `- **${t.chave}**: ${t.valor.slice(0, 200)}`).join("\n");
+        if (!todas.length) return "Nao tenho nenhuma memoria guardada.";
+        return "**Minhas memorias:**\n" + todas.map(t => `- [${t.categoria || "outro"}] **${t.chave}**: ${(t.valor || "").slice(0, 200)}`).join("\n");
       }
-      return "❌ Não entendi o comando de memória.";
+      return "Nao entendi o comando de memoria.";
     } catch (err) {
       return `❌ Erro na memória: ${err.message}`;
     }
