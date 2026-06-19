@@ -125,6 +125,7 @@ main{flex:1;display:flex;overflow:hidden}
     </div>
     <form class="chat-input" onsubmit="return sendChat(event)">
       <input type="text" id="chatInput" placeholder="Comando..." autofocus>
+      <button type="button" id="listenBtn" onclick="toggleListen()" title="Falar" style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--dim);cursor:pointer;font-size:16px">🎤</button>
       <button type="submit">Enviar</button>
     </form>
   </div>
@@ -151,6 +152,22 @@ let voiceOn = false
 let allLogs = []
 let historyCpu = [], historyRam = [], historyDisk = [], historyLabels = []
 const MAX_HISTORY = 60
+let listening = false
+let recognition = null
+if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+  recognition = new SR()
+  recognition.lang = 'pt-BR'
+  recognition.continuous = false
+  recognition.interimResults = false
+  recognition.onresult = (e) => {
+    const text = e.results[e.results.length-1][0].transcript
+    toggleListenBtn(false)
+    send(text)
+  }
+  recognition.onerror = () => toggleListenBtn(false)
+  recognition.onend = () => toggleListenBtn(false)
+}
 
 // Tabs
 document.querySelectorAll('.tab').forEach(tab => {
@@ -267,7 +284,7 @@ async function send(msg) {
   addMsg('', 'neon typing')
   const data = await fetchAPI('/api/ask', { userId:OWNER_ID, username:'Dono', message:msg })
   removeTyping()
-  if (data) addMsg(data.reply || '(sem resposta)', 'neon')
+  if (data) { addMsg(data.reply || '(sem resposta)', 'neon'); speak(data.reply || '') }
   else addMsg('Erro ao contactar Neon', 'neon')
 }
 function sendChat(e) {
@@ -313,7 +330,30 @@ function renderLogs() {
   }).join('')
 }
 
-// === Voice ===
+// === Voice (Web Speech) ===
+function toggleListen() { listening ? toggleListenBtn(false) : toggleListenBtn(true) }
+function toggleListenBtn(on) {
+  listening = on
+  const btn = document.getElementById('listenBtn')
+  if (btn) { btn.style.borderColor = on ? 'var(--danger)' : 'var(--border)'; btn.style.color = on ? 'var(--danger)' : 'var(--dim)' }
+  if (!recognition) return
+  if (on) try { recognition.start() } catch {} else try { recognition.stop() } catch {}
+}
+function speak(text) {
+  if (!window.speechSynthesis) return
+  window.speechSynthesis.cancel()
+  const u = new SpeechSynthesisUtterance(text.replace(/[*_~`]/g, ''))
+  u.lang = 'pt-BR'
+  u.rate = 1.1
+  const voices = window.speechSynthesis.getVoices()
+  const pt = voices.find(v => v.lang.startsWith('pt-BR') && v.name.includes('Maria')) || voices.find(v => v.lang.startsWith('pt'))
+  if (pt) u.voice = pt
+  window.speechSynthesis.speak(u)
+}
+document.addEventListener('keydown', (e) => {
+  if (e.altKey && e.key === 'v') toggleListen()
+})
+
 async function toggleVoice() {
   const data = await fetchAPI('/api/voice/toggle', { userId:OWNER_ID })
   voiceOn = data?.ativo || false

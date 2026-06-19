@@ -11,10 +11,14 @@ const monitor = require("./src/monitor");
 const proativo = require("./src/proativo");
 const opencode = require("./src/opencode");
 const plugins = require("./src/plugin_loader");
+const telegram = require("./src/telegram");
+const agendados = require("./src/agendados");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
   await plugins.pararTodos();
+  agendados.parar();
+  telegram.parar();
   proativo.parar();
   monitor.parar();
   voice.parar();
@@ -34,6 +38,8 @@ client.once("clientReady", async () => {
   await plugins.carregarTodos();
   monitor.iniciar(client);
   proativo.iniciar(client);
+  telegram.iniciar();
+  agendados.verificarCadaMinuto();
   opencode.iniciarServer().then(port => {
     if (port) log("INFO", `[OPENCODE] Servidor rodando na porta ${port}`);
     else log("INFO", "[OPENCODE] Servidor nao iniciado (opencode run continua disponivel)");
