@@ -70,6 +70,15 @@ app.get("/api/logs", async (req, res) => {
   }
 });
 
+app.get("/api/memoria", async (req, res) => {
+  try {
+    const { listar, estatisticas } = require("../memoria");
+    res.json({ memorias: await listar(), stats: await estatisticas() });
+  } catch {
+    res.json({ erro: "memoria indisponivel" });
+  }
+});
+
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(apiSpec, {
   customSiteTitle: "Neon Bot — Documentação",
 }));
