@@ -308,10 +308,6 @@ function encontrarScreenshot(texto) {
 function encontrarPCInfo(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:como\s+)?(?:ta|tá|esta|está)\s+(?:o\s+)?pc|status\s+(?:do\s+)?pc|info\s+(?:do\s+)?pc|monitorar|desempenho/i.test(lower)) return true;
-
-function encontrarPCInfo(texto) {
-  const lower = limparFiller(texto.toLowerCase().trim());
-  if (/^(?:como\s+)?(?:ta|tá|esta|está)\s+(?:o\s+)?pc|status\s+(?:do\s+)?pc|info\s+(?:do\s+)?pc|monitorar|desempenho/i.test(lower)) return true;
   if (/como\s+ta\s+o\s+(?:pc|computador|desempenho|sistema)/i.test(lower)) return true;
   return false;
 }
