@@ -1,62 +1,80 @@
-const { log } = require("./logger");
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-const { iniciar: iniciarBrowser, liberar } = require("./browser");
+const { log } = require("./logger")
+const path = require("path")
 
-let pagina = null;
-const WHATSAPP_URL = "https://web.whatsapp.com";
+let cliente = null
+let qrCode = null
+let pronto = false
+let sessaoPath = path.join(__dirname, "..", "whatsapp_session")
 
-async function abrirWhatsApp() {
-  const b = await iniciarBrowser();
-  pagina = await b.newPage();
-  await pagina.goto(WHATSAPP_URL, { waitUntil: "networkidle2", timeout: 60000 });
-  await pagina.setViewport({ width: 1280, height: 800 });
-  return pagina;
-}
-
-async function enviarMensagem(contato, mensagem) {
+function getClient() {
+  if (cliente) return cliente
   try {
-    if (!pagina || pagina.isClosed()) await abrirWhatsApp();
-    await pagina.bringToFront();
-    await sleep(3000);
-
-    const searchBox = await pagina.waitForSelector('div[contenteditable="true"][data-tab="3"]', { timeout: 30000 }).catch(() => null);
-    if (!searchBox) throw new Error("WhatsApp nao esta logado. Abra o navegador e escaneie o QR code.");
-
-    await searchBox.click();
-    await searchBox.type(contato, { delay: 80 });
-    await sleep(2000);
-
-    const contact = await pagina.waitForSelector('span[title*="' + contato.replace(/"/g, "") + '"]', { timeout: 10000 }).catch(() => null);
-    if (!contact) throw new Error("Contato '" + contato + "' nao encontrado. Verifique o nome e tente novamente.");
-    await contact.click();
-    await sleep(1500);
-
-    const msgBox = await pagina.waitForSelector('div[contenteditable="true"][data-tab="10"]', { timeout: 10000 });
-    await msgBox.type(mensagem, { delay: 30 });
-    await sleep(500);
-
-    const sendBtn = await pagina.$('button[data-testid="compose-btn-send"]') || await pagina.$('span[data-testid="send"]');
-    if (sendBtn) {
-      await sendBtn.click();
-    } else {
-      await msgBox.focus();
-      await pagina.keyboard.press("Enter");
-    }
-    await sleep(1000);
-    log("INFO", "[WHATSAPP] Mensagem enviada", { contato, mensagem: mensagem.slice(0, 60) });
-    return `📱 Mensagem enviada para ${contato} no WhatsApp.`;
+    const { Client, LocalAuth } = require("whatsapp-web.js")
+    cliente = new Client({
+      authStrategy: new LocalAuth({ dataPath: sessaoPath }),
+      puppeteer: { headless: true, args: ["--no-sandbox", "--disable-setuid-sandbox"] }
+    })
+    cliente.on("qr", (qr) => {
+      qrCode = qr
+      log("INFO", "[WHATSAPP] QR Code gerado (escaneie com o WhatsApp)")
+    })
+    cliente.on("ready", () => {
+      pronto = true
+      qrCode = null
+      log("INFO", "[WHATSAPP] Cliente pronto!")
+    })
+    cliente.on("disconnected", (reason) => {
+      pronto = false
+      log("WARN", "[WHATSAPP] Desconectado", { motivo: reason })
+    })
+    cliente.on("auth_failure", (msg) => {
+      pronto = false
+      log("ERROR", "[WHATSAPP] Falha autenticacao", { msg })
+    })
+    cliente.initialize().catch(err => {
+      log("ERROR", "[WHATSAPP] Init falhou", { erro: err.message })
+    })
+    return cliente
   } catch (err) {
-    log("WARN", "[WHATSAPP] Erro", { erro: err.message });
-    throw err;
+    log("WARN", "[WHATSAPP] whatsapp-web.js nao disponivel", { erro: err.message })
+    return null
   }
 }
 
-async function verificarLogin() {
-  try {
-    if (!pagina || pagina.isClosed()) return false;
-    const exists = await pagina.$('div[contenteditable="true"][data-tab="3"]').catch(() => null);
-    return !!exists;
-  } catch { return false; }
+async function iniciar() {
+  return getClient()
 }
 
-module.exports = { enviarMensagem, abrirWhatsApp, verificarLogin };
+async function enviar(contato, mensagem) {
+  const client = getClient()
+  if (!client) return { ok: false, erro: "whatsapp-web.js nao instalado. Rode: npm install whatsapp-web.js" }
+  if (!pronto) {
+    if (qrCode) return { ok: false, erro: "WhatsApp nao autenticado. Escaneie o QR Code.", qr: qrCode }
+    return { ok: false, erro: "WhatsApp ainda conectando..." }
+  }
+  try {
+    const numeroFormatado = contato.replace(/[^0-9]/g, "")
+    const chatId = numeroFormatado.includes("@c.us") ? numeroFormatado : `${numeroFormatado}@c.us`
+    await client.sendMessage(chatId, mensagem)
+    log("INFO", "[WHATSAPP] Mensagem enviada", { contato, tamanho: mensagem.length })
+    return { ok: true, mensagem: `WhatsApp enviado para ${contato}` }
+  } catch (err) {
+    log("WARN", "[WHATSAPP] Erro ao enviar", { contato, erro: err.message })
+    return { ok: false, erro: err.message }
+  }
+}
+
+async function status() {
+  if (!cliente) return { conectado: false, motivo: "Nao inicializado" }
+  return { conectado: pronto, qr: qrCode, sessao: sessaoPath }
+}
+
+async function parar() {
+  if (cliente) {
+    try { await cliente.destroy() } catch {}
+    cliente = null
+    pronto = false
+  }
+}
+
+module.exports = { iniciar, enviar, status, parar }
