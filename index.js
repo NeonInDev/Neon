@@ -10,9 +10,11 @@ const voice = require("./src/voice");
 const monitor = require("./src/monitor");
 const proativo = require("./src/proativo");
 const opencode = require("./src/opencode");
+const plugins = require("./src/plugin_loader");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
+  await plugins.pararTodos();
   proativo.parar();
   monitor.parar();
   voice.parar();
@@ -29,6 +31,7 @@ async function desligar(sinal) {
 }
 
 client.once("clientReady", async () => {
+  await plugins.carregarTodos();
   monitor.iniciar(client);
   proativo.iniciar(client);
   opencode.iniciarServer().then(port => {

@@ -1578,6 +1578,18 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
   }
 
+  // -- Plugins --
+  try {
+    const { getAcoes } = require("./plugin_loader")
+    const acoes = getAcoes()
+    for (const a of acoes) {
+      if (a.padrao && lower.match(a.padrao)) {
+        const r = await a.executar(texto, userId)
+        if (r != null) return r
+      }
+    }
+  } catch {}
+
   log("INFO", "[ACTION] nenhuma ação reconhecida", { texto });
   return null;
 }

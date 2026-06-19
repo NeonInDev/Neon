@@ -36,7 +36,19 @@ const FERRAMENTAS = [
 ];
 
 function descricaoFerramentas() {
-  return FERRAMENTAS.map(f => `- ${f.nome}: ${f.desc}`).join("\n");
+  let lista = FERRAMENTAS.map(f => `- ${f.nome}: ${f.desc}`)
+  const extras = getFerramentasPlugin()
+  for (const f of extras) {
+    lista.push(`- ${f.nome}: ${f.desc}`)
+  }
+  return lista.join("\n")
+}
+
+function getFerramentasPlugin() {
+  try {
+    const { getFerramentas } = require("./plugin_loader")
+    return getFerramentas()
+  } catch { return [] }
 }
 
 function extrairFerramentas(texto) {
@@ -390,8 +402,17 @@ async function executarFerramenta(ferramenta) {
         try { await pc.tts(args); } catch {}
         return `Falei: ${args.slice(0, 100)}`;
       }
-      default:
+      default: {
+        try {
+          const { getFerramentas } = require("./plugin_loader")
+          const extras = getFerramentas()
+          const plugin = extras.find(f => f.nome === nome)
+          if (plugin && typeof plugin.executar === "function") {
+            return await plugin.executar(args)
+          }
+        } catch {}
         return `Ferramenta desconhecida: ${nome}`;
+      }
     }
   } catch (err) {
     log("WARN", "[TOOLS] Erro na ferramenta", { nome, erro: err.message });
