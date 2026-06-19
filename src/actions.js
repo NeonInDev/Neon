@@ -534,11 +534,11 @@ function detectarCategoria(texto) {
   if (voiceToggle) return "voiceToggle";
   // Custom commands (usuário define) — maior prioridade
   if (encontrarCustomCommand(texto)) return "customCommand";
+  if (encontrarApp(texto)) return "app";
   if (isWin()) {
     const jogo = encontrarJogo(texto);
-    if (jogo && jogo.id !== undefined) return "jogo";
+    if (jogo && jogo.id !== null && jogo.id !== undefined) return "jogo";
   }
-  if (encontrarApp(texto)) return "app";
   if (encontrarScreenshot(texto)) return "screenshot";
   if (isWin() && encontrarPcCommand(texto)) return "pcCommand";
   if (isWin() && encontrarExec(texto)) return "exec";
@@ -547,7 +547,7 @@ function detectarCategoria(texto) {
   if (encontrarSpotify(texto)) return "spotify";
   if (encontrarYouTube(texto)) return "youtube";
   if (encontrarDigitar(texto)) return "digitar";
-  if (isWin() && encontrarJogo(texto)) return "jogo";
+  if (isWin()) { const j2 = encontrarJogo(texto); if (j2 && j2.id !== null && j2.id !== undefined) return "jogo"; }
   if (encontrarVolume(texto)) return "volume";
   if (encontrarPCInfo(texto)) return "pcInfo";
   if (encontrarClipboard(texto)) return "clipboard";
@@ -616,6 +616,12 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       ">> Steam:     " + (r2.ok ? "✅" : "❌"),
       "```",
     ].filter(Boolean).join("\n");
+  }
+
+  // ─── Quem é o Neon original? ───
+  if (/quem\s+[eé]\s+o\s+neon\s+original/i.test(lower) || /neon\s+original/i.test(lower)) {
+    const metalSonicGif = "https://media4.giphy.com/media/Cc792DqABMRCqm6JF2/giphy.gif";
+    return `Eu sou a Original! Nenhuma copia me supera. 🦾\n${metalSonicGif}`;
   }
 
   // ─── EX-TERMINATOR ───
@@ -1493,4 +1499,4 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   return null;
 }
 
-module.exports = { executarAcao };
+module.exports = { executarAcao, steamGames };

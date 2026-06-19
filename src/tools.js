@@ -22,6 +22,8 @@ const FERRAMENTAS = [
   { nome: "gerar_imagem", desc: "Gera uma imagem por IA. Uso: gerar_imagem | [prompt]" },
   { nome: "calcular", desc: "Calcula expressao matematica. Uso: calcular | [expressao]" },
   { nome: "falar", desc: "Fala algo em voz alta (TTS). Uso: falar | [texto]" },
+  { nome: "ler_arquivo", desc: "Le o conteudo de um arquivo. Uso: ler_arquivo | [caminho]" },
+  { nome: "instalar_jogo", desc: "Instala um jogo pela Steam. Uso: instalar_jogo | [nome ou appid]" },
 ];
 
 function descricaoFerramentas() {
@@ -148,6 +150,37 @@ async function executarFerramenta(ferramenta) {
         } catch {
           return "Erro ao calcular.";
         }
+      }
+      case "ler_arquivo": {
+        if (!args) return "Nada pra ler.";
+        const fs = require("fs");
+        if (!fs.existsSync(args)) return `Arquivo nao encontrado: ${args}`;
+        const stat = fs.statSync(args);
+        if (stat.size > 100 * 1024) return "Arquivo muito grande (max 100KB) pra exibir aqui.";
+        const conteudo = fs.readFileSync(args, "utf8");
+        return `Conteudo de ${args}:\n\`\`\`\n${conteudo.slice(0, 1500)}\n\`\`\``;
+      }
+      case "instalar_jogo": {
+        if (!args) return "Nada pra instalar.";
+        const { steamGames } = require("./actions");
+        const nome = args.toLowerCase().trim();
+        let appid = null;
+        if (/^\d+$/.test(nome)) {
+          appid = parseInt(nome);
+        } else {
+          appid = steamGames[nome];
+          if (!appid) {
+            for (const [key, val] of Object.entries(steamGames)) {
+              if (nome.includes(key) || key.includes(nome)) { appid = val; break; }
+            }
+          }
+        }
+        if (!appid) return `Nao encontrei o jogo "${args}" na minha lista.`;
+        const { exec: execCb } = require("child_process");
+        const { promisify } = require("util");
+        const execAsync = promisify(execCb);
+        await execAsync(`start steam://install/${appid}`, { windowsHide: true });
+        return `Instalando ${args} pela Steam (AppID: ${appid}).`;
       }
       case "falar": {
         if (!args) return "Nada pra falar.";
