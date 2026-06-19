@@ -114,21 +114,14 @@ async function clipboard(acao, texto) {
 }
 
 async function tts(texto, voz = "auto") {
-  const safe = texto.replace(/'/g, "''").replace(/"/g, '""');
-  let cmd;
-  if (voz === "jarvis" || voz === "auto") {
-    cmd = `powershell -NoProfile -Command "Add-Type -AssemblyName System.Speech; ` +
-      `try { ` +
-      `  $$synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; ` +
-      `  $$vozes = $$synth.GetInstalledVoices(); ` +
-      `  if ($$vozes.Count -gt 1) { $$synth.SelectVoice($$vozes[1].VoiceInfo.Name) }; ` +
-      `  $$synth.Rate = -2; $$synth.Volume = 100; ` +
-      `  $$synth.Speak('${safe}') ` +
-      `} catch { (New-Object -ComObject Sapi.SpVoice).Speak('${safe}') }"`;
-  } else {
-    cmd = `powershell -NoProfile -Command "(New-Object -ComObject Sapi.SpVoice).Speak('${safe}')"`;
+  try {
+    const { falar } = require("./tts");
+    await falar(texto, voz);
+  } catch {
+    const safe = texto.replace(/'/g, "''").replace(/"/g, '""');
+    const cmd = `powershell -NoProfile -Command "(New-Object -ComObject Sapi.SpVoice).Speak('${safe}')"`;
+    execAsync(cmd, { timeout: 15000 }).catch(() => {});
   }
-  execAsync(cmd, { timeout: 15000 }).catch(() => {});
   return `🗣️ Falei: "${texto.slice(0, 100)}"`;
 }
 
