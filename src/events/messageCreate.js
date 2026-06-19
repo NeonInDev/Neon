@@ -41,15 +41,16 @@ function checkCooldown(userId) {
 async function enviarResposta(message, texto) {
   if (!texto) { await message.reply("❌ erro interno"); return; }
 
-  // Arquivo local (screenshot, etc): __FILE__:C:\path\to\file.png
-  const fileMatch = texto.match(/^__FILE__:(.+)/);
+  // Arquivo local (screenshot, camera, etc): __FILE__:C:\path\to\file.png
+  const fileMatch = texto.match(/__FILE__:(.+)/);
   if (fileMatch) {
     try {
       const { AttachmentBuilder } = require("discord.js");
-      const filePath = fileMatch[1].trim();
+      const filePath = fileMatch[1].split("\n")[0].trim();
       const nome = `neon_${Date.now()}_${require("path").basename(filePath)}`;
       const attachment = new AttachmentBuilder(filePath, { name: nome });
-      await message.reply({ files: [attachment] });
+      const txt = texto.replace(fileMatch[0], "").trim();
+      await message.reply({ content: txt || undefined, files: [attachment] });
     } catch {
       await message.reply("❌ Erro ao enviar arquivo.");
     }

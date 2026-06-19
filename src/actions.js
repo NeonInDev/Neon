@@ -1203,7 +1203,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     try {
       const camera = require("./camera");
       const caminho = await camera.salvarFrameTemp();
-      return `Foto da camera!\n__FILE__:${caminho}`;
+      return `__FILE__:${caminho}\nFoto da camera`;
     } catch (err) {
       return `Erro na camera: ${err.message}. Configure com "Neon, usa a camera http://IP:8080"`;
     }
