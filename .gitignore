@@ -8,3 +8,4 @@ memory.json
 .node_repl_history
 .npm
 *.log
+memoria_global.json

@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("path");
 const swaggerUi = require("swagger-ui-express");
 const apiSpec = require("./api.json");
 const { DOCS_PORT } = require("../config");
@@ -11,6 +12,7 @@ const app = express();
 let server = null;
 
 app.use(express.json());
+app.use(express.static(path.join(__dirname, "..", "..", "public")));
 
 app.post("/api/ask", async (req, res) => {
   const { userId, username, message } = req.body;
