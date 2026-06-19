@@ -15,10 +15,6 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "..", "public")));
 
 app.get("/", (req, res) => {
-  res.redirect("/docs");
-});
-
-app.get("/chat", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "..", "public", "index.html"));
 });
 
@@ -59,12 +55,7 @@ app.get("/api/status", async (req, res) => {
       const info = await pc.pcInfoJson();
       return res.json(info);
     }
-    const { exec: execCb } = require("child_process");
-    const { promisify } = require("util");
-    const execAsync = promisify(execCb);
-    const script = [].join.call(arguments, "");
-    const { stdout } = await execAsync(`powershell -NoProfile -File "${require("path").join(__dirname, "..", "scripts", "pcinfo.ps1")}"`, { timeout: 15000, windowsHide: true });
-    res.json({ raw: stdout.slice(0, 500) });
+    res.json({ erro: "pcInfoJson nao disponivel" });
   } catch (err) {
     res.json({ erro: err.message });
   }
