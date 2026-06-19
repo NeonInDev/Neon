@@ -52,6 +52,33 @@ app.get("/api/voice/status", (req, res) => {
   res.json(voice.status());
 });
 
+app.get("/api/status", async (req, res) => {
+  try {
+    const pc = require("../pc");
+    if (typeof pc.pcInfoJson === "function") {
+      const info = await pc.pcInfoJson();
+      return res.json(info);
+    }
+    const { exec: execCb } = require("child_process");
+    const { promisify } = require("util");
+    const execAsync = promisify(execCb);
+    const script = [].join.call(arguments, "");
+    const { stdout } = await execAsync(`powershell -NoProfile -File "${require("path").join(__dirname, "..", "scripts", "pcinfo.ps1")}"`, { timeout: 15000, windowsHide: true });
+    res.json({ raw: stdout.slice(0, 500) });
+  } catch (err) {
+    res.json({ erro: err.message });
+  }
+});
+
+app.get("/api/logs", async (req, res) => {
+  try {
+    const { getLogs } = require("../logger");
+    res.json(getLogs ? getLogs() : []);
+  } catch {
+    res.json([]);
+  }
+});
+
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(apiSpec, {
   customSiteTitle: "Neon Bot — Documentação",
 }));

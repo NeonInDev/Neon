@@ -40,6 +40,30 @@ async function pcInfo() {
   return await ps(fs.readFileSync(path.join(SCRIPTS_DIR, "pcinfo.ps1"), "utf8"), "pcInfo");
 }
 
+async function pcInfoJson() {
+  const script = [
+    '$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1',
+    '$mem = Get-CimInstance Win32_OperatingSystem',
+    '$disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID=\'C:\'"',
+    '$temp = Get-CimInstance MSAcpi_ThermalZoneTemperature -Namespace root/wmi -ErrorAction SilentlyContinue | Select-Object -First 1',
+    '$json = @{',
+    '  cpuNome = if ($cpu) { "$($cpu.Name)" } else { "N/A" }',
+    '  cpuUso = if ($cpu) { $cpu.LoadPercentage } else { $null }',
+    '  ramTotal = if ($mem) { [math]::Round($mem.TotalVisibleMemorySize / 1MB, 1) } else { $null }',
+    '  ramLivre = if ($mem) { [math]::Round($mem.FreePhysicalMemory / 1MB, 1) } else { $null }',
+    '  ramUso = if ($mem) { [math]::Round(($mem.TotalVisibleMemorySize - $mem.FreePhysicalMemory) / $mem.TotalVisibleMemorySize * 100, 1) } else { $null }',
+    '  discoTotal = if ($disk) { [math]::Round($disk.Size / 1GB, 1) } else { $null }',
+    '  discoLivre = if ($disk) { [math]::Round($disk.FreeSpace / 1GB, 1) } else { $null }',
+    '  discoUso = if ($disk) { [math]::Round(($disk.Size - $disk.FreeSpace) / $disk.Size * 100, 1) } else { $null }',
+    '  temperatura = if ($temp) { [math]::Round(($temp.CurrentTemperature - 2732) / 10, 1) } else { $null }',
+    '  temperaturaDisponivel = if ($temp) { $true } else { $false }',
+    '}',
+    '$json | ConvertTo-Json -Compress',
+  ].join("`n");
+  const raw = await ps(script, "pcInfoJson");
+  return JSON.parse(raw);
+}
+
 async function volume(acao, valor) {
   // acao: "up", "down", "mute", "set"
   if (acao === "mute") {
