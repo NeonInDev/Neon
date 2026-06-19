@@ -1,179 +1,147 @@
 #Requires -Version 5.1
-<#
-.SYNOPSIS
-    Instalador completo da Neon — prepara o PC para rodar a assistente.
-    Instala Node.js, VS Code, Blender, clona o repositório e configura tudo.
-
-    Esse script NÃO configura credenciais de push. Só permite git pull.
-#>
-
 $ErrorActionPreference = "Stop"
 $Host.UI.RawUI.WindowTitle = "Neon Installer"
 
-Write-Host "╔══════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║         NEON INSTALLER v1.0              ║" -ForegroundColor Cyan
-Write-Host "║     Instala Node, VS Code, Blender       ║" -ForegroundColor Cyan
-Write-Host "╚══════════════════════════════════════════╝" -ForegroundColor Cyan
+$REPO_URL   = "https://github.com/NeonInDev/Neon"
+$DESTINO    = Join-Path $env:USERPROFILE "Neon"
+$FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
+
+Write-Host "+------------------------------------------+" -ForegroundColor Cyan
+Write-Host "|         NEON INSTALLER v2.0              |" -ForegroundColor Cyan
+Write-Host "|     Instala tudo pra rodar a Neon        |" -ForegroundColor Cyan
+Write-Host "+------------------------------------------+" -ForegroundColor Cyan
 Write-Host ""
 
-$REPO_URL    = "https://github.com/NeonInDev/Neon"
-$DESTINO     = Join-Path $env:USERPROFILE "Neon"
-$NODE_VER    = "22.14.0"
-$VSCODE_VER  = "latest"
-$FFMPEG_URL  = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-
-# ─── 1. Verifica Winget ───
-Write-Host "[1/8] Verificando winget..." -ForegroundColor Yellow
+# -- 1. Winget --
+Write-Host "[1/9] Winget..." -ForegroundColor Yellow
 $winget = Get-Command "winget" -ErrorAction SilentlyContinue
-if (-not $winget) {
-    Write-Host "  ⚠ winget não encontrado. Instale os App Installer da Microsoft Store." -ForegroundColor Yellow
-} else {
-    Write-Host "  ✓ winget disponível" -ForegroundColor Green
-}
+if ($winget) { Write-Host "  [OK] winget disponivel" -ForegroundColor Green }
+else { Write-Host "  [!] winget nao encontrado" -ForegroundColor Yellow }
 
-# ─── 2. Node.js ───
-Write-Host "[2/8] Verificando Node.js..." -ForegroundColor Yellow
-$nodePath = (Get-Command "node" -ErrorAction SilentlyContinue).Source
-if (-not $nodePath) {
-    Write-Host "  Node.js não encontrado. Instalando via winget..." -ForegroundColor Gray
+# -- 2. Git --
+Write-Host "[2/9] Git..." -ForegroundColor Yellow
+$gitPath = (Get-Command "git" -ErrorAction SilentlyContinue).Source
+if (-not $gitPath -and $winget) {
+    Write-Host "  Instalando Git..." -ForegroundColor Gray
+    try { & winget install Git.Git --silent --accept-package-agreements 2>&1 | Out-Null; Write-Host "  [OK] Git instalado" -ForegroundColor Green } catch { Write-Host "  [FALHA] Git: $_" -ForegroundColor Red }
+} elseif ($gitPath) { Write-Host "  [OK] Git encontrado" -ForegroundColor Green }
+else { Write-Host "  [FALHA] Instale Git manualmente: winget install Git.Git" -ForegroundColor Red }
+
+# -- 3. Node.js --
+Write-Host "[3/9] Node.js..." -ForegroundColor Yellow
+$nodeCmd = Get-Command "node" -ErrorAction SilentlyContinue
+if (-not $nodeCmd) {
     if ($winget) {
-        try { & winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements 2>&1 | Out-Null; Write-Host "  ✓ Node.js instalado via winget" -ForegroundColor Green } catch { Write-Host "  ⚠ winget falhou, baixando portátil..." -ForegroundColor Yellow }
+        Write-Host "  Instalando via winget..." -ForegroundColor Gray
+        try { & winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements 2>&1 | Out-Null; Write-Host "  [OK] Node.js instalado" -ForegroundColor Green } catch { Write-Host "  [!] winget falhou" -ForegroundColor Yellow }
     }
-    $nodePath = (Get-Command "node" -ErrorAction SilentlyContinue).Source
-    if (-not $nodePath) {
+    $nodeCmd = Get-Command "node" -ErrorAction SilentlyContinue
+    if (-not $nodeCmd) {
+        Write-Host "  Baixando Node.js portatil..." -ForegroundColor Gray
         try {
-            $nodeUrl = "https://nodejs.org/dist/v$NODE_VER/node-v$NODE_VER-win-x64.zip"
+            $nodeVer = "22.14.0"
+            $nodeUrl = "https://nodejs.org/dist/v$nodeVer/node-v$nodeVer-win-x64.zip"
             $zipPath = Join-Path $env:TEMP "node.zip"
             Invoke-WebRequest -Uri $nodeUrl -OutFile $zipPath -UseBasicParsing
             $destNode = Join-Path $DESTINO "node"
             Expand-Archive -Path $zipPath -DestinationPath $destNode -Force
-            $env:PATH = "$(Join-Path $destNode "node-v$NODE_VER-win-x64");$env:PATH"
-            Write-Host "  ✓ Node.js $NODE_VER extraído em: $destNode" -ForegroundColor Green
-        } catch { Write-Host "  ✗ Falha ao baixar Node.js: $_" -ForegroundColor Red; exit 1 }
+            $env:PATH = "$(Join-Path $destNode "node-v$nodeVer-win-x64");$env:PATH"
+            Write-Host "  [OK] Node.js $nodeVer em $destNode" -ForegroundColor Green
+        } catch { Write-Host "  [FALHA] Node.js: $_" -ForegroundColor Red; exit 1 }
     }
 } else {
-    $nodeVer = & node --version
-    Write-Host "  ✓ Node.js $nodeVer encontrado" -ForegroundColor Green
+    $v = & node --version
+    Write-Host "  [OK] Node.js $v" -ForegroundColor Green
 }
 
-# ─── 3. VS Code ───
-Write-Host "[3/8] Verificando VS Code..." -ForegroundColor Yellow
-$codePath = (Get-Command "code" -ErrorAction SilentlyContinue).Source
-if (-not $codePath) {
-    Write-Host "  VS Code não encontrado. Instalando via winget..." -ForegroundColor Gray
+# -- 4. VS Code --
+Write-Host "[4/9] VS Code..." -ForegroundColor Yellow
+$codeCmd = Get-Command "code" -ErrorAction SilentlyContinue
+if (-not $codeCmd) {
     if ($winget) {
-        try {
-            & winget install Microsoft.VisualStudioCode --silent --accept-package-agreements 2>&1 | Out-Null
-            $env:PATH += ";$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin"
-            Write-Host "  ✓ VS Code instalado" -ForegroundColor Green
-        } catch { Write-Host "  ✗ Falha ao instalar VS Code: $_" -ForegroundColor Red }
+        Write-Host "  Instalando VS Code..." -ForegroundColor Gray
+        try { & winget install Microsoft.VisualStudioCode --silent --accept-package-agreements 2>&1 | Out-Null; Write-Host "  [OK] VS Code instalado" -ForegroundColor Green } catch { Write-Host "  [!] Falha VS Code: $_" -ForegroundColor Yellow }
     }
-} else {
-    Write-Host "  ✓ VS Code encontrado" -ForegroundColor Green
 }
+if ($codeCmd) { Write-Host "  [OK] VS Code encontrado" -ForegroundColor Green }
+else { Write-Host "  [-] VS Code nao instalado (opcional)" -ForegroundColor Gray }
 
-# ─── 4. Blender ───
-Write-Host "[4/8] Blender..." -ForegroundColor Yellow
-$blenderPath = (Get-Command "blender" -ErrorAction SilentlyContinue).Source
-$blenderFound = $blenderPath -or (Get-ChildItem "$env:ProgramFiles\Blender Foundation\*\blender.exe" -ErrorAction SilentlyContinue)
-$blenderLocal = Get-ChildItem "$env:LOCALAPPDATA\Blender Foundation\*\blender.exe" -ErrorAction SilentlyContinue
-if ($blenderFound -or $blenderLocal) {
-    Write-Host "  ✓ Blender encontrado" -ForegroundColor Green
-} else {
-    Write-Host "  Blender não encontrado." -ForegroundColor Yellow
-    Write-Host "  Deseja instalar o Blender 5.1? (~350MB)" -ForegroundColor White
-    Write-Host "  [S] Sim (recomendado)  |  [N] Pular" -ForegroundColor Gray
-    $key = $Host.UI.RawUI.ReadKey("IncludeKeyDown").Character
+# -- 5. Blender --
+Write-Host "[5/9] Blender..." -ForegroundColor Yellow
+$blenderFound = $false
+$blenderPaths = @(
+    "$env:ProgramFiles\Blender Foundation\*\blender.exe",
+    "${env:ProgramFiles(x86)}\Blender Foundation\*\blender.exe",
+    "$env:LOCALAPPDATA\Blender Foundation\*\blender.exe"
+)
+foreach ($p in $blenderPaths) {
+    if (Get-ChildItem $p -ErrorAction SilentlyContinue) { $blenderFound = $true; break }
+}
+if (-not $blenderFound) { $blenderFound = (Get-Command "blender" -ErrorAction SilentlyContinue).Source }
+if (-not $blenderFound) {
+    Write-Host "  Deseja instalar Blender? [S/N]" -ForegroundColor White
+    $key = [Console]::ReadKey($true).KeyChar
     if ($key -eq 's' -or $key -eq 'S') {
-        try {
-            if ($winget) {
-                Write-Host "  Instalando via winget..." -ForegroundColor Gray
-                & winget install BlenderFoundation.Blender --silent --accept-package-agreements 2>&1 | Out-Null
-            } else {
-                Write-Host "  Baixando Blender portátil..." -ForegroundColor Gray
-                $blenderUrl = "https://download.blender.org/release/Blender5.1/blender-5.1.2-windows-x64.zip"
-                $zipPath = Join-Path $env:TEMP "blender.zip"
-                Invoke-WebRequest -Uri $blenderUrl -OutFile $zipPath -UseBasicParsing
-                Expand-Archive -Path $zipPath -DestinationPath $DESTINO -Force
-                $env:PATH += ";$(Join-Path $DESTINO "blender-5.1.2-windows-x64")"
-                Write-Host "  ✓ Blender baixado" -ForegroundColor Green
-            }
-        } catch { Write-Host "  ⚠ Falha ao instalar Blender: $_" -ForegroundColor Yellow }
-    } else {
-        Write-Host "  Pulando Blender" -ForegroundColor Gray
-    }
-}
+        try { & winget install BlenderFoundation.Blender --silent --accept-package-agreements 2>&1 | Out-Null; Write-Host "  [OK] Blender instalado" -ForegroundColor Green } catch { Write-Host "  [!] Falha Blender: $_" -ForegroundColor Yellow }
+    } else { Write-Host "  [-] Pulando Blender" -ForegroundColor Gray }
+} else { Write-Host "  [OK] Blender encontrado" -ForegroundColor Green }
 
-# ─── 5. FFmpeg ───
-Write-Host "[5/8] FFmpeg..." -ForegroundColor Yellow
-$ffmpegPath = "C:\ffmpeg\ffmpeg.exe"
-if (-not (Test-Path $ffmpegPath)) {
+# -- 6. FFmpeg --
+Write-Host "[6/9] FFmpeg..." -ForegroundColor Yellow
+if (-not (Test-Path "C:\ffmpeg\ffmpeg.exe")) {
     Write-Host "  Baixando FFmpeg..." -ForegroundColor Gray
     try {
         $zipPath = Join-Path $env:TEMP "ffmpeg.zip"
         Invoke-WebRequest -Uri $FFMPEG_URL -OutFile $zipPath -UseBasicParsing
-        $tempExtract = Join-Path $env:TEMP "ffmpeg_extract"
-        Expand-Archive -Path $zipPath -DestinationPath $tempExtract -Force
-        $ffExe = Get-ChildItem -Path $tempExtract -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
-        if ($ffExe) {
+        $tmpDir = Join-Path $env:TEMP "ffmpeg_tmp"
+        New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
+        Expand-Archive -Path $zipPath -DestinationPath $tmpDir -Force
+        $exe = Get-ChildItem $tmpDir -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
+        if ($exe) {
             New-Item -ItemType Directory -Path "C:\ffmpeg" -Force | Out-Null
-            Copy-Item -Path "$($ffExe.Directory.FullName)\*" -Destination "C:\ffmpeg" -Recurse -Force
-            Write-Host "  ✓ FFmpeg instalado em C:\ffmpeg" -ForegroundColor Green
+            Copy-Item -Path "$($exe.Directory.FullName)\*" -Destination "C:\ffmpeg" -Recurse -Force
             $oldPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
             if ($oldPath -notlike "*C:\ffmpeg*") {
                 [Environment]::SetEnvironmentVariable("Path", "$oldPath;C:\ffmpeg", "Machine")
-                Write-Host "  ✓ FFmpeg adicionado ao PATH do sistema" -ForegroundColor Green
             }
+            Write-Host "  [OK] FFmpeg em C:\ffmpeg" -ForegroundColor Green
         }
-        Remove-Item -Path $tempExtract -Recurse -Force -ErrorAction SilentlyContinue
-    } catch { Write-Host "  ⚠ Falha ao baixar FFmpeg: $_" -ForegroundColor Yellow }
-} else {
-    Write-Host "  ✓ FFmpeg já instalado" -ForegroundColor Green
-}
+        Remove-Item -Path $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
+    } catch { Write-Host "  [!] Falha FFmpeg: $_" -ForegroundColor Yellow }
+} else { Write-Host "  [OK] FFmpeg ja instalado" -ForegroundColor Green }
 
-# ─── 6. Clona/Puxa repositório ───
-Write-Host "[6/8] Clonando Neon..." -ForegroundColor Yellow
+# -- 7. Clonar repositorio --
+Write-Host "[7/9] Clonando Neon..." -ForegroundColor Yellow
 if (Test-Path (Join-Path $DESTINO "index.js")) {
-    Write-Host "  Repositório já existe. Atualizando..." -ForegroundColor Gray
+    Write-Host "  Repositorio ja existe. Atualizando..." -ForegroundColor Gray
     Push-Location $DESTINO
-    try { & git pull --ff-only 2>&1 | Out-Null; Write-Host "  ✓ Projeto atualizado" -ForegroundColor Green } catch { Write-Host "  ⚠ git pull falhou" -ForegroundColor Yellow }
+    try { & git pull --ff-only 2>&1 | Out-Null; Write-Host "  [OK] Atualizado" -ForegroundColor Green } catch { Write-Host "  [!] git pull falhou" -ForegroundColor Yellow }
     Pop-Location
 } else {
-    try { & git clone $REPO_URL $DESTINO 2>&1; Write-Host "  ✓ Repositório clonado" -ForegroundColor Green }
-    catch { Write-Host "  ✗ Falha ao clonar. Instale git: winget install Git.Git" -ForegroundColor Red; exit 1 }
+    try { & git clone $REPO_URL $DESTINO 2>&1; Write-Host "  [OK] Clonado" -ForegroundColor Green }
+    catch { Write-Host "  [FALHA] git clone: $_" -ForegroundColor Red; exit 1 }
 }
 
-# ─── 7. Bloqueia push ───
-Write-Host "[7/8] Bloqueando git push..." -ForegroundColor Yellow
+# -- 8. Dependencias + Opencode --
+Write-Host "[8/9] Dependencias..." -ForegroundColor Yellow
 Push-Location $DESTINO
-try { & git remote set-url --push origin http://nopush.invalid 2>&1 | Out-Null; Write-Host "  ✓ Push desabilitado" -ForegroundColor Green } catch { Write-Host "  ⚠ Não foi possível bloquear push" -ForegroundColor Yellow }
-Pop-Location
-
-# ─── 8. Dependências ───
-Write-Host "[8/9] Instalando dependências..." -ForegroundColor Yellow
-Push-Location $DESTINO
-try { & npm install --production 2>&1 | Out-Null; Write-Host "  ✓ Dependências instaladas" -ForegroundColor Green } catch { Write-Host "  ✗ npm install falhou: $_" -ForegroundColor Red }
-Pop-Location
-
-# ─── 9. Opencode ───
-Write-Host "[9/9] Instalando Opencode..." -ForegroundColor Yellow
+try { & npm install --production 2>&1 | Out-Null; Write-Host "  [OK] npm install" -ForegroundColor Green } catch { Write-Host "  [!] npm falhou: $_" -ForegroundColor Yellow }
 try {
     $oc = Get-Command "opencode" -ErrorAction SilentlyContinue
-    if (-not $oc) {
-        & npm install -g opencode-ai 2>&1 | Out-Null
-        Write-Host "  ✓ Opencode instalado globalmente" -ForegroundColor Green
-    } else {
-        $ocVer = & opencode --version 2>&1
-        Write-Host "  ✓ Opencode já instalado ($ocVer)" -ForegroundColor Green
-    }
-} catch { Write-Host "  ⚠ Falha ao instalar Opencode: $_" -ForegroundColor Yellow }
+    if (-not $oc) { & npm install -g opencode-ai 2>&1 | Out-Null; Write-Host "  [OK] Opencode global" -ForegroundColor Green }
+    else { Write-Host "  [OK] Opencode ja instalado" -ForegroundColor Green }
+} catch { Write-Host "  [!] Opencode falhou: $_" -ForegroundColor Yellow }
+Pop-Location
 
-# ─── Atalhos ───
-$WScriptShell = New-Object -ComObject WScript.Shell
+# -- 9. Atalhos --
+Write-Host "[9/9] Criando atalhos..." -ForegroundColor Yellow
+$shell = New-Object -ComObject WScript.Shell
 $desktop = [Environment]::GetFolderPath("Desktop")
 
 $iniciarBat = Join-Path $DESTINO "iniciar_neon.bat"
-@"@echo off
+if (-not (Test-Path $iniciarBat)) {
+@"
+@echo off
 title Neon - Assistente IA
 fltmc >nul 2>&1 || (
     powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0' -WorkingDirectory '%~dp0'"
@@ -204,37 +172,36 @@ node index.js
 if errorlevel 1 pause
 goto MENU
 "@ | Set-Content -Path $iniciarBat -Encoding ASCII
+}
 
-$atalho = $WScriptShell.CreateShortcut((Join-Path $desktop "Neon.lnk"))
-$atalho.TargetPath = "cmd.exe"
-$atalho.Arguments = "/c `"$iniciarBat`""
-$atalho.WorkingDirectory = $DESTINO
-$atalho.WindowStyle = 1
-$atalho.Description = "Iniciar Neon"
-$atalho.Save()
+$lnk = $shell.CreateShortcut((Join-Path $desktop "Neon.lnk"))
+$lnk.TargetPath = "cmd.exe"
+$lnk.Arguments = "/c `"$iniciarBat`""
+$lnk.WorkingDirectory = $DESTINO
+$lnk.WindowStyle = 1
+$lnk.Description = "Iniciar Neon"
+$lnk.Save()
 
-$atalho2 = $WScriptShell.CreateShortcut((Join-Path $desktop "Neon - Web UI.lnk"))
-$atalho2.TargetPath = "http://localhost:3000"
-$atalho2.Description = "Neon Web Interface"
-$atalho2.Save()
+$lnk2 = $shell.CreateShortcut((Join-Path $desktop "Neon - Documentacao.lnk"))
+$lnk2.TargetPath = "http://localhost:3000"
+$lnk2.Description = "Neon Docs"
+$lnk2.Save()
 
-Write-Host "  ✓ Atalhos criados" -ForegroundColor Green
+& git -C $DESTINO remote set-url --push origin http://nopush.invalid 2>&1 | Out-Null
 
+Write-Host "  [OK] Atalhos criados" -ForegroundColor Green
 Write-Host ""
-Write-Host "╔══════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║       INSTALAÇÃO CONCLUÍDA!              ║" -ForegroundColor Cyan
-Write-Host "╚══════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host "+------------------------------------------+" -ForegroundColor Cyan
+Write-Host "|       INSTALACAO CONCLUIDA!              |" -ForegroundColor Cyan
+Write-Host "+------------------------------------------+" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Para iniciar:  [Neon] na área de trabalho" -ForegroundColor White
-Write-Host "  Web UI:        http://localhost:3000" -ForegroundColor White
-Write-Host "  Git push:      DESABILITADO (só git pull)" -ForegroundColor Yellow
-Write-Host "  Para atualizar: git pull na pasta Neon" -ForegroundColor Yellow
+Write-Host "  Neon: atalho na Area de Trabalho" -ForegroundColor White
+Write-Host "  Docs: http://localhost:3000" -ForegroundColor White
 Write-Host ""
 
-# Notificação de conclusão
 try {
-  $popup = New-Object -ComObject wscript.shell
-  $popup.Popup("Neon instalada com sucesso!`n`nAtalho na Area de Trabalho.`nWeb UI: http://localhost:3000", 10, "Neon Installer", 64)
+    $popup = New-Object -ComObject wscript.shell
+    $popup.Popup("Neon instalada com sucesso!", 10, "Neon Installer", 64)
 } catch {}
 
 pause

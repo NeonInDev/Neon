@@ -15,7 +15,6 @@ echo.
 if not exist ".env" (
     echo [AVISO] .env nao encontrado
     echo Crie o arquivo com DISCORD_TOKEN e GEMINI_API_KEY
-    echo.
     pause
 )
 echo [INICIANDO NEON...]
