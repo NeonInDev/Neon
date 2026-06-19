@@ -65,35 +65,24 @@ async function pcInfoJson() {
 }
 
 async function volume(acao, valor) {
-  // acao: "up", "down", "mute", "set"
+  const sendkey = require("./sendkey");
   if (acao === "mute") {
-    await execAsync(`powershell -NoProfile -Command "(New-Object -ComObject wscript.shell).SendKeys([char]174)"`, { timeout: 5000 });
+    sendkey.send(0xAD);
     return "🔇 Volume mutado/desmutado.";
   }
   if (acao === "up") {
     const n = Math.min(parseInt(valor) || 5, 50);
-    const script = `
-$obj = New-Object -ComObject wscript.shell
-for ($i = 0; $i -lt ${n}; $i++) { $obj.SendKeys([char]175) }`;
-    await ps(script, "volumeUp");
+    for (let i = 0; i < n; i++) sendkey.send(0xAF);
     return `🔊 Volume aumentado (${n}x).`;
   }
   if (acao === "down") {
     const n = Math.min(parseInt(valor) || 5, 50);
-    const script = `
-$obj = New-Object -ComObject wscript.shell
-for ($i = 0; $i -lt ${n}; $i++) { $obj.SendKeys([char]174) }`;
-    await ps(script, "volumeDown");
+    for (let i = 0; i < n; i++) sendkey.send(0xAE);
     return `🔉 Volume diminuído (${n}x).`;
   }
   if (acao === "set") {
     const n = Math.min(Math.max(parseInt(valor) || 50, 0), 100);
-    const script = `
-$obj = New-Object -ComObject wscript.shell
-for ($i = 0; $i -lt 50; $i++) { $obj.SendKeys([char]174) }
-$steps = [math]::Round($n / 2)
-for ($i = 0; $i -lt $steps; $i++) { $obj.SendKeys([char]175) }`;
-    await ps(script, "volumeSet");
+    sendkey.volume(n);
     return `🔊 Volume ajustado para ${n}%.`;
   }
   return "❌ Comando de volume não reconhecido.";
