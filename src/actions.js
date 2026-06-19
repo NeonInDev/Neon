@@ -553,6 +553,7 @@ function detectarCategoria(texto) {
     const jogo = encontrarJogo(texto);
     if (jogo && jogo.id !== null && jogo.id !== undefined) return "jogo";
   }
+  if (encontrarCamera(texto)) return "camera";
   if (encontrarScreenshot(texto)) return "screenshot";
   if (isWin() && encontrarPcCommand(texto)) return "pcCommand";
   if (isWin() && encontrarExec(texto)) return "exec";
@@ -1198,6 +1199,17 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return await pc.volume("mute");
     } catch (err) {
       return `❌ Erro no volume: ${err.message}`;
+    }
+  }
+
+  // Camera
+  if (categoria === "camera") {
+    try {
+      const camera = require("./camera");
+      const caminho = await camera.salvarFrameTemp();
+      return `Foto da camera!\n__FILE__:${caminho}`;
+    } catch (err) {
+      return `Erro na camera: ${err.message}. Configure com "Neon, usa a camera http://IP:8080"`;
     }
   }
 
