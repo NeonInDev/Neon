@@ -189,4 +189,10 @@ Write-Host "  Git push:      DESABILITADO (só git pull)" -ForegroundColor Yello
 Write-Host "  Para atualizar: git pull na pasta Neon" -ForegroundColor Yellow
 Write-Host ""
 
+# Notificação de conclusão
+try {
+  $popup = New-Object -ComObject wscript.shell
+  $popup.Popup("Neon instalada com sucesso!`n`nAtalho na Area de Trabalho.`nWeb UI: http://localhost:3000", 10, "Neon Installer", 64)
+} catch {}
+
 pause

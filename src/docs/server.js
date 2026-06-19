@@ -14,6 +14,10 @@ let server = null;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "..", "..", "public")));
 
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "..", "public", "index.html"));
+});
+
 app.post("/api/ask", async (req, res) => {
   const { userId, username, message } = req.body;
   if (!message) return res.status(400).json({ error: "message é obrigatório" });
@@ -44,7 +48,7 @@ app.get("/api/voice/status", (req, res) => {
   res.json(voice.status());
 });
 
-app.use("/", swaggerUi.serve, swaggerUi.setup(apiSpec, {
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(apiSpec, {
   customSiteTitle: "Neon Bot — Documentação",
 }));
 
