@@ -11,6 +11,8 @@ const { detectar: detectarCustom, adicionar: addCustom, remover: removeCustom, l
 const { criarLembrete } = require("./timers");
 const memoriaModule = require("./memoria");
 const voice = require("./voice");
+const { db } = require("./db");
+const { getOrCreateUser } = require("./user");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function limparFiller(t) {
@@ -588,6 +590,28 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   texto = texto.replace(/^[Nn][Ee][Oo][Nn][,\s\.]\s*/, "");
   const lower = texto.toLowerCase().trim();
 
+  // ─── Ação pendente (Boa Noite) ───
+  if (userId) {
+    const user = getOrCreateUser(db, userId, "");
+    if (user.acaoPendente) {
+      const acao = user.acaoPendente;
+      const confirmacao = /^(?:sim|pode|pode sim|quero|quero sim|claro|bora|vai|manda|ok|ta|tá|vamos|vamo|ss|s|yes|y|confirmo|confirmado|pode desligar)/i.test(lower);
+      if (confirmacao) {
+        user.acaoPendente = null;
+        await db.write();
+        if (acao.tipo === "boaNoite") {
+          const r = await tentar("shutdown /s /t 15");
+          return r.ok
+            ? "Boa noite! Desligando em 15s. Use `Neon, cancelar` se mudar de ideia. 🌙💤"
+            : "Boa noite! Mas nao consegui desligar o PC. :(";
+        }
+      } else {
+        user.acaoPendente = null;
+        await db.write();
+      }
+    }
+  }
+
   // ─── Daddy is home ───
   if (lower === "daddy is home" || lower === "daddy's home") {
     if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
@@ -614,6 +638,47 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       "",
       ">> Spotify:   " + (r1.ok ? "✅" : "❌"),
       ">> Steam:     " + (r2.ok ? "✅" : "❌"),
+      "```",
+    ].filter(Boolean).join("\n");
+  }
+
+  // ─── Boa Noite ───
+  if (/^(?:boa\s*noite|boanoite|good\s*night|nighty\s*night)(?:\s+neon)?[\s\.,!]*$/i.test(lower)) {
+    if (!podePC) return "Boa noite! Durma bem. 🌙";
+    const agora = new Date();
+    const horaStr = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const hora = agora.getHours();
+
+    if (hora < 18) {
+      return `⚠️ Ainda são ${horaStr}, mas ok... boa noite também! 🌙`;
+    }
+
+    let climaStr = "";
+    try {
+      const { data } = await require("axios").get("https://wttr.in/São+Paulo?format=j1", { timeout: 10000 });
+      if (data?.weather?.[1]) {
+        const amanha = data.weather[1];
+        const max = amanha.maxtempC;
+        const min = amanha.mintempC;
+        const cond = amanha.hourly?.[0]?.lang_pt?.[0]?.value || amanha.hourly?.[0]?.weatherDesc?.[0]?.value || "";
+        climaStr = `Amanhã: ${cond} ${min}°C ~ ${max}°C`;
+      }
+    } catch {}
+
+    const user = getOrCreateUser(db, userId, "");
+    user.acaoPendente = { tipo: "boaNoite" };
+    await db.write();
+
+    return [
+      "```",
+      "╔══════════════════════════════════╗",
+      "║           BOA NOITE              ║",
+      "╚══════════════════════════════════╝",
+      "",
+      `🕐 ${horaStr}`,
+      climaStr ? `🌤 ${climaStr}` : "",
+      "",
+      "Quer desligar o PC? (sim/nao)",
       "```",
     ].filter(Boolean).join("\n");
   }
