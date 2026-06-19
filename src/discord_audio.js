@@ -24,94 +24,70 @@ async function baixarAudio(att, msgId) {
   const caminho = path.join(TEMP_DIR, `audio_${msgId}${ext}`)
   const r = await axios({ url: att.url, responseType: "arraybuffer", timeout: 30000 })
   fs.writeFileSync(caminho, r.data)
-  log("INFO", "[AUDIO] Audio baixado", { nome: att.name, tamanho: r.data.length })
+  log("INFO", "[AUDIO] Audio baixado", { nome: att.name, tamanho: r.data.length, ext })
   return caminho
 }
 
-function getApiKey() {
-  try {
-    const envPath = path.join(__dirname, "..", ".env")
-    if (fs.existsSync(envPath)) {
-      const env = fs.readFileSync(envPath, "utf8")
-      const m = env.match(/GEMINI_API_KEY=(.+)/)
-      if (m) return m[1].trim()
-    }
-  } catch {}
-  return process.env.GEMINI_API_KEY
+let whisperPipeline = null
+
+async function getWhisper() {
+  if (!whisperPipeline) {
+    log("INFO", "[AUDIO] Carregando Whisper local (primeira vez baixa modelo ~40MB)...")
+    const { pipeline } = require("@xenova/transformers")
+    whisperPipeline = await pipeline("automatic-speech-recognition", "Xenova/whisper-tiny", {
+      quantized: true,
+    })
+    log("INFO", "[AUDIO] Whisper local carregado!")
+  }
+  return whisperPipeline
 }
 
-// Tenta transcrever com Gemini via REST API (mais confiavel que SDK para audio)
-async function transcreverGeminiRest(caminhoAudio) {
-  const key = getApiKey()
-  if (!key) return null
-
-  const audioBuf = fs.readFileSync(caminhoAudio)
-  const ext = path.extname(caminhoAudio).toLowerCase()
-  const mimeMap = {
-    ".ogg": "audio/ogg", ".mp3": "audio/mpeg", ".mp4": "audio/mp4",
-    ".m4a": "audio/mp4", ".wav": "audio/wav", ".webm": "audio/webm"
-  }
-  const mime = mimeMap[ext] || "audio/ogg"
-  const b64 = audioBuf.toString("base64")
-
+async function converterParaWav(inputPath) {
+  const outputPath = inputPath.replace(/\.[^.]+$/, "") + "_conv.wav"
   try {
-    const r = await axios.post(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,
-      {
-        contents: [{
-          parts: [
-            { inline_data: { mime_type: mime, data: b64 } },
-            { text: "Transcreva EXATAMENTE o que foi dito neste audio em portugues (Brasil). Retorne APENAS a transcricao." }
-          ]
-        }]
-      },
-      { timeout: 30000, headers: { "Content-Type": "application/json" } }
-    )
-
-    const texto = r.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-    if (texto) {
-      log("INFO", "[AUDIO] Transcricao Gemini", { texto: texto.slice(0, 100) })
-      return texto
-    }
-    log("WARN", "[AUDIO] Gemini resposta vazia", { raw: JSON.stringify(r.data).slice(0, 200) })
+    const { execSync } = require("child_process")
+    execSync(`"C:\\ffmpeg\\ffmpeg.exe" -i "${inputPath}" -ar 16000 -ac 1 -sample_fmt s16 "${outputPath}" -y`, {
+      timeout: 30000, windowsHide: true, stdio: "pipe"
+    })
+    if (fs.existsSync(outputPath)) return outputPath
+    log("WARN", "[AUDIO] ffmpeg nao gerou arquivo de saida")
     return null
   } catch (err) {
-    const detalhe = err.response?.data?.error?.message || err.message
-    log("ERROR", "[AUDIO] Gemini REST falhou", { erro: detalhe })
+    log("WARN", "[AUDIO] ffmpeg falhou na conversao", { erro: err.message?.slice(0, 100) })
     return null
   }
 }
 
 async function transcreverAudio(caminhoAudio) {
-  // Tenta Gemini primeiro
-  const texto = await transcreverGeminiRest(caminhoAudio)
-  if (texto) return texto
-
-  // Fallback: tenta com o SDK
   try {
-    const key = getApiKey()
-    if (!key) return null
-    const { GoogleGenerativeAI } = require("@google/generative-ai")
-    const genAI = new GoogleGenerativeAI(key)
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
-    const audioBuf = fs.readFileSync(caminhoAudio)
-    const ext = path.extname(caminhoAudio).toLowerCase()
-    const mimeMap = {
-      ".ogg": "audio/ogg", ".mp3": "audio/mpeg", ".mp4": "audio/mp4",
-      ".m4a": "audio/mp4", ".wav": "audio/wav", ".webm": "audio/webm"
+    log("INFO", "[AUDIO] Transcrevendo com Whisper local...")
+    const transcriber = await getWhisper()
+    const wavPath = await converterParaWav(caminhoAudio)
+    if (!wavPath) return null
+    const wavBuf = fs.readFileSync(wavPath)
+    const sampleRate = 16000
+    const bytesPerSample = 2
+    const numSamples = Math.floor((wavBuf.length - 44) / bytesPerSample)
+    const samples = new Float32Array(numSamples)
+    for (let i = 0; i < numSamples; i++) {
+      const offset = 44 + i * bytesPerSample
+      let sample = wavBuf.readInt16LE(offset)
+      samples[i] = sample / 32768.0
     }
-    const mime = mimeMap[ext] || "audio/ogg"
-    const result = await model.generateContent([
-      { inlineData: { mimeType: mime, data: audioBuf.toString("base64") } },
-      { text: "Transcreva o audio em pt-BR. Retorne APENAS a transcricao." }
-    ])
-    const t = result.response.text().trim()
-    if (t) { log("INFO", "[AUDIO] Transcricao SDK", { texto: t.slice(0, 100) }); return t }
+    try { fs.unlinkSync(wavPath) } catch {}
+    log("INFO", "[AUDIO] Whisper processando", { amostras: numSamples })
+    const result = await transcriber(samples, { language: "pt", task: "transcribe" })
+    const texto = result?.text?.trim()
+    if (texto && texto.length > 0) {
+      log("INFO", "[AUDIO] Whisper OK", { texto: texto.slice(0, 100) })
+      return texto
+    }
+    log("WARN", "[AUDIO] Whisper retornou vazio")
+    return null
   } catch (err) {
-    log("ERROR", "[AUDIO] SDK tambem falhou", { erro: err.message })
+    log("ERROR", "[AUDIO] Whisper erro", { erro: err.message?.slice(0, 150) })
+    return null
   }
-
-  return null
 }
 
 async function processarAudioMessage(msg) {
@@ -120,6 +96,7 @@ async function processarAudioMessage(msg) {
 
   const authorId = msg.author.id
   const authorName = msg.author.username
+  log("INFO", "[AUDIO] Voice message detectada", { autor: authorName, nome: att.name, tamanho: att.size })
   await msg.channel.sendTyping()
 
   let caminhoAudio
@@ -135,7 +112,7 @@ async function processarAudioMessage(msg) {
   try { fs.unlinkSync(caminhoAudio) } catch {}
 
   if (!texto) {
-    await msg.reply("Nao consegui entender o audio. Tenta de novo? (certifique-se de falar claramente em portugues)")
+    await msg.reply("Nao consegui entender o audio. Tenta de novo?")
     return true
   }
 

@@ -29,17 +29,34 @@ async function capturarFrame() {
   }
 }
 
-async function salvarFrame(caminho) {
-  const buf = await capturarFrame()
+async function corrigirOrientacao(buf) {
+  try {
+    const sharp = require("sharp")
+    const meta = await sharp(buf).metadata()
+    if (meta.orientation && meta.orientation !== 1) {
+      const corrigido = await sharp(buf).withMetadata({ orientation: 1 }).rotate().toBuffer()
+      log("INFO", "[CAMERA] Orientacao corrigida", { de: meta.orientation, para: 1 })
+      return corrigido
+    }
+    return buf
+  } catch {
+    return buf
+  }
+}
+
+async function salvarFrameTemp() {
+  let buf = await capturarFrame()
+  buf = await corrigirOrientacao(buf)
+  const nome = `camera_${Date.now()}.jpg`
+  const caminho = path.join(__dirname, "..", "temp", nome)
+  fs.mkdirSync(path.join(__dirname, "..", "temp"), { recursive: true })
   fs.writeFileSync(caminho, buf)
   return caminho
 }
 
-async function salvarFrameTemp() {
-  const buf = await capturarFrame()
-  const nome = `camera_${Date.now()}.jpg`
-  const caminho = path.join(__dirname, "..", "temp", nome)
-  fs.mkdirSync(path.join(__dirname, "..", "temp"), { recursive: true })
+async function salvarFrame(caminho) {
+  let buf = await capturarFrame()
+  buf = await corrigirOrientacao(buf)
   fs.writeFileSync(caminho, buf)
   return caminho
 }

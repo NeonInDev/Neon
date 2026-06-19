@@ -9,11 +9,14 @@ function encontrarBlender() {
   const candidatos = [
     "blender",
     "C:\\Program Files\\Blender Foundation\\Blender 5.1\\blender.exe",
+    "C:\\Program Files\\Blender Foundation\\Blender 5.0\\blender.exe",
     "C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe",
     "C:\\Program Files\\Blender Foundation\\Blender 4.5\\blender.exe",
+    "C:\\Program Files\\Blender Foundation\\Blender 4.0\\blender.exe",
     `${process.env.LOCALAPPDATA}\\Blender Foundation\\Blender 5.1\\blender.exe`,
     `${process.env.LOCALAPPDATA}\\Blender Foundation\\Blender 4.2\\blender.exe`,
     `${process.env.LOCALAPPDATA}\\Blender Foundation\\Blender 4.5\\blender.exe`,
+    `${process.env.PROGRAMFILES}\\Blender Foundation\\Blender 5.1\\blender.exe`,
   ];
   for (const c of candidatos) {
     try {
@@ -38,6 +41,43 @@ async function abrir(arquivo) {
     return { ok: true, msg: `Blender aberto${arquivo ? ` com: ${path.basename(arquivo)}` : ""}.` };
   } catch (err) {
     return { ok: false, msg: `Erro ao abrir Blender: ${err.message}` };
+  }
+}
+
+async function executarScript(scriptPy) {
+  const blender = encontrarBlender();
+  if (!blender) return { ok: false, msg: "Blender não encontrado." };
+  const scriptPath = path.join(require("os").tmpdir(), "neon_blender_gen.py");
+  try {
+    fs.writeFileSync(scriptPath, scriptPy, "utf8");
+    const { stdout, stderr } = await execAsync(`"${blender}" --background --python "${scriptPath}"`, {
+      timeout: 180000,
+      windowsHide: true,
+    });
+    return { ok: true, msg: "Script executado com sucesso.", stdout: stdout?.slice(0, 1000), stderr: stderr?.slice(0, 500) };
+  } catch (err) {
+    return { ok: false, msg: `Erro no script Blender: ${err.message?.slice(0, 300)}` };
+  } finally {
+    try { fs.unlinkSync(scriptPath); } catch {}
+  }
+}
+
+async function executarComando(texto) {
+  const blender = encontrarBlender();
+  if (!blender) return { ok: false, msg: "Blender não encontrado." };
+  const scriptPath = path.join(require("os").tmpdir(), "neon_blender_cmd.py");
+  try {
+    const script = `import bpy\n${texto}\n`;
+    fs.writeFileSync(scriptPath, script, "utf8");
+    const { stdout, stderr } = await execAsync(`"${blender}" --background --python "${scriptPath}"`, {
+      timeout: 120000,
+      windowsHide: true,
+    });
+    return { ok: true, msg: "Comando executado.", stdout: stdout?.slice(0, 1000), stderr: stderr?.slice(0, 500) };
+  } catch (err) {
+    return { ok: false, msg: `Erro: ${err.message?.slice(0, 300)}` };
+  } finally {
+    try { fs.unlinkSync(scriptPath); } catch {}
   }
 }
 
@@ -84,4 +124,4 @@ bpy.ops.export_scene.${ext}(filepath="${saida.replace(/\\/g, "\\\\")}")
   }
 }
 
-module.exports = { encontrarBlender, abrir, renderizar, exportar };
+module.exports = { encontrarBlender, abrir, renderizar, exportar, executarScript, executarComando };

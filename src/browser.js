@@ -378,13 +378,32 @@ async function buscarTrackIdSpotify(termo) {
   if (m) return m[1];
   const m2 = data.match(/href="\/track\/([a-zA-Z0-9]+)"/);
   if (m2) return m2[1];
-  throw new Error("Track ID não encontrado no Spotify Web");
+  const m3 = data.match(/"uri":"spotify:track:([a-zA-Z0-9]+)"/);
+  if (m3) return m3[1];
+  const m4 = data.match(/spotify:track:([a-zA-Z0-9]+)/);
+  if (m4) return m4[1];
+  log("WARN", "[SPOTIFY] HTTP scraping falhou, tentando Puppeteer");
+  try {
+    const puppeteer = require("puppeteer");
+    const b = await iniciar();
+    const page = await b.newPage();
+    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+    await page.goto(`https://open.spotify.com/search/${encodeURIComponent(termo)}`, { waitUntil: "networkidle0", timeout: 30000 });
+    await sleep(2000);
+    const html = await page.content();
+    await page.close().catch(() => {});
+    const pm = html.match(/\/track\/([a-zA-Z0-9]{22})/);
+    if (pm) return pm[1];
+    throw new Error("Spotify Puppeteer tambem falhou");
+  } catch (err2) {
+    throw new Error("Track ID nao encontrado: " + err2.message.slice(0, 100));
+  }
 }
 
 async function tocarSpotify(termo) {
   const trackId = await buscarTrackIdSpotify(termo);
   await execAsync(`start "" "spotify:track:${trackId}"`);
-  return `🎵 Tocando "${termo}" no Spotify Desktop.`;
+  return `Tocando "${termo}" no Spotify Desktop.`;
 }
 
 // ─── YouTube — busca por HTTP + abre no navegador do usuário ───

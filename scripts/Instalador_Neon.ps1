@@ -35,10 +35,22 @@ function runWinget {
 
 Add-Content -Path $LOG_FILE -Value "=== Neon Installer $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
 logMSG "+------------------------------------------+" -color "Cyan"
-logMSG "|         NEON INSTALLER v3.0              |" -color "Cyan"
+logMSG "|         NEON INSTALLER v3.1              |" -color "Cyan"
 logMSG "|     Instala tudo pra rodar a Neon        |" -color "Cyan"
 logMSG "+------------------------------------------+" -color "Cyan"
 logMSG ""
+
+# -- Verificacao de arquivos --
+logMSG "Verificando arquivos do instalador..."
+$reqFiles = @("neon_env.enc", "cripitar.js")
+foreach ($f in $reqFiles) {
+  $fPath = Join-Path $PSScriptRoot $f
+  if (Test-Path $fPath) { logMSG "  [OK] $f encontrado" -color "Green" }
+  else { logMSG "  [!] $f nao encontrado em $PSScriptRoot" -color "Yellow" }
+}
+logMSG "  Pasta do instalador: $PSScriptRoot"
+logMSG "  Destino: $DESTINO"
+logMSG "  Log: $LOG_FILE"
 
 # -- Internet --
 step -num 0 -total 9 -msg "Verificando internet..."
@@ -151,11 +163,26 @@ if (Test-Path (Join-Path $DESTINO "index.js")) {
 # -- 6. Dependencias --
 step -num 6 -total 9 -msg "Instalando dependencias"
 Push-Location $DESTINO
-try { & npm install --production 2>&1 | Out-Null; logMSG "  [OK] npm install" -color "Green" } catch { logMSG "  [!] npm falhou: $_" -color "Yellow" }
 try {
-  $oc = Get-Command "opencode" -ErrorAction SilentlyContinue
-  if (-not $oc) { & $nodeCmd (Join-Path $DESTINO "node_modules\.bin\opencode.cmd") --version 2>&1 | Out-Null; if (-not $?) { & npm install -g opencode-ai 2>&1 | Out-Null }; logMSG "  [OK] Opencode" -color "Green" }
-  else { logMSG "  [OK] Opencode ja instalado" -color "Green" }
+  $npmJob = Start-Job -ScriptBlock { param($d) Push-Location $d; npm install --production 2>&1; Pop-Location } -ArgumentList $DESTINO
+  $npmJob | Wait-Job -Timeout 180 | Out-Null
+  if ($npmJob.State -eq "Completed") { Receive-Job $npmJob | Out-Null; logMSG "  [OK] npm install" -color "Green" }
+  else { Stop-Job $npmJob; logMSG "  [!] npm install timeout (>3min)" -color "Yellow" }
+  Remove-Job $npmJob -Force -ErrorAction SilentlyContinue
+} catch { logMSG "  [!] npm falhou: $_" -color "Yellow" }
+try {
+  $oc = Get-Command "opencode" -ErrorAction SilentlyContinue -ErrorVariable ocErr
+  if (-not $oc) {
+    $oc2 = & $nodeCmd (Join-Path $DESTINO "node_modules\.bin\opencode.cmd") --version 2>&1 | Out-String
+    if (-not ($oc2 -match '\d+\.\d+')) {
+      logMSG "  Instalando opencode global..." -color "Gray"
+      $ocJob = Start-Job -ScriptBlock { npm install -g opencode-ai 2>&1 }
+      $ocJob | Wait-Job -Timeout 120 | Out-Null
+      if ($ocJob.State -eq "Completed") { Receive-Job $ocJob | Out-Null; logMSG "  [OK] Opencode instalado" -color "Green" }
+      else { Stop-Job $ocJob; logMSG "  [!] opencode timeout" -color "Yellow" }
+      Remove-Job $ocJob -Force -ErrorAction SilentlyContinue
+    } else { logMSG "  [OK] Opencode local" -color "Green" }
+  } else { logMSG "  [OK] Opencode ja instalado" -color "Green" }
 } catch { logMSG "  [!] Opencode: $_" -color "Yellow" }
 Pop-Location
 

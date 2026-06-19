@@ -104,11 +104,6 @@ module.exports = {
       let userInput = content;
 
       const lowerContent = content.toLowerCase();
-      const neonMatch = lowerContent.match(/^neon[,\s\.]\s*(.*)/);
-      if (neonMatch) {
-        ativar = true;
-        userInput = neonMatch[1] || "";
-      }
       if (!ativar) {
         const slashMatch = lowerContent.match(/^\/neon\s+(.*)/);
         if (slashMatch) {

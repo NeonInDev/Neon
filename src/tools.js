@@ -31,10 +31,14 @@ const FERRAMENTAS = [
   { nome: "opencode", desc: "Executa tarefa usando OpenCode. Uso: opencode | [descricao da tarefa]" },
   { nome: "wake_on_lan", desc: "Liga PC remoto via Wake-on-LAN. Uso: wake_on_lan | [mac_address]" },
   { nome: "navegar", desc: "Navega em site com acoes (scroll, clicar, pesquisar). Uso: navegar | [url] > [acao]" },
-  { nome: "blender", desc: "Abre o Blender 3D (opcional: arquivo). Uso: blender | [caminho_do_arquivo]" },
+  { nome: "blender", desc: "Abre o Blender 3D ou executa acoes. Uso: blender | [caminho] / render [arquivo] | [frame] / export [arquivo] | [formato] / script [descricao]" },
   { nome: "ffmpeg", desc: "Converte/processa midia com FFmpeg. Uso: ffmpeg | [parametros]" },
   { nome: "camera", desc: "Tira foto pela camera do celular (IP Webcam). Uso: camera | snapshot" },
   { nome: "camera_url", desc: "Define URL da camera IP Webcam. Uso: camera_url | [url]" },
+  { nome: "modelo3d", desc: "Busca modelos 3D online ou gera via Blender. Uso: modelo3d | buscar [consulta] / gerar [descricao] / primitivo [tipo]" },
+  { nome: "spotify_control", desc: "Controla reproducao do Spotify. Uso: spotify_control | next / previous / pause / play / volume [0-100]" },
+  { nome: "youtube_pip", desc: "Coloca video do YouTube em Picture-in-Picture. Uso: youtube_pip" },
+  { nome: "youtube_fullscreen", desc: "Coloca video do YouTube em tela cheia. Uso: youtube_fullscreen" },
 ];
 
 function descricaoFerramentas() {
@@ -236,7 +240,8 @@ async function executarFerramenta(ferramenta) {
       }
       case "tocar_video": {
         if (!args) return "Nada pra tocar.";
-        await tocarVideoYouTube(args);
+        const skip = Math.floor(Math.random() * 3);
+        await tocarVideoYouTube(args, skip);
         return `Tocando "${args}" no YouTube`;
       }
       case "gerar_imagem": {
@@ -345,12 +350,77 @@ async function executarFerramenta(ferramenta) {
           const r = await blender.abrir();
           return r.ok ? r.msg : r.msg;
         }
+        const lower = args.trim().toLowerCase();
+        if (lower.startsWith("render ")) {
+          const partes = args.slice(7).split("|").map(s => s.trim());
+          const arquivo = partes[0];
+          const frame = parseInt(partes[1]) || 1;
+          if (!require("fs").existsSync(arquivo)) return `Arquivo não encontrado: ${arquivo}`;
+          const r = await blender.renderizar(arquivo, frame);
+          return r.ok ? `✅ ${r.msg}` : r.msg;
+        }
+        if (lower.startsWith("export ")) {
+          const partes = args.slice(7).split("|").map(s => s.trim());
+          const arquivo = partes[0];
+          const formato = partes[1] || "obj";
+          if (!require("fs").existsSync(arquivo)) return `Arquivo não encontrado: ${arquivo}`;
+          const r = await blender.exportar(arquivo, formato);
+          return r.ok ? `✅ ${r.msg}` : r.msg;
+        }
+        if (lower.startsWith("script ")) {
+          const descricao = args.slice(7).trim();
+          const { gerarBlenderScript } = require("./opencode");
+          const scriptPython = await gerarBlenderScript(descricao);
+          if (!scriptPython || scriptPython.startsWith("Erro OpenCode")) return `Erro ao gerar script: ${scriptPython}`;
+          const r = await blender.executarScript(scriptPython);
+          return r.ok ? `✅ Script executado no Blender.\n${r.stderr || ""}` : r.msg;
+        }
         const caminho = args.trim();
         if (/\.blend$/i.test(caminho) || require("fs").existsSync(caminho)) {
           const r = await blender.abrir(caminho);
           return r.ok ? `✅ ${r.msg}` : r.msg;
         }
-        return `Arquivo não encontrado: ${caminho}`;
+        const r = await blender.abrir(args.trim());
+        return r.ok ? r.msg : `Arquivo não encontrado: ${caminho}`;
+      }
+      case "modelo3d": {
+        if (!args) return "Uso: modelo3d | buscar [consulta] / gerar [descricao] / primitivo [tipo]";
+        const modelos3d = require("./modelos3d");
+        const lower = args.trim().toLowerCase();
+        if (lower.startsWith("buscar ")) {
+          const consulta = args.slice(7).trim();
+          const resultados = await modelos3d.pesquisarOnline(consulta);
+          if (!resultados.length) return `Nada encontrado para "${consulta}". Tente modelo3d | gerar [descricao] para criar um.`;
+          return `Modelos 3D encontrados:\n${resultados.map((r, i) => `${i + 1}. ${r.nome} - ${r.url}`).join("\n")}`;
+        }
+        if (lower.startsWith("gerar ")) {
+          const prompt = args.slice(6).trim();
+          const res = await modelos3d.gerarPorPrompt(prompt);
+          return res.ok ? `✅ ${res.msg}` : res.msg;
+        }
+        if (lower.startsWith("primitivo ")) {
+          const tipo = args.slice(10).trim().toLowerCase() || "cube";
+          const validos = ["cube", "sphere", "cylinder", "cone", "torus", "uv_sphere", "ico_sphere", "monkey"];
+          if (!validos.includes(tipo)) return `Tipo invalido. Validos: ${validos.join(", ")}`;
+          const res = await modelos3d.gerarPrimitivo(tipo);
+          return res.ok ? res.msg : res.msg;
+        }
+        return "Use: buscar, gerar, ou primitivo";
+      }
+      case "spotify_control": {
+        if (!args) return "Uso: next / previous / pause / play / volume [0-100]";
+        const sendkey = require("./sendkey");
+        const cmd = args.trim().toLowerCase();
+        const vkMap = { next: 0xB0, previous: 0xB1, pause: 0xB3, play: 0xB3 };
+        if (vkMap[cmd]) { sendkey.send(vkMap[cmd]); return `Spotify: ${cmd}`; }
+        if (cmd.startsWith("volume ")) { sendkey.volume(parseInt(cmd.split(" ")[1]) || 50); return `Volume ajustado para ${cmd.split(" ")[1]}`; }
+        return "Comando invalido: next, previous, pause, play, volume [0-100]";
+      }
+      case "youtube_pip":
+      case "youtube_fullscreen": {
+        const tecla = nome === "youtube_pip" ? "i" : "f";
+        require("./sendkey").sendKey(tecla);
+        return nome === "youtube_pip" ? "Picture-in-Picture" : "Tela Cheia";
       }
       case "ffmpeg": {
         if (!args) return "Uso: ffmpeg | [acao]: [parametros]. Acoes: converter, audio, cortar, comprimir, gif, info, screenshot.";

@@ -150,6 +150,23 @@ function encontrarSpotify(texto) {
   return query;
 }
 
+function encontrarSpotifyControl(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:pular|pula|pr[oó]xima|next|skip|passar)\s+(?:a\s+)?(?:m[úu]sica|faixa|track|música)?/i.test(lower)) return "next";
+  if (/^(?:voltar|volta|anterior|previous|back)\s+(?:a\s+)?(?:m[úu]sica|faixa|track)?/i.test(lower)) return "previous";
+  if (/^(?:pausa|pausar|pause|para|parar|stop)\s+(?:a\s+)?(?:m[úu]sica|faixa|track)?/i.test(lower)) return "pause";
+  if (/^(?:continuar|continua|resume|play|tocar|volta a tocar)\s+(?:a\s+)?(?:m[úu]sica|faixa|track)?/i.test(lower)) return "play";
+  if (/^(?:volume do spotify|volume spotify|spotify volume)\s+(\d+)/i.test(lower)) return "volume";
+  return null;
+}
+
+function encontrarYouTubeControl(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/(?:tela\s+cheia|fullscreen|full.?screen|maximizar)/i.test(lower) && /(?:youtube|v[íi]deo|video|yt)/i.test(lower)) return "fullscreen";
+  if (/(?:picture.?in.?picture|pip|janela.?flutuante|flutuante)/i.test(lower) && /(?:youtube|v[íi]deo|video|yt)/i.test(lower)) return "pip";
+  return null;
+}
+
 function encontrarYouTube(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   // "coloca X", "coloca X no youtube", "toca X no youtube", "assiste X", "assiste X no youtube"
@@ -555,6 +572,8 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarExec(texto)) return "exec";
   if (encontrarArquivo(texto)) return "arquivo";
   if (encontrarMensagem(texto)) return "mensagem";
+  if (encontrarSpotifyControl(texto)) return "spotify_control";
+  if (encontrarYouTubeControl(texto)) return "youtube_control";
   if (encontrarSpotify(texto)) return "spotify";
   if (encontrarYouTube(texto)) return "youtube";
   if (encontrarDigitar(texto)) return "digitar";
@@ -980,7 +999,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
   }
 
-  // Spotify — busca ID via Web, toca no Desktop
+  // Spotify — toca música no Desktop
   if (categoria === "spotify") {
     const musica = encontrarSpotify(texto);
     try {
@@ -988,10 +1007,37 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return msg;
     } catch (err) {
       if (err.message?.includes("Track ID")) {
-        return `🔍 Não achei "${musica}" no Spotify. Pode ser que precise logar no Spotify Web pelo Opera da Neon (abre uma vez e faz login que fica salvo).`;
+        return `Não achei "${musica}" no Spotify. Pode ser que precise logar no Spotify Web pelo Opera da Neon (abre uma vez e faz login que fica salvo).`;
       }
-      return `❌ Erro no Spotify: ${err.message}`;
+      return `Erro no Spotify: ${err.message}`;
     }
+  }
+
+  // Spotify — controles (pular, pausar, voltar, play, volume)
+  if (categoria === "spotify_control") {
+    const cmd = encontrarSpotifyControl(texto);
+    if (!cmd) return null;
+    const sendkey = require("./sendkey");
+    if (cmd === "next" || cmd === "previous" || cmd === "pause" || cmd === "play") {
+      const vkMap = { next: 0xB0, previous: 0xB1, pause: 0xB3, play: 0xB3 };
+      sendkey.send(vkMap[cmd]);
+      const nomes = { next: "Pulei", previous: "Voltei", pause: "Pausei", play: "Continuei" };
+      return `${nomes[cmd] || cmd} a música.`;
+    }
+    if (cmd === "volume") {
+      const volMatch = texto.match(/(\d+)/);
+      sendkey.volume(parseInt(volMatch?.[1]) || 50);
+      return `Volume ajustado para ${volMatch?.[1] || 50}.`;
+    }
+    return "Comando não reconhecido.";
+  }
+
+  // YouTube — controles (fullscreen, pip)
+  if (categoria === "youtube_control") {
+    const cmd = encontrarYouTubeControl(texto);
+    if (!cmd) return null;
+    require("./sendkey").sendKey(cmd === "pip" ? "i" : "f");
+    return cmd === "pip" ? "Coloquei o video em Picture-in-Picture." : "Coloquei o video em tela cheia.";
   }
 
   // Pesquisa no navegador
