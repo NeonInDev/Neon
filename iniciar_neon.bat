@@ -5,26 +5,15 @@ fltmc >nul 2>&1 || (
     exit /b
 )
 cd /d "%~dp0"
-:MENU
-cls
-echo.
-echo ========================================
-echo         NEON - Assistente Pessoal
-echo ========================================
-echo.
+set PATH=%~dp0git\cmd;%~dp0node;%PATH%
 if not exist ".env" (
     echo [AVISO] .env nao encontrado
-    echo Crie o arquivo com DISCORD_TOKEN e GEMINI_API_KEY
     pause
 )
 echo [INICIANDO NEON...]
-echo.
-where node >nul 2>&1
-if errorlevel 1 (
-    echo [ERRO] Node.js nao encontrado!
-    pause
-    exit /b 1
-)
+echo Para parar: feche a janela ou pressione Ctrl+C
+:LOOP
 node index.js
-if errorlevel 1 pause
-goto MENU
+echo [REINICIANDO NEON em 3 segundos...]
+timeout /t 3 /nobreak >nul
+goto LOOP

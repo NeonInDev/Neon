@@ -3,7 +3,7 @@ require("dotenv").config();
 const { client } = require("./src/client");
 const { db } = require("./src/db");
 const { TOKEN } = require("./src/config");
-const { log } = require("./src/logger");
+const { log, fechar: fecharLogger } = require("./src/logger");
 const { stopDocsServer } = require("./src/docs/server");
 const { fechar: fecharBrowser } = require("./src/browser");
 const voice = require("./src/voice");
@@ -13,6 +13,9 @@ const opencode = require("./src/opencode");
 const plugins = require("./src/plugin_loader");
 const telegram = require("./src/telegram");
 const agendados = require("./src/agendados");
+const alarmes = require("./src/lembrete_alarme");
+const whatsapp = require("./src/whatsapp");
+const email = require("./src/email");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
@@ -23,6 +26,9 @@ async function desligar(sinal) {
   monitor.parar();
   voice.parar();
   opencode.parar();
+  alarmes.parar();
+  await whatsapp.parar();
+  await email.parar();
   try {
     await db.write();
   } catch (err) {
@@ -31,6 +37,7 @@ async function desligar(sinal) {
   stopDocsServer();
   await fecharBrowser();
   client.destroy();
+  await fecharLogger();
   process.exit(0);
 }
 
@@ -40,10 +47,13 @@ client.once("clientReady", async () => {
   proativo.iniciar(client);
   telegram.iniciar();
   agendados.verificarCadaMinuto();
+  alarmes.iniciar();
   opencode.iniciarServer().then(port => {
     if (port) log("INFO", `[OPENCODE] Servidor rodando na porta ${port}`);
     else log("INFO", "[OPENCODE] Servidor nao iniciado (opencode run continua disponivel)");
   });
+  const { iniciar: iniciarWhatsApp } = require("./src/whatsapp");
+  iniciarWhatsApp();
 });
 
 process.on("SIGINT", () => desligar("SIGINT"));
