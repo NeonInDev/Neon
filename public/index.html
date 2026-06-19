@@ -6,6 +6,7 @@
 <title>Neon</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+<script src="/socket.io/socket.io.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#0a0a0f;--card:#12121a;--border:#1e1e30;--text:#c0c0d0;--dim:#606080;--neon:#6c5ce7;--neon2:#00cec9;--danger:#ff4757;--success:#00d68f;--warn:#fdcb6e}
@@ -18,6 +19,29 @@ header h1{font-size:18px;font-weight:700;background:linear-gradient(135deg,var(-
 .tab{padding:6px 16px;border-radius:6px;cursor:pointer;font-size:13px;color:var(--dim);background:transparent;border:none;transition:.2s}
 .tab:hover{color:var(--text);background:var(--border)}
 .tab.active{color:#fff;background:linear-gradient(135deg,var(--neon),var(--neon2))}
+@media(max-width:768px){
+  header{padding:10px;flex-wrap:wrap;gap:8px}
+  header h1{font-size:15px}
+  .tabs{order:3;width:100%;overflow-x:auto;gap:2px}
+  .tab{padding:5px 10px;font-size:11px;white-space:nowrap}
+  .panel{padding:12px}
+  .stats-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .stat-card{padding:10px}
+  .stat-card .value{font-size:20px}
+  .chart-row{grid-template-columns:1fr;gap:8px}
+  .chat-container{max-width:100%}
+  .msg{max-width:92%;font-size:13px}
+  .chat-input input{font-size:13px;padding:8px 10px}
+  .quick-btn{font-size:11px;padding:6px 10px}
+}
+@media(max-width:480px){
+  .stats-grid{grid-template-columns:1fr 1fr;gap:6px}
+  .stat-card .value{font-size:16px}
+  .stat-card .label{font-size:9px}
+  header{padding:8px}
+  .panel{padding:8px}
+  .msg{padding:8px 10px;font-size:12px}
+}
 main{flex:1;display:flex;overflow:hidden}
 .panel{display:none;flex:1;padding:20px;overflow-y:auto}
 .panel.active{display:block}
@@ -359,11 +383,23 @@ async function toggleVoice() {
   voiceOn = data?.ativo || false
 }
 
+// === WebSocket ===
+const socket = io()
+socket.on('connect', () => console.log('[WS] Conectado'))
+socket.on('log', (entry) => {
+  const allLogs = window._neonLogs || []
+  allLogs.push(entry)
+  if (allLogs.length > 500) allLogs.splice(0, allLogs.length - 500)
+  window._neonLogs = allLogs
+  renderLogs()
+})
+socket.on('disconnect', () => console.log('[WS] Desconectado'))
+
 // === Init ===
 renderQuickActions()
 updateStatus()
 setInterval(updateStatus, 3000)
-setInterval(() => { loadLogs(); renderLogs() }, 5000)
+setInterval(() => { if (!window._neonLogs) { loadLogs(); renderLogs() } }, 10000)
 document.getElementById('chatInput').focus()
 </script>
 </body>
