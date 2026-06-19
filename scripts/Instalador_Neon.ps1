@@ -22,8 +22,9 @@ else { Write-Host "  [!] winget nao encontrado" -ForegroundColor Yellow }
 Write-Host "[2/9] Git..." -ForegroundColor Yellow
 $gitPath = (Get-Command "git" -ErrorAction SilentlyContinue).Source
 if (-not $gitPath -and $winget) {
-    Write-Host "  Instalando Git..." -ForegroundColor Gray
-    try { & winget install Git.Git --silent --accept-package-agreements 2>&1 | Out-Null; Write-Host "  [OK] Git instalado" -ForegroundColor Green } catch { Write-Host "  [FALHA] Git: $_" -ForegroundColor Red }
+    Write-Host "  Instalando Git (pode levar alguns minutos)..." -ForegroundColor Yellow
+    Write-Host "  Aguarde... mostrando saida do winget:" -ForegroundColor Gray
+    try { & winget install Git.Git --silent --accept-package-agreements 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }; if ($LASTEXITCODE -eq 0) { Write-Host "  [OK] Git instalado" -ForegroundColor Green } else { Write-Host "  [FALHA] Git: codigo $LASTEXITCODE" -ForegroundColor Red } } catch { Write-Host "  [FALHA] Git: $_" -ForegroundColor Red }
 } elseif ($gitPath) { Write-Host "  [OK] Git encontrado" -ForegroundColor Green }
 else { Write-Host "  [FALHA] Instale Git manualmente: winget install Git.Git" -ForegroundColor Red }
 
@@ -32,8 +33,9 @@ Write-Host "[3/9] Node.js..." -ForegroundColor Yellow
 $nodeCmd = Get-Command "node" -ErrorAction SilentlyContinue
 if (-not $nodeCmd) {
     if ($winget) {
-        Write-Host "  Instalando via winget..." -ForegroundColor Gray
-        try { & winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements 2>&1 | Out-Null; Write-Host "  [OK] Node.js instalado" -ForegroundColor Green } catch { Write-Host "  [!] winget falhou" -ForegroundColor Yellow }
+        Write-Host "  Instalando Node.js via winget..." -ForegroundColor Yellow
+        Write-Host "  (pode levar alguns minutos)" -ForegroundColor Gray
+        try { & winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }; if ($LASTEXITCODE -eq 0) { Write-Host "  [OK] Node.js instalado" -ForegroundColor Green } else { Write-Host "  [!] winget falhou (codigo $LASTEXITCODE)" -ForegroundColor Yellow } } catch { Write-Host "  [!] winget falhou: $_" -ForegroundColor Yellow }
     }
     $nodeCmd = Get-Command "node" -ErrorAction SilentlyContinue
     if (-not $nodeCmd) {
@@ -59,8 +61,8 @@ Write-Host "[4/9] VS Code..." -ForegroundColor Yellow
 $codeCmd = Get-Command "code" -ErrorAction SilentlyContinue
 if (-not $codeCmd) {
     if ($winget) {
-        Write-Host "  Instalando VS Code..." -ForegroundColor Gray
-        try { & winget install Microsoft.VisualStudioCode --silent --accept-package-agreements 2>&1 | Out-Null; Write-Host "  [OK] VS Code instalado" -ForegroundColor Green } catch { Write-Host "  [!] Falha VS Code: $_" -ForegroundColor Yellow }
+        Write-Host "  Instalando VS Code (pode levar alguns minutos)..." -ForegroundColor Yellow
+        try { & winget install Microsoft.VisualStudioCode --silent --accept-package-agreements 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }; if ($LASTEXITCODE -eq 0) { Write-Host "  [OK] VS Code instalado" -ForegroundColor Green } else { Write-Host "  [!] Falha VS Code (codigo $LASTEXITCODE)" -ForegroundColor Yellow } } catch { Write-Host "  [!] Falha VS Code: $_" -ForegroundColor Yellow }
     }
 }
 if ($codeCmd) { Write-Host "  [OK] VS Code encontrado" -ForegroundColor Green }
@@ -82,7 +84,7 @@ if (-not $blenderFound) {
     Write-Host "  Deseja instalar Blender? [S/N]" -ForegroundColor White
     $key = [Console]::ReadKey($true).KeyChar
     if ($key -eq 's' -or $key -eq 'S') {
-        try { & winget install BlenderFoundation.Blender --silent --accept-package-agreements 2>&1 | Out-Null; Write-Host "  [OK] Blender instalado" -ForegroundColor Green } catch { Write-Host "  [!] Falha Blender: $_" -ForegroundColor Yellow }
+        try { & winget install BlenderFoundation.Blender --silent --accept-package-agreements 2>&1 | ForEach-Object { Write-Host "    $_" -ForegroundColor Gray }; if ($LASTEXITCODE -eq 0) { Write-Host "  [OK] Blender instalado" -ForegroundColor Green } else { Write-Host "  [!] Falha Blender (codigo $LASTEXITCODE)" -ForegroundColor Yellow } } catch { Write-Host "  [!] Falha Blender: $_" -ForegroundColor Yellow }
     } else { Write-Host "  [-] Pulando Blender" -ForegroundColor Gray }
 } else { Write-Host "  [OK] Blender encontrado" -ForegroundColor Green }
 
