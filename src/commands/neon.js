@@ -27,7 +27,7 @@ module.exports = {
     getOrCreateUser(db, interaction.user.id, interaction.user.username);
     const mestre = db.data.users?.[interaction.user.id]?.mestre || false;
     const resultadoAcao = await executarAcao(texto, mestre, interaction.user.id);
-    if (resultadoAcao) {
+    if (resultadoAcao && !resultadoAcao.startsWith("❌")) {
       await interaction.editReply(resultadoAcao);
       return;
     }

@@ -166,13 +166,7 @@ async function processarComando(comando, args) {
       return `😂 ${p.piada}`;
     }
     case "cotacao": {
-      const alvo = args.toUpperCase();
-      if (alvo === "BTC" || alvo === "ETH" || alvo === "SOL") {
-        const c = await api.cotacaoCrypto(alvo);
-        return `📊 **${alvo}:** $${c.preco}`;
-      }
-      const c = await api.cotacaoMoeda(alvo);
-      return `📊 **${alvo}:** R$ ${c.preco}`;
+      return await api.cotacao(args);
     }
     case "pcinfo": {
       const info = await pc.pcInfo();

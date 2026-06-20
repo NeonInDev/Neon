@@ -11,12 +11,14 @@ function getBinPath() {
   const npmDir = path.join(process.env.APPDATA || "", "npm");
   const candidates = [
     path.join(npmDir, "node_modules", "opencode-ai", "bin", "opencode.exe"),
-    path.join(npmDir, "opencode.cmd"),
-    "opencode",
     "opencode.cmd",
+    "opencode",
   ];
   for (const c of candidates) {
-    try { if (fs.existsSync(c) || c === "opencode" || c === "opencode.cmd") { const r = require("child_process").execSync(`where "${c}"`, { timeout: 2000, windowsHide: true, stdio: "pipe" }).toString().trim(); if (r) return c; } } catch {}
+    try {
+      const r = require("child_process").execSync(`where "${c}" 2>nul`, { timeout: 2000, windowsHide: true, stdio: "pipe" }).toString().trim();
+      if (r) return c;
+    } catch {}
   }
   return "opencode.cmd";
 }
@@ -28,40 +30,43 @@ let serverPort = null;
 
 async function iniciarServer() {
   if (serverProcess) return serverPort;
+  parar();
   return new Promise((resolve) => {
     try {
-      const proc = spawn(OPENCODE_BIN, ["serve", "--port", "0", "--hostname", "127.0.0.1"], {
+      log("INFO", "[OPENCODE] Iniciando servidor...", { bin: OPENCODE_BIN });
+      const proc = spawn(OPENCODE_BIN, ["serve", "--port", "0", "--hostname", "127.0.0.1", "--print-logs"], {
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
         shell: true,
       });
       let output = "";
       let settled = false;
-      const finish = (port) => { if (!settled) { settled = true; serverPort = port; resolve(port); } };
+      const finish = (port) => { if (!settled) { settled = true; serverPort = port; if (port) log("INFO", "[OPENCODE] Servidor OK", { port }); else log("WARN", "[OPENCODE] Servidor nao iniciou"); resolve(port); } };
       proc.stdout.on("data", (data) => {
-        output += data.toString();
-        const portMatch = output.match(/listening on.*?:(\d+)/i) || output.match(/port[:\s]*(\d+)/i) || output.match(/http:\/\/127\.0\.0\.1:(\d+)/i);
-        if (portMatch) finish(parseInt(portMatch[1]));
+        const text = data.toString();
+        output += text;
+        const m = text.match(/http:\/\/127\.0\.0\.1:(\d+)/i);
+        if (m) finish(parseInt(m[1]));
       });
       proc.stderr.on("data", (data) => {
         const text = data.toString();
         output += text;
-        const portMatch = text.match(/listening on.*?:(\d+)/i) || text.match(/port[:\s]*(\d+)/i) || text.match(/http:\/\/127\.0\.0\.1:(\d+)/i);
-        if (portMatch) finish(parseInt(portMatch[1]));
+        const m = text.match(/http:\/\/127\.0\.0\.1:(\d+)/i);
+        if (m) finish(parseInt(m[1]));
       });
       proc.on("error", (err) => {
-        log("WARN", "[OPENCODE] Failed to start server", { erro: err.message });
+        log("WARN", "[OPENCODE] Erro ao iniciar servidor", { erro: err.message });
         finish(null);
       });
-      proc.on("exit", () => {
+      proc.on("exit", (code) => {
         serverProcess = null;
         serverPort = null;
-        log("INFO", "[OPENCODE] Server stopped");
+        log("INFO", "[OPENCODE] Servidor encerrou", { code, output: output.slice(-200) });
       });
-      setTimeout(() => finish(null), 10000);
+      setTimeout(() => finish(null), 15000);
       serverProcess = proc;
     } catch (err) {
-      log("WARN", "[OPENCODE] Error starting server", { erro: err.message });
+      log("WARN", "[OPENCODE] Erro ao iniciar servidor", { erro: err.message });
       resolve(null);
     }
   });
@@ -70,20 +75,27 @@ async function iniciarServer() {
 async function executar(tarefa) {
   if (serverPort) {
     try {
-      const res = await axios.post(`http://127.0.0.1:${serverPort}/chat`, {
-        message: tarefa,
-      }, { timeout: 120000, responseType: "text" });
-      let data = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-      return data?.slice(0, 2000) || "Sem resposta.";
-    } catch {
-      log("WARN", "[OPENCODE] HTTP fallback, usando CLI");
+      const res = await axios.post(`http://127.0.0.1:${serverPort}/chat`, { message: tarefa }, {
+        timeout: 120000,
+        responseType: "text",
+        headers: { "Content-Type": "application/json", "Accept": "text/plain" },
+      });
+      const data = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
+      if (data && !data.startsWith("<!doctype") && !data.startsWith("<html")) return data.slice(0, 2000);
+      log("WARN", "[OPENCODE] Server retornou HTML, caindo pra CLI");
+    } catch (err) {
+      log("WARN", "[OPENCODE] HTTP falhou", { erro: err.message?.slice(0, 100) });
     }
   }
   try {
-    const { stdout, stderr } = await execAsync(`opencode run "${tarefa.replace(/"/g, '\\"')}"`, { timeout: 120000, windowsHide: true, maxBuffer: 5 * 1024 * 1024 });
-    return stdout?.trim()?.slice(0, 2000) || stderr?.trim()?.slice(0, 1000) || "Sem resposta do OpenCode.";
+    const safe = tarefa.replace(/"/g, '\\"').replace(/\n/g, " ").slice(0, 1500);
+    const { stdout } = await execAsync(`opencode run "${safe}"`, {
+      timeout: 120000, windowsHide: true, maxBuffer: 5 * 1024 * 1024,
+    });
+    return stdout?.trim()?.slice(0, 2000) || "Sem resposta do OpenCode.";
   } catch (err) {
-    return `Erro OpenCode: ${err.message.slice(0, 200)}`;
+    log("WARN", "[OPENCODE] CLI falhou", { erro: err.message.slice(0, 100) });
+    return null;
   }
 }
 
@@ -96,7 +108,6 @@ function parar() {
     serverProcess.kill();
     serverProcess = null;
     serverPort = null;
-    log("INFO", "[OPENCODE] Server stopped");
   }
 }
 

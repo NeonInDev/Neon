@@ -224,6 +224,43 @@ function qrCode(texto) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(texto)}`;
 }
 
+async function cotacao(args) {
+  const alvo = (args || "").trim().toUpperCase();
+
+  // Se vazio, retorna todas as moedas fiduciárias
+  if (!alvo) {
+    const m = await cotacaoMoeda();
+    return `💱 **Cotações:**\n` +
+      `Dólar: R$ ${m.dolar.compra} (${m.dolar.variacao > 0 ? "+" : ""}${m.dolar.variacao}%)\n` +
+      `Euro: R$ ${m.euro.compra} (${m.euro.variacao > 0 ? "+" : ""}${m.euro.variacao}%)\n` +
+      `Libra: R$ ${m.libra.compra} (${m.libra.variacao > 0 ? "+" : ""}${m.libra.variacao}%)\n` +
+      `Peso ARS: R$ ${m.peso.compra} (${m.peso.variacao > 0 ? "+" : ""}${m.peso.variacao}%)\n` +
+      `📅 ${m.data}`;
+  }
+
+  // Criptomoedas
+  const cryptoMap = { BTC: "bitcoin", ETH: "ethereum", SOL: "solana" };
+  if (cryptoMap[alvo]) {
+    const crypto = await cotacaoCrypto();
+    const key = cryptoMap[alvo];
+    if (!crypto[key]) throw new Error(`${alvo} não encontrado.`);
+    return `📊 **${alvo}:** $${crypto[key].usd} (${crypto[key].variacao24h > 0 ? "+" : ""}${crypto[key].variacao24h?.toFixed(2)}% em 24h)`;
+  }
+
+  // Moedas fiduciárias específicas
+  if (["USD", "EUR", "GBP", "ARS"].includes(alvo)) {
+    const m = await cotacaoMoeda();
+    const map = { USD: "dolar", EUR: "euro", GBP: "libra", ARS: "peso" };
+    const key = map[alvo];
+    return `💱 **${alvo}:** R$ ${m[key].compra} (${m[key].variacao > 0 ? "+" : ""}${m[key].variacao}%)`;
+  }
+
+  // Ações/BDRs (ex: PETR4, AAPL34, WEGE3)
+  const acao = await cotacaoAcao(alvo);
+  return `📈 **${acao.nome} (${acao.ticker}):** R$ ${acao.preco} (${acao.variacao > 0 ? "+" : ""}${acao.variacao?.toFixed(2)}%)\n` +
+    `Abertura: R$ ${acao.abertura} | Máx: R$ ${acao.maxima} | Mín: R$ ${acao.minima}`;
+}
+
 async function cotacaoAcao(ticker) {
   const { data } = await axios.get(`https://brapi.dev/api/quote/${encodeURIComponent(ticker)}?range=1d&interval=1d`, { timeout: 10000 });
   const s = data.results?.[0];
@@ -239,4 +276,4 @@ async function cotacaoAcao(ticker) {
   };
 }
 
-module.exports = { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao };
+module.exports = { cotacao, cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao };
