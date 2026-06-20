@@ -1,0 +1,36 @@
+#
+# Neon Theme for Ventoy
+#
+Title: Neon - Assistente Pessoal IA
+TitleColor: #00d4ff
+TitleFontSize: 36
+
+Background: /ventoy/theme/neon_bg.png
+BackgroundColor: #0a0a0f
+
+MenuItemColor: #c0c0d0
+MenuItemSelectColor: #ffffff
+MenuItemFontSize: 22
+
+MenuItemMarginLeft: 60
+MenuItemMarginTop: 200
+MenuItemGap: 10
+
+ItemNormalColor: #c0c0d0
+ItemSelectColor: #00d4ff
+ItemSelectBackgroundColor: #1e1e30
+
+MenuTitle: left
+MenuItems: left
+
+BootMenuColor: #0a0a0f
+BootMenuSelectColor: #12223a
+
+ProgressBarColor: #00d4ff
+ProgressBarBackgroundColor: #0a0a0f
+
+ToolbarStyle: hidden
+StatusBarStyle: hidden
+
+ScrollbarColor: #00d4ff
+ScrollbarBackground: #1e1e30

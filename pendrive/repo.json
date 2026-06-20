@@ -1,0 +1,21 @@
+{
+    "repo_version": "4.0",
+    "name": "Neon Pendrive - Instalador Otimizado",
+    "description": "Instalacao local sem git clone. Node.js portatil incluso no pendrive.",
+    "structure": {
+        "root": ["instalar.bat", "desinstalar.bat", "autorun.inf", "repo.json"],
+        "installer/": ["Instalador_Neon.ps1", "Instalador_Neon_GUI.ps1", "Desinstalar_Neon.ps1", "Desinstalar_Neon_GUI.ps1", "cripitar.js", "neon_env.enc"],
+        "neon/": ["index.js", "package.json", "src/", "scripts/", "plugins/", "public/"],
+        "neon/src/": ["index.js", "bot.js", "commands/", "events/", "scripts/"],
+        "runtimes/node/": ["node-v22.14.0-win-x64.zip"],
+        "ventoy/": ["ventoy.json"],
+        "ventoy/theme/": ["neon_theme.txt"],
+        "scripts/": ["sync_to_pendrive.ps1", "sync_to_pendrive.bat"]
+    },
+    "optimizations": [
+        "Neon copiado diretamente do pendrive (sem git clone)",
+        "Node.js extraido do zip local (sem download)",
+        "FFmpeg baixado da internet (se disponivel)",
+        "Git nao necessario para instalacao basica"
+    ]
+}

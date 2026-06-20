@@ -1,0 +1,16 @@
+{
+  "comandos": [
+    {
+      "patterns": ["boa noite", "vou dormir", "hora de dormir"],
+      "action": "executar",
+      "value": "shutdown /s /t 60",
+      "response": "Boa noite, chefão! Desligando em 1 minuto. Pode usar `Neon, cancelar` se mudar de ideia."
+    },
+    {
+      "patterns": ["abre meu projeto", "abre o workspace"],
+      "action": "executar",
+      "value": "code C:\\Meus Projetos",
+      "response": "Abrindo seu workspace no VS Code."
+    }
+  ]
+}

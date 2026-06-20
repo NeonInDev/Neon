@@ -1,0 +1,5 @@
+[Autorun]
+open=instalar.bat
+action=Instalar Neon - Assistente Pessoal
+icon=assets\neon.ico
+label=Neon Installer
