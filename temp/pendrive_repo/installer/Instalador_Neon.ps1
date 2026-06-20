@@ -3,7 +3,7 @@ $ErrorActionPreference = "Continue"
 $Host.UI.RawUI.WindowTitle = "Neon Installer (Pendrive)"
 $installStart = Get-Date
 
-$PENDRIVE   = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$PENDRIVE   = Split-Path -Parent $PSScriptRoot
 $DESTINO    = Join-Path $env:USERPROFILE "Neon"
 $FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
 $LOG_FILE   = Join-Path $env:USERPROFILE "Desktop\neon_install_log.txt"
@@ -47,10 +47,10 @@ else { logMSG "  [!] Sem internet - modo offline parcial" -color "Yellow" }
 # -- 1. Verificar arquivos --
 step -num 1 -total 8 -msg "Verificando arquivos"
 $required = @(
-  @(Join-Path $NEON_SRC "index.js", "Projeto Neon"),
-  @(Join-Path $NEON_SRC "src", "Pasta src"),
-  @(Join-Path $NEON_SRC "package.json", "package.json"),
-  @(Join-Path $NODE_ZIP, "Node.js zip")
+  @((Join-Path $NEON_SRC "index.js"), "Projeto Neon"),
+  @((Join-Path $NEON_SRC "src"), "Pasta src"),
+  @((Join-Path $NEON_SRC "package.json"), "package.json"),
+  @($NODE_ZIP, "Node.js zip")
 )
 $ok = $true
 foreach ($r in $required) {
@@ -158,7 +158,7 @@ step -num 6 -total 8 -msg "Arquivo .env"
 $envFile = Join-Path $DESTINO ".env"
 $encFile = Join-Path $PSScriptRoot "neon_env.enc"
 $cripitarJs = Join-Path $DESTINO "scripts\cripitar.js"
-if (Test-Path $encFile -and -not (Test-Path $envFile)) {
+if ((Test-Path $encFile) -and -not (Test-Path $envFile)) {
   logMSG "  Arquivo criptografado detectado!" -color "Yellow"
   do {
     $sec = Read-Host "  Digite a senha do .env" -AsSecureString
