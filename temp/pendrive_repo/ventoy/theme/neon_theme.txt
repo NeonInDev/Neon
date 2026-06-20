@@ -5,7 +5,7 @@ Title: Neon - Assistente Pessoal IA
 TitleColor: #00d4ff
 TitleFontSize: 36
 
-Background: /ventoy/theme/neon_bg.png
+#Background: /ventoy/theme/neon_bg.png
 BackgroundColor: #0a0a0f
 
 MenuItemColor: #c0c0d0

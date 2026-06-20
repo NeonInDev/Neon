@@ -52,8 +52,16 @@ function Sync-ToUSB {
     New-Item -ItemType Directory -Path "${target}ISO" -Force | Out-Null
 
     Copy-Item "$REPO\installer\*" "${target}installer\" -Force -Recurse
+    if (Test-Path "$REPO\neon") { Copy-Item "$REPO\neon" "${target}neon\" -Recurse -Force }
+    if (Test-Path "$REPO\runtimes") { Copy-Item "$REPO\runtimes" "${target}runtimes\" -Recurse -Force }
     Copy-Item "$REPO\instalar.bat" "$target" -Force
     Copy-Item "$REPO\desinstalar.bat" "$target" -Force
+    Copy-Item "$REPO\instalar.vbs" "$target" -Force
+    Copy-Item "$REPO\desinstalar.vbs" "$target" -Force
+    Copy-Item "$REPO\INICIAR.bat" "$target" -Force
+    Copy-Item "$REPO\LEIA-ME.txt" "$target" -Force
+    Copy-Item "$REPO\diagnosticar.bat" "$target" -Force
+    Copy-Item "$REPO\repo.json" "$target" -Force
     Copy-Item "$REPO\autorun.inf" "$target" -Force
 
     if (Test-Path "$REPO\ventoy\ventoy.json") { Copy-Item "$REPO\ventoy\ventoy.json" "${target}ventoy\" -Force }
@@ -76,8 +84,16 @@ function New-ISO {
   New-Item -ItemType Directory -Path $workDir -Force | Out-Null
 
   Copy-Item "$REPO\installer" "$workDir\installer" -Recurse -Force
+  if (Test-Path "$REPO\neon") { Copy-Item "$REPO\neon" "$workDir\neon" -Recurse -Force }
+  if (Test-Path "$REPO\runtimes") { Copy-Item "$REPO\runtimes" "$workDir\runtimes" -Recurse -Force }
+  if (Test-Path "$REPO\scripts") { Copy-Item "$REPO\scripts" "$workDir\scripts" -Recurse -Force }
+  if (Test-Path "$REPO\assets") { Copy-Item "$REPO\assets" "$workDir\assets" -Recurse -Force }
+  if (Test-Path "$REPO\installer\neon_env.enc") { Copy-Item "$REPO\installer\neon_env.enc" "$workDir\installer\" -Force }
   Copy-Item "$REPO\instalar.bat" "$workDir\" -Force
-  Copy-Item "$REPO\autorun.inf" "$workDir\" -Force
+  Copy-Item "$REPO\desinstalar.bat" "$workDir\" -Force
+  Copy-Item "$REPO\instalar.vbs" "$workDir\" -Force
+  Copy-Item "$REPO\desinstalar.vbs" "$workDir\" -Force
+  Copy-Item "$REPO\INICIAR.bat" "$workDir\" -Force
 
   $oscdimg = "${env:ProgramFiles(x86)}\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\x86\Oscdimg\oscdimg.exe"
   $oscdimg2 = "${env:ProgramFiles(x86)}\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg\oscdimg.exe"

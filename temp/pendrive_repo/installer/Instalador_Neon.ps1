@@ -1,251 +1,217 @@
 #Requires -Version 5.1
+param([switch]$Silent)
+
 $ErrorActionPreference = "Continue"
-$Host.UI.RawUI.WindowTitle = "Neon Installer (Pendrive)"
-$installStart = Get-Date
+$Host.UI.RawUI.WindowTitle = "Instalar Neon v4.0"
 
-$PENDRIVE   = Split-Path -Parent $PSScriptRoot
-$DESTINO    = Join-Path $env:USERPROFILE "Neon"
-$FFMPEG_URL = "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip"
-$LOG_FILE   = Join-Path $env:USERPROFILE "Desktop\neon_install_log.txt"
-$NODE_VER   = "22.14.0"
-$NODE_ZIP   = Join-Path $PENDRIVE "runtimes\node\node-v$NODE_VER-win-x64.zip"
-$NEON_SRC   = Join-Path $PENDRIVE "neon"
-
-function logMSG {
-  param($msg, $color = "White")
-  $line = "[$(Get-Date -Format 'HH:mm:ss')] $msg"
-  Add-Content -Path $LOG_FILE -Value $line
-  Write-Host $msg -ForegroundColor $color
+function IsJobContext {
+  if ($Silent) { return $true }
+  $name = $Host.Name
+  if ($name -ne "ConsoleHost" -and $name -ne "Windows PowerShell ISE Host") { return $true }
+  return $false
 }
+function SafePause { if (-not (IsJobContext)) { Write-Host "`nPressione Enter para continuar..."; $null = Read-Host } }
+function Write-Step { $msg = "[$(Get-Date -Format 'HH:mm:ss')] $args"; Write-Host $msg -ForegroundColor Cyan }
+function Write-OK { Write-Host "  [OK] $args" -ForegroundColor Green }
+function Write-Warn { Write-Host "  [!] $args" -ForegroundColor Yellow }
 
-function step {
-  param($num, $total, $msg)
-  $pct = [math]::Round($num / $total * 100)
-  Write-Progress -Activity "Instalando Neon" -Status "Passo $num de $total" -CurrentOperation $msg -PercentComplete $pct
-  logMSG "[$num/$total] $msg" -color "Yellow"
-}
-
-function Test-Internet {
-  try { Invoke-WebRequest -Uri "https://github.com" -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop; return $true }
-  catch { return $false }
-}
-
-Add-Content -Path $LOG_FILE -Value "=== Neon Installer Pendrive $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') ==="
-logMSG "+------------------------------------------+" -color "Cyan"
-logMSG "|     NEON INSTALLER v4.0 (PENDRIVE)        |" -color "Cyan"
-logMSG "|     Otimizado - copia local + portatil    |" -color "Cyan"
-logMSG "+------------------------------------------+" -color "Cyan"
-logMSG ""
-
-logMSG "Pendrive detectado em: $PENDRIVE"
-logMSG ""
-
-$online = Test-Internet
-if ($online) { logMSG "  [OK] Internet disponivel" -color "Green" }
-else { logMSG "  [!] Sem internet - modo offline parcial" -color "Yellow" }
-
-# -- 1. Verificar arquivos --
-step -num 1 -total 8 -msg "Verificando arquivos"
-$required = @(
-  @((Join-Path $NEON_SRC "index.js"), "Projeto Neon"),
-  @((Join-Path $NEON_SRC "src"), "Pasta src"),
-  @((Join-Path $NEON_SRC "package.json"), "package.json"),
-  @($NODE_ZIP, "Node.js zip")
-)
-$ok = $true
-foreach ($r in $required) {
-  if (Test-Path $r[0]) { logMSG "  [OK] $($r[1])" -color "Green" }
-  else { logMSG "  [FALTA] $($r[1]) em $($r[0])" -color "Red"; $ok = $false }
-}
-if (-not $ok) { logMSG "  Arquivos faltando! Verifique o pendrive." -color "Red"; pause; exit 1 }
-
-# -- 2. Node.js portatil --
-step -num 2 -total 8 -msg "Node.js portatil"
-New-Item -ItemType Directory -Path "$DESTINO\node" -Force | Out-Null
-$nodeCmd = "$DESTINO\node\node.exe"
-if (-not (Test-Path $nodeCmd)) {
-  logMSG "  Extraindo Node.js $NODE_VER do pendrive..." -color "Gray"
-  try {
-    Expand-Archive -Path $NODE_ZIP -DestinationPath "$DESTINO\node_tmp" -Force
-    Move-Item -Path "$DESTINO\node_tmp\node-v$NODE_VER-win-x64\*" -Destination "$DESTINO\node" -Force
-    Remove-Item "$DESTINO\node_tmp" -Recurse -Force -ErrorAction SilentlyContinue
-    $env:PATH = "$DESTINO\node;$env:PATH"
-    $v = & $nodeCmd --version
-    logMSG "  [OK] Node.js $v extraido do pendrive" -color "Green"
-  } catch { logMSG "  [FALHA] Extrair Node: $_" -color "Red"; pause; exit 1 }
-} else {
-  $env:PATH = "$DESTINO\node;$env:PATH"
-  $v = & $nodeCmd --version
-  logMSG "  [OK] Node.js $v ja instalado" -color "Green"
-}
-
-# -- 3. FFmpeg --
-step -num 3 -total 8 -msg "FFmpeg"
-if (-not (Test-Path "C:\ffmpeg\ffmpeg.exe")) {
-  if ($online) {
-    logMSG "  Baixando FFmpeg..." -color "Gray"
-    try {
-      $zipPath = Join-Path $env:TEMP "ffmpeg.zip"
-      Invoke-WebRequest -Uri $FFMPEG_URL -OutFile $zipPath -UseBasicParsing -TimeoutSec 180
-      $tmpDir = Join-Path $env:TEMP "ffmpeg_tmp"
-      New-Item -ItemType Directory -Path $tmpDir -Force | Out-Null
-      Expand-Archive -Path $zipPath -DestinationPath $tmpDir -Force
-      $exe = Get-ChildItem $tmpDir -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1
-      if ($exe) {
-        New-Item -ItemType Directory -Path "C:\ffmpeg" -Force | Out-Null
-        Copy-Item -Path "$($exe.Directory.FullName)\*" -Destination "C:\ffmpeg" -Recurse -Force
-        $oldPath = [Environment]::GetEnvironmentVariable("Path", "Machine")
-        if ($oldPath -notlike "*C:\ffmpeg*") {
-          [Environment]::SetEnvironmentVariable("Path", "$oldPath;C:\ffmpeg", "Machine")
-          $env:PATH = "$env:PATH;C:\ffmpeg"
-        }
-        logMSG "  [OK] FFmpeg em C:\ffmpeg" -color "Green"
-      }
-      Remove-Item -Path $tmpDir -Recurse -Force -ErrorAction SilentlyContinue
-    } catch { logMSG "  [!] Falha FFmpeg: $_" -color "Yellow" }
-  } else { logMSG "  [!] Sem internet - FFmpeg nao instalado" -color "Yellow" }
-} else { logMSG "  [OK] FFmpeg ja instalado" -color "Green" }
-
-# -- 4. Copiar Neon do pendrive --
-step -num 4 -total 8 -msg "Copiando Neon do pendrive"
-if (Test-Path $DESTINO) {
-  logMSG "  Destino ja existe. Mesclando arquivos..." -color "Gray"
-  Copy-Item -Path "$NEON_SRC\*" -Destination $DESTINO -Recurse -Force -ErrorAction SilentlyContinue
-  logMSG "  [OK] Arquivos mesclados" -color "Green"
-} else {
-  try {
-    Copy-Item -Path $NEON_SRC -Destination $DESTINO -Recurse -Force
-    logMSG "  [OK] Neon copiado do pendrive" -color "Green"
-  } catch { logMSG "  [FALHA] Copiar Neon: $_" -color "Red"; pause; exit 1 }
-}
-
-# -- 5. npm install --
-step -num 5 -total 8 -msg "Instalando dependencias"
-Push-Location $DESTINO
-try {
-  if ($online) {
-    $npmJob = Start-Job -ScriptBlock { param($d) Push-Location $d; try { npm install --production 2>&1 } catch { $_ } ; Pop-Location } -ArgumentList $DESTINO
-    $npmJob | Wait-Job -Timeout 300 | Out-Null
-    if ($npmJob.State -eq "Completed") { $result = Receive-Job $npmJob; logMSG "  [OK] npm install" -color "Green" }
-    else { Stop-Job $npmJob; logMSG "  [!] npm install timeout (>5min)" -color "Yellow" }
-    Remove-Job $npmJob -Force -ErrorAction SilentlyContinue
-  } else {
-    logMSG "  [!] Sem internet - dependencias NPM nao instaladas" -color "Yellow"
-    logMSG "  Execute 'npm install' manualmente depois" -color "Gray"
+trap {
+  $err = $_.Exception.Message
+  Write-Host "`n[ERRO FATAL] $err" -ForegroundColor Red
+  Add-Content -Path "$env:USERPROFILE\Desktop\neon_error.txt" -Value "[$(Get-Date)] FATAL: $err"
+  if (-not (IsJobContext)) {
+    Write-Host "`nPressione Enter para fechar..."
+    $null = Read-Host
   }
-} catch { logMSG "  [!] npm falhou: $_" -color "Yellow" }
-
-try {
-  $oc = Get-Command "opencode" -ErrorAction SilentlyContinue
-  if (-not $oc) {
-    $ocPath = Join-Path $DESTINO "node_modules\.bin\opencode.cmd"
-    if (-not (Test-Path $ocPath)) {
-      if ($online) {
-        logMSG "  Instalando opencode global..." -color "Gray"
-        $ocJob = Start-Job -ScriptBlock { npm install -g opencode-ai 2>&1 }
-        $ocJob | Wait-Job -Timeout 120 | Out-Null
-        if ($ocJob.State -eq "Completed") { Receive-Job $ocJob | Out-Null; logMSG "  [OK] Opencode instalado" -color "Green" }
-        else { Stop-Job $ocJob; logMSG "  [!] opencode timeout" -color "Yellow" }
-        Remove-Job $ocJob -Force -ErrorAction SilentlyContinue
-      } else { logMSG "  [!] Sem internet - Opencode nao instalado" -color "Yellow" }
-    } else { logMSG "  [OK] Opencode local" -color "Green" }
-  } else { logMSG "  [OK] Opencode ja instalado" -color "Green" }
-} catch { logMSG "  [!] Opencode: $_" -color "Yellow" }
-Pop-Location
-
-# -- 6. .env --
-step -num 6 -total 8 -msg "Arquivo .env"
-$envFile = Join-Path $DESTINO ".env"
-$encFile = Join-Path $PSScriptRoot "neon_env.enc"
-$cripitarJs = Join-Path $DESTINO "scripts\cripitar.js"
-if ((Test-Path $encFile) -and -not (Test-Path $envFile)) {
-  logMSG "  Arquivo criptografado detectado!" -color "Yellow"
-  do {
-    $sec = Read-Host "  Digite a senha do .env" -AsSecureString
-    $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
-    $pass = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
-    if ($pass) {
-      $result = & $nodeCmd $cripitarJs decripitar "$encFile" "$envFile" "$pass" 2>&1
-      if ($LASTEXITCODE -eq 0 -and (Test-Path $envFile)) {
-        logMSG "  [OK] .env decriptado" -color "Green"; break
-      }
-    }
-    logMSG "  [!] Senha incorreta! Tente novamente." -color "Red"
-  } while ($true)
-} elseif (-not (Test-Path $envFile)) {
-  @"
-DISCORD_TOKEN=seu_token_aqui
-GEMINI_API_KEY=sua_chave_aqui
-TELEGRAM_TOKEN=seu_token_aqui
-"@ | Set-Content -Path $envFile -Encoding UTF8
-  logMSG "  [OK] .env criado (configure os tokens)" -color "Green"
-} else { logMSG "  [OK] .env ja existe" -color "Green" }
-
-# -- 7. Atalhos --
-step -num 7 -total 8 -msg "Criando atalhos"
-$shell = New-Object -ComObject WScript.Shell
-$desktop = [Environment]::GetFolderPath("Desktop")
-$iniciarBat = Join-Path $DESTINO "iniciar_neon.bat"
-if (-not (Test-Path $iniciarBat)) {
-@"
-@echo off
-title Neon - Assistente IA
-fltmc >nul 2>&1 || (
-    powershell -Command "Start-Process -Verb RunAs -FilePath '%~f0' -WorkingDirectory '%~dp0'"
-    exit /b
-)
-cd /d "%~dp0"
-set PATH=%~dp0git\cmd;%~dp0node;%PATH%
-:MENU
-cls
-echo ========================================
-echo         NEON - Assistente Pessoal
-echo ========================================
-echo.
-if not exist ".env" (
-    echo [AVISO] .env nao encontrado
-    pause
-)
-echo [INICIANDO NEON...]
-echo.
-node index.js
-if errorlevel 1 pause
-goto MENU
-"@ | Set-Content -Path $iniciarBat -Encoding ASCII
+  exit 1
 }
-$lnk = $shell.CreateShortcut((Join-Path $desktop "Neon.lnk"))
-$lnk.TargetPath = "cmd.exe"
-$lnk.Arguments = "/c `"$iniciarBat`""
-$lnk.WorkingDirectory = $DESTINO
-$lnk.WindowStyle = 1
-$lnk.Description = "Iniciar Neon"
-$lnk.Save()
-$lnk2 = $shell.CreateShortcut((Join-Path $desktop "Neon - Dashboard.lnk"))
-$lnk2.TargetPath = "http://localhost:3000"
-$lnk2.Description = "Neon Dashboard"
-$lnk2.Save()
-logMSG "  [OK] Atalhos criados" -color "Green"
 
-# -- 8. Final --
-step -num 8 -total 8 -msg "Finalizando"
-Write-Progress -Activity "Instalando Neon" -Completed
-$elapsed = [math]::Round(((Get-Date) - $installStart).TotalSeconds)
-logMSG ""
-logMSG "+------------------------------------------+" -color "Cyan"
-logMSG "|       INSTALACAO CONCLUIDA!              |" -color "Cyan"
-logMSG "|   Tempo total: ${elapsed}s               |" -color "Cyan"
-logMSG "|   Modo: Pendrive v4.0 (local + portatil) |" -color "Cyan"
-logMSG "+------------------------------------------+" -color "Cyan"
-logMSG ""
-logMSG "  Neon: atalho na Area de Trabalho" -color "White"
-logMSG "  Docs: http://localhost:3000" -color "White"
-logMSG "  Log:  $LOG_FILE" -color "DarkGray"
-logMSG ""
+$PENDRIVE  = Split-Path -Parent $PSScriptRoot
+$DESTINO   = Join-Path $env:USERPROFILE "Neon"
+$LOG_FILE  = Join-Path $env:USERPROFILE "Desktop\neon_install_log.txt"
 
-try {
-  $popup = New-Object -ComObject wscript.shell
-  $popup.Popup("Neon instalada com sucesso! ($elapsed segundos)", 10, "Neon Installer", 64)
-} catch {}
+Write-Host "+------------------------------------------+" -ForegroundColor Cyan
+Write-Host "|      NEON - ASSISTENTE PESSOAL v4.0      |" -ForegroundColor Cyan
+Write-Host "|      Instalacao otimizada (offline)       |" -ForegroundColor Cyan
+Write-Host "+------------------------------------------+" -ForegroundColor Cyan
+Write-Host ""
 
-pause
+if (-not $Silent) {
+  Write-Host "Isso vai instalar o Neon em: $DESTINO" -ForegroundColor Yellow
+  Write-Host "  * Node.js portatil (zip incluso)"
+  Write-Host "  * Projeto copiado do pendrive"
+  Write-Host "  * Atalhos na area de trabalho"
+  SafePause
+}
+
+# ── Step 1: Verificar pendrive ────────────────────────
+Write-Step "Passo 1/8 - Verificando pendrive..."
+$required = @(
+    (Join-Path $PENDRIVE "installer\Instalador_Neon.ps1")
+    (Join-Path $PENDRIVE "runtimes\node\node-v22.14.0-win-x64.zip")
+    (Join-Path $PENDRIVE "neon")
+    (Join-Path $PENDRIVE "installer\neon_env.enc")
+    (Join-Path $PENDRIVE "assets\neon.ico")
+)
+$missing = $false
+foreach ($r in $required) {
+    if (-not (Test-Path $r)) { Write-Warn "Arquivo ausente: $r"; $missing = $true }
+}
+if ($missing) {
+    Write-Host "[ERRO] Arquivos faltando no pendrive." -ForegroundColor Red
+    SafePause; exit 1
+}
+Write-OK "Pendrive verificado"
+
+# ── Step 2: Criar pasta destino ──────────────────────
+Write-Step "Passo 2/8 - Criando pasta de destino..."
+New-Item -ItemType Directory -Path $DESTINO -Force | Out-Null
+Write-OK "Pasta criada: $DESTINO"
+
+# ── Step 3: Copiar projeto ───────────────────────────
+Write-Step "Passo 3/8 - Copiando projeto..."
+$src = Join-Path $PENDRIVE "neon"
+$dst = Join-Path $DESTINO "neon"
+if (Test-Path $dst) { Remove-Item -Path $dst -Recurse -Force -ErrorAction SilentlyContinue }
+Copy-Item -Path $src -Destination $DESTINO -Recurse -Force
+Write-OK "Projeto copiado"
+
+# ── Step 4: Extrair Node.js ──────────────────────────
+Write-Step "Passo 4/8 - Extraindo Node.js..."
+$nodeZip  = Join-Path $PENDRIVE "runtimes\node\node-v22.14.0-win-x64.zip"
+$nodeDest = Join-Path $DESTINO "node"
+if (-not (Test-Path $nodeDest)) {
+    try {
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [IO.Compression.ZipFile]::ExtractToDirectory($nodeZip, $nodeDest)
+        Write-OK "Node.js extraido"
+    } catch {
+        Write-Warn "Falha ao extrair via .NET ZipFile, tentando Expand-Archive..."
+        try { Expand-Archive -Path $nodeZip -DestinationPath $nodeDest -Force; Write-OK "Node.js extraido" }
+        catch { Write-Host "[ERRO] Nao foi possivel extrair Node.js: $_" -ForegroundColor Red; SafePause; exit 1 }
+    }
+} else { Write-OK "Node.js ja extraido" }
+
+# ── Step 5: Instalar dependencias npm ─────────────────
+Write-Step "Passo 5/8 - Instalando dependencias npm..."
+$nodeDir = Get-ChildItem -Path $nodeDest -Directory | Select-Object -First 1
+if (-not $nodeDir) { Write-Host "[ERRO] Pasta do Node nao encontrada em $nodeDest" -ForegroundColor Red; SafePause; exit 1 }
+$npm  = Join-Path $nodeDir.FullName "npm.cmd"
+$npx  = Join-Path $nodeDir.FullName "npx.cmd"
+$proj = Join-Path $DESTINO "neon"
+
+if (Test-Path $npm) {
+    $env:Path = "$(Split-Path $npm);$env:Path"
+    Set-Location $proj
+    $env:NPMLOG = Join-Path $DESTINO "npm_install.log"
+
+    if (Test-Path (Join-Path $proj "node_modules")) {
+        Write-OK "node_modules ja existe, pulando npm install"
+    } else {
+        try {
+            & $npm install --no-audit --no-fund 2>&1 | ForEach-Object { Write-Host "  $_" -ForegroundColor Gray }
+            Write-OK "Dependencias instaladas"
+        } catch { Write-Warn "npm install falhou: $_" }
+    }
+} else {
+    Write-Warn "npm nao encontrado em $npm"
+}
+
+# ── Step 6: Baixar/Verificar FFmpeg ──────────────────
+Write-Step "Passo 6/8 - Verificando FFmpeg..."
+$ffmpegDir = "C:\ffmpeg"
+if (-not (Test-Path "$ffmpegDir\bin\ffmpeg.exe")) {
+    Write-Host "  Baixando FFmpeg..." -ForegroundColor Yellow
+    try {
+        $ffZip = Join-Path $DESTINO "ffmpeg-release-full.7z"
+        if (-not (Test-Path $ffZip)) {
+            Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-full.7z" -OutFile $ffZip -UseBasicParsing
+        }
+        if (Test-Path $ffZip) {
+            if (Get-Command "7z" -ErrorAction SilentlyContinue) { 7z x $ffZip "-o$ffmpegDir" -y | Out-Null; Write-OK "FFmpeg extraido" }
+            else { Write-Warn "7z nao encontrado, baixe manualmente de: https://ffmpeg.org/download.html" }
+        } else { Write-Warn "Download FFmpeg falhou" }
+    } catch { Write-Warn "Falha ao baixar FFmpeg: $_" }
+    if (Test-Path "$ffmpegDir\bin\ffmpeg.exe") {
+        try { [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "Machine") + ";C:\ffmpeg\bin", "Machine") } catch { Write-Warn "Nao foi possivel adicionar FFmpeg ao PATH (sem admin?)" }
+    }
+} else { Write-OK "FFmpeg ja instalado" }
+
+# ── Step 7: Configurar .env ──────────────────────────
+Write-Step "Passo 7/8 - Configurando variaveis de ambiente..."
+$envFile = Join-Path $proj ".env"
+$encFile = Join-Path $PENDRIVE "neon_env.enc"
+
+if (Test-Path $envFile) {
+    Write-OK ".env ja existe"
+} elseif (Test-Path $encFile) {
+    if (IsJobContext) {
+        # Running in job - copy encrypted file as-is, user can decrypt later
+        Copy-Item -Path $encFile -Destination (Join-Path $proj "neon_env.enc") -Force
+        Write-Warn "neon_env.enc copiado (descriptografe manualmente em ambiente interativo)"
+    } else {
+        Write-Host "  Arquivo .env criptografado detectado." -ForegroundColor Yellow
+        $tryCount = 0
+        do {
+            try {
+                $sec = Read-Host "  Digite a senha do .env" -AsSecureString
+                $ptr  = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+                $pass = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+                [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
+                $result = & "$PENDRIVE\installer\cripitar.js" "$encFile" "$envFile" "$pass" 2>&1
+                if ($LASTEXITCODE -eq 0 -and (Test-Path $envFile)) { Write-OK ".env configurado"; break }
+                else { Write-Warn "Senha incorreta. Tentativa $($tryCount+1)/3"; $tryCount++ }
+            } catch { Write-Warn "Erro: $_"; $tryCount++ }
+        } while ($tryCount -lt 3)
+        if (-not (Test-Path $envFile)) { Write-Warn "Nao foi possivel descriptografar .env. Copie manualmente." }
+    }
+} else {
+    Write-Warn "Arquivo neon_env.enc nao encontrado no pendrive."
+}
+
+# ── Step 8: Criar atalhos ────────────────────────────
+Write-Step "Passo 8/8 - Criando atalhos..."
+$wshell   = New-Object -ComObject wscript.shell
+$desktop  = [Environment]::GetFolderPath("Desktop")
+$startBat = Join-Path $proj "start.bat"
+if (Test-Path $startBat) {
+    $link = $wshell.CreateShortcut("$desktop\Neon.lnk")
+    $link.TargetPath = "powershell.exe"
+    $link.Arguments  = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$startBat`""
+    $link.WorkingDirectory = $proj
+    $link.IconLocation = Join-Path $PENDRIVE "assets\neon.ico"
+    $link.Save()
+    Write-OK "Atalho Neon na area de trabalho"
+}
+if (Test-Path (Join-Path $proj "README.md")) {
+    $link2 = $wshell.CreateShortcut("$desktop\Neon - Documentacao.lnk")
+    $link2.TargetPath = Join-Path $proj "README.md"
+    $link2.WorkingDirectory = $proj
+    $link2.Save()
+    Write-OK "Atalho Documentacao na area de trabalho"
+}
+if (Test-Path (Join-Path $proj "dashboard.html")) {
+    $link3 = $wshell.CreateShortcut("$desktop\Neon - Dashboard.lnk")
+    $link3.TargetPath = Join-Path $proj "dashboard.html"
+    $link3.WorkingDirectory = $proj
+    $link3.Save()
+    Write-OK "Atalho Dashboard na area de trabalho"
+}
+
+# ── Concluido ─────────────────────────────────────────
+Write-Step "Instalacao concluida!"
+Write-Host ""
+Write-Host "+------------------------------------------+" -ForegroundColor Cyan
+Write-Host "|  NEON instalado com sucesso!              |" -ForegroundColor Cyan
+Write-Host "|  Pasta: $DESTINO" -ForegroundColor Cyan
+Write-Host "|  Atalho: Area de trabalho -> Neon.lnk     |" -ForegroundColor Cyan
+Write-Host "+------------------------------------------+" -ForegroundColor Cyan
+Write-Host ""
+
+if (IsJobContext) {
+    # Emit progress-compatible exit so parent job detects success
+    Write-Progress -Activity "Concluido" -Status "Instalacao finalizada" -Completed
+} else {
+    SafePause
+}
+exit 0
