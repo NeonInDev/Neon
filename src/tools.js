@@ -33,6 +33,7 @@ const FERRAMENTAS = [
   { nome: "noticias", desc: "Mostra as ultimas noticias. Uso: noticias" },
   { nome: "clima", desc: "Previsao do tempo. Uso: clima | [cidade]" },
   { nome: "cotacao", desc: "Cotacao de moeda/cripto/acao. Uso: cotacao | [BTC/USD/PETR4]" },
+  { nome: "cinema", desc: "Filmes e horarios nos cinemas. Uso: cinema | [cidade] | [nome do cinema]" },
   { nome: "pcInfo", desc: "Status do PC (CPU, RAM, Disco). Uso: pcInfo" },
   { nome: "screenshot", desc: "Tira um print da tela. Uso: screenshot" },
   { nome: "volume", desc: "Define o volume (0-100). Uso: volume | [0-100]" },
@@ -133,6 +134,7 @@ async function executarFerramenta(ferramenta) {
       case "noticias": return await api.noticias();
       case "clima": return args ? await api.clima(args) : await api.clima();
       case "cotacao": return await api.cotacao(args);
+      case "cinema": return args ? await api.cinema(args) : await api.cinema("São Paulo");
       case "pcInfo": return await pc.pcInfo();
 
       case "screenshot": {

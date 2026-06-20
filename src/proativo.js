@@ -168,6 +168,9 @@ async function processarComando(comando, args) {
     case "cotacao": {
       return await api.cotacao(args);
     }
+    case "cinema": {
+      return await api.cinema(args || "São Paulo");
+    }
     case "pcinfo": {
       const info = await pc.pcInfo();
       return `🖥️ **PC:**\`\`\`\n${info.slice(0, 500)}\n\`\`\``;
