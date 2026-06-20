@@ -9,6 +9,13 @@ module.exports = {
     await initDB();
 
     try {
+      const scheduler = require("../scheduler");
+      scheduler.iniciar(c);
+    } catch (err) {
+      log("WARN", "Scheduler não iniciou", { erro: err.message });
+    }
+
+    try {
       const port = await startDocsServer();
       log("INFO", `Documentação disponível em ${getUrl(port)}`);
     } catch (err) {

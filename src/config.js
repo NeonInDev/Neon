@@ -18,6 +18,7 @@ module.exports = {
   AI_PROVIDER: (process.env.AI_PROVIDER || "openrouter").toLowerCase(),
   DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
   DEEPSEEK_MODEL: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
+  GROQ_API_KEY: process.env.GROQ_API_KEY,
   OPENCODE_MODEL: process.env.OPENCODE_MODEL || "deepseek/deepseek-chat",
   DOCS_PORT: parseInt(process.env.DOCS_PORT, 10) || 3000,
 };

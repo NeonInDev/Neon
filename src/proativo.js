@@ -60,6 +60,60 @@ async function montarContexto() {
   return `Hora: ${hora} | Data: ${data} | PC: ${pcStatus || "indisponivel"}`;
 }
 
+async function chamarProvider(messages, maxTokens = 300, timeout = 20000) {
+  const axios = require("axios");
+  const { GROQ_API_KEY, OPENROUTER_API_KEY, DEEPSEEK_API_KEY } = require("./config");
+
+  const tentativas = [];
+
+  if (GROQ_API_KEY) {
+    tentativas.push({
+      nome: "Groq",
+      fn: async () => {
+        const resp = await axios.post("https://api.groq.com/openai/v1/chat/completions",
+          { model: "llama-3.3-70b-versatile", max_tokens: maxTokens, messages },
+          { timeout, headers: { Authorization: `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" } }
+        );
+        return resp?.data?.choices?.[0]?.message?.content?.trim();
+      }
+    });
+  }
+
+  tentativas.push({
+    nome: "Pollinations",
+    fn: async () => {
+      const resp = await axios.post("https://text.pollinations.ai/openai",
+        { model: "openai", max_tokens: maxTokens, messages },
+        { timeout, headers: { "Content-Type": "application/json" } }
+      );
+      return resp?.data?.choices?.[0]?.message?.content?.trim();
+    }
+  });
+
+  if (OPENROUTER_API_KEY) {
+    tentativas.push({
+      nome: "OpenRouter",
+      fn: async () => {
+        const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions",
+          { model: "openrouter/free", max_tokens: maxTokens, messages },
+          { timeout, headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" } }
+        );
+        return resp?.data?.choices?.[0]?.message?.content?.trim();
+      }
+    });
+  }
+
+  for (const t of tentativas) {
+    try {
+      const res = await t.fn();
+      if (res) return res;
+    } catch (err) {
+      log("WARN", `[PROATIVO] ${t.nome} falhou`, { erro: err.response?.status || err.message });
+    }
+  }
+  return null;
+}
+
 async function perguntarIA(ctx) {
   const prompt = `[CONTEXTO ATUAL: ${ctx}]
 
@@ -75,6 +129,7 @@ COMANDOS DISPONIVEIS:
 - clima | [cidade] — ve a previsao do tempo
 - piada — conta uma piada
 - cotacao | BTC ou EUR ou PETR4 — ve cotacao
+- cinema | [cidade] — ve filmes nos cinemas
 - pcInfo — ve status do PC
 - lembrar | [chave]: [valor] — salva uma memoria
 - sugerir | [mensagem] — sugere algo pro dono
@@ -84,39 +139,11 @@ Se nao quiser fazer nada, responda apenas: NADA
 IMPORTANTE: Seja concisa. No maximo 2 acoes por vez. Nao invente comandos.`;
 
   try {
-    const axios = require("axios");
-    const { OPENROUTER_API_KEY } = require("./config");
-    let content = null;
-    for (let i = 0; i < 3; i++) {
-      try {
-        const resp = await axios.post(
-          "https://openrouter.ai/api/v1/chat/completions",
-          {
-            model: "openrouter/free",
-            max_tokens: 300,
-            messages: [
-              { role: "system", content: "Você é Neon no modo autonomo. Seja concisa." },
-              { role: "user", content: prompt },
-            ],
-          },
-          {
-            timeout: 20000,
-            headers: {
-              Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-        content = resp?.data?.choices?.[0]?.message?.content?.trim();
-        if (content) break;
-      } catch (err2) {
-        if (err2?.response?.status === 429 && i < 2) {
-          await new Promise(r => setTimeout(r, 2000 * (i + 1)));
-          continue;
-        }
-        throw err2;
-      }
-    }
+    const messages = [
+      { role: "system", content: "Você é Neon no modo autonomo. Seja concisa." },
+      { role: "user", content: prompt },
+    ];
+    const content = await chamarProvider(messages);
     if (!content || content === "NADA") return null;
     return content;
   } catch (err) {

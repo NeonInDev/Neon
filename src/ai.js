@@ -2,11 +2,11 @@ const axios = require("axios");
 const { db } = require("./db");
 const { getOrCreateUser } = require("./user");
 const { detectarManipulacao } = require("./moderation");
-const { GEMINI_API_KEY, OPENROUTER_API_KEY, OPENROUTER_MODEL, AI_PROVIDER, DEEPSEEK_API_KEY, DEEPSEEK_MODEL } = require("./config");
+const { GEMINI_API_KEY, OPENROUTER_API_KEY, OPENROUTER_MODEL, AI_PROVIDER, DEEPSEEK_API_KEY, DEEPSEEK_MODEL, GROQ_API_KEY } = require("./config");
 const { log } = require("./logger");
 
 const MAX_INPUT_LEN = 2000;
-const MAX_LOOP_ITERATIONS = 5;
+const MAX_LOOP_ITERATIONS = 8;
 
 const memoriaModule = require("./memoria");
 const memoriaFormatar = memoriaModule.formatarParaPrompt;
@@ -43,7 +43,8 @@ Sobre suas capacidades:
 - IMPORTANTE: Você pode chamar MULTIPLAS ferramentas em sequência se precisar. Ex: primeiro pesquisar, depois abrir site.
 - Você pode chamar ferramentas novamente se a primeira tentativa falhar — tente abordagens diferentes.
 - Se for uma conversa normal (pergunta, opinião, papo), responda naturalmente sem usar ferramentas.
-- Seja honesta: se não sabe algo, diga que não sabe.
+- PESQUISA AUTOMÁTICA: se o usuário perguntar algo que você não sabe ou precisa de info atualizada, use FERRAMENTA: pesquisar | [o que pesquisar] AUTOMATICAMENTE. Não avise que vai pesquisar — só faz e responde com o resultado.
+- Se a pesquisa não retornar nada útil, tente de novo com termos diferentes. Se mesmo assim falhar, aí avise o usuário.
 
 FERRAMENTAS DISPONIVEIS:
 ${tools.descricaoFerramentas()}
@@ -130,6 +131,30 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
       });
     }
 
+    tentativas.push({
+      nome: "Groq",
+      fn: async () => {
+        const resp = await axios.post(
+          "https://api.groq.com/openai/v1/chat/completions",
+          { model: "llama-3.3-70b-versatile", max_tokens: maxTokens, messages },
+          { timeout, headers: { Authorization: `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" } }
+        );
+        return resp?.data?.choices?.[0]?.message?.content;
+      }
+    });
+
+    tentativas.push({
+      nome: "Pollinations",
+      fn: async () => {
+        const resp = await axios.post(
+          "https://text.pollinations.ai/openai",
+          { model: "openai", max_tokens: maxTokens, messages },
+          { timeout, headers: { "Content-Type": "application/json" } }
+        );
+        return resp?.data?.choices?.[0]?.message?.content;
+      }
+    });
+
     if (AI_PROVIDER === "deepseek" && DEEPSEEK_API_KEY) {
       tentativas.push({
         nome: "DeepSeek",
@@ -143,6 +168,18 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
         }
       });
     }
+
+    tentativas.push({
+      nome: "OpenRouter",
+      fn: async () => {
+        const resp = await axios.post(
+          "https://openrouter.ai/api/v1/chat/completions",
+          { model: OPENROUTER_MODEL, max_tokens: maxTokens, messages },
+          { timeout, headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" } }
+        );
+        return resp?.data?.choices?.[0]?.message?.content;
+      }
+    });
 
     if (geminiValida) {
       tentativas.push({
@@ -178,18 +215,6 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
         }
       });
     }
-
-    tentativas.push({
-      nome: "OpenRouter",
-      fn: async () => {
-        const resp = await axios.post(
-          "https://openrouter.ai/api/v1/chat/completions",
-          { model: OPENROUTER_MODEL, max_tokens: maxTokens, messages },
-          { timeout, headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" } }
-        );
-        return resp?.data?.choices?.[0]?.message?.content;
-      }
-    });
 
     async function tentarComRetry(fn, nome, maxTentativas = 3) {
       for (let i = 0; i < maxTentativas; i++) {
@@ -230,7 +255,7 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
       const responseText = await chamarLLM(mensagens, 2048);
       if (!responseText) throw new Error("Todas as APIs falharam");
 
-      const processado = await tools.processarResposta(responseText);
+      const processado = await tools.processarResposta(responseText, userId);
 
       if (processado.acoes.length === 0) {
         conteudoFinal = responseText;

@@ -80,6 +80,8 @@ const FERRAMENTAS = [
   { nome: "fechar_janela", desc: "Fecha uma janela pelo titulo. Uso: fechar_janela | [titulo]" },
   { nome: "mover_mouse", desc: "Move o mouse para coordenada (x y). Uso: mover_mouse | [x] [y]" },
   { nome: "arrastar", desc: "Arrasta o mouse de (x1 y1) ate (x2 y2). Uso: arrastar | [x1] [y1] [x2] [y2]" },
+  { nome: "agendar", desc: "Agenda uma tarefa pra executar depois. Uso: agendar | [em X min/h/dias] | [mensagem/comando] | [tipo: mensagem/comando]" },
+  { nome: "lembrete", desc: "Cria um lembrete pra um horario especifico. Uso: lembrete | [em X minutos ou HH:MM] | [texto do lembrete]" },
 ];
 
 function descricaoFerramentas() {
@@ -103,7 +105,7 @@ function extrairFerramentas(texto) {
   return ferramentas;
 }
 
-async function executarFerramenta(ferramenta) {
+async function executarFerramenta(ferramenta, userId = null) {
   const { nome, args } = ferramenta;
   log("INFO", "[TOOLS] Executando ferramenta", { nome, args: args.slice(0, 100) });
 
@@ -538,6 +540,43 @@ async function executarFerramenta(ferramenta) {
         return `🖱️ Arrastei de (${coords[0]}, ${coords[1]}) para (${coords[2]}, ${coords[3]}).`;
       }
 
+      case "agendar":
+      case "lembrete": {
+        const scheduler = require("./scheduler");
+        const partes = args.split("|").map(s => s.trim());
+        if (partes.length < 2) return "❌ Use: agendar | [em X min/h] | [mensagem/comando] | [tipo]";
+        const quando = partes[0];
+        const oQue = partes[1];
+        const tipo = partes[2] || "mensagem";
+        const match = quando.match(/em\s+(\d+)\s*(min|minutos?|h|horas?|d|dias?)/i);
+        if (match) {
+          const qtd = parseInt(match[1]);
+          const unidade = match[2][0].toLowerCase();
+          const mult = unidade === "m" ? 60000 : unidade === "h" ? 3600000 : 86400000;
+          const tarefa = scheduler.agendar(tipo, {
+            texto: oQue,
+            alvo: oQue,
+            proximo: Date.now() + qtd * mult,
+            userId: userId,
+          });
+          return `✅ Tarefa agendada para ${match[0]} (ID: ${tarefa.id}).`;
+        }
+        const horaMatch = quando.match(/^(\d{1,2}):(\d{2})$/);
+        if (horaMatch) {
+          const agora = new Date();
+          const alvo = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate(), parseInt(horaMatch[1]), parseInt(horaMatch[2]));
+          if (alvo <= agora) alvo.setDate(alvo.getDate() + 1);
+          const tarefa = scheduler.agendar(tipo, {
+            texto: oQue,
+            alvo: oQue,
+            proximo: alvo.getTime(),
+            userId: userId,
+          });
+          return `✅ Lembrete agendado para ${quando} (ID: ${tarefa.id}).`;
+        }
+        return "❌ Formato de tempo inválido. Use: 'em 5 min', 'em 2 h', 'em 1 d', ou '14:30'.";
+      }
+
       default: {
         const extras = getFerramentasPlugin();
         const pluginTool = extras.find(f => f.nome === nome);
@@ -551,12 +590,12 @@ async function executarFerramenta(ferramenta) {
   }
 }
 
-async function processarResposta(texto) {
+async function processarResposta(texto, userId = null) {
   const ferramentas = extrairFerramentas(texto);
   if (!ferramentas.length) return { texto, acoes: [] };
   const resultados = [];
   for (const f of ferramentas) {
-    const res = await executarFerramenta(f);
+    const res = await executarFerramenta(f, userId);
     resultados.push({ ferramenta: f, resultado: res });
   }
   return { texto, acoes: resultados };
