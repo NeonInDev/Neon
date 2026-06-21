@@ -238,7 +238,12 @@ async function findBrowserPath() {
 }
 
 async function abrirUrlNoOpera(url) {
-  await execAsync(`start "" "${url}"`);
+  const operaPath = process.env.LOCALAPPDATA + "\\Programs\\Opera GX\\opera.exe";
+  if (fs.existsSync(operaPath)) {
+    await execAsync(`"${operaPath}" "${url}"`);
+  } else {
+    await execAsync(`start "" "${url}"`);
+  }
 }
 
 async function iniciar() {
