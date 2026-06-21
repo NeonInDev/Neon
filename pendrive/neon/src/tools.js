@@ -77,9 +77,25 @@ function extrairFerramentas(texto) {
   return ferramentas;
 }
 
+const FERRAMENTAS_LOCAIS = new Set([
+  "abrir_site", "abrir_app", "pcInfo", "screenshot", "volume", "falar",
+  "executar", "ler_arquivo", "escrever_arquivo", "click_at", "right_click_at",
+  "tecla", "mover_mouse", "arrastar", "achar_janela", "listar_janelas", "fechar_janela",
+  "visao", "clicar_em", "digitar_em", "ffmpeg", "agendar", "lembrete", "contexto", "alarme",
+  "codar", "opencode", "youtube_pip", "youtube_fullscreen",
+]);
+
 async function executarFerramenta(ferramenta, userId = null) {
   const { nome, args } = ferramenta;
   log("INFO", "[TOOLS] Executando ferramenta", { nome, args: args.slice(0, 100) });
+
+  if (!FERRAMENTAS_LOCAIS.has(nome)) {
+    log("INFO", "[TOOLS] Ferramenta nao-local -> codar", { nome });
+    const taskId = bridge.pedirOpencode(`${nome}: ${args}`, userId);
+    const task = await bridge.aguardarTask(taskId, 300000);
+    if (task.status === "done") return task.result || "✅ Feito pelo opencode.";
+    return "⏱️ opencode nao respondeu. Tenta de novo?";
+  }
 
   try {
     switch (nome) {
