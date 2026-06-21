@@ -29,6 +29,7 @@ async function processMusicQueue() {
 
 const FERRAMENTAS = [
   { nome: "codar", desc: "DELEGA pro OpenCode (especialista) qualquer tarefa que voce nao sabe fazer, pesquisa complexa, codigo, script, automacao, criacao de arquivos, analise, informacoes externas. Uso: codar | [descricao COMPLETA do que precisa]" },
+  { nome: "tocar_playlist", desc: "Toca uma playlist no Spotify. O OpenCode abre e toca pra voce. Uso: tocar_playlist | [nome da playlist ou link]" },
   { nome: "abrir_site", desc: "Abre um site no navegador. Uso: abrir_site | [url]" },
   { nome: "abrir_app", desc: "Abre um app/programa. Uso: abrir_app | [nome]" },
   { nome: "pcInfo", desc: "Status do PC (CPU, RAM, Disco). Uso: pcInfo" },

@@ -1,4 +1,15 @@
 {
-  "tasks": [],
+  "tasks": [
+    {
+      "id": "o4asflz1xv",
+      "from": "neon",
+      "userId": "1442928336329379925",
+      "prompt": "pesquisar: preço ps5 brasileiro",
+      "status": "done",
+      "result": "Preços atuais do PS5 no Brasil (junho 2026, após reajuste de abril/2026):\n- PS5 padrão: R$ 5.099,90 (era R$ 4.499,90)\n- PS5 Edição Digital: R$ 4.599,90 (era R$ 3.999,90)\n- PS5 Pro: R$ 7.499,90 (era R$ 6.999,90)\n- PlayStation Portal: R$ 1.899,90 (era R$ 1.499,90)\n\nA Sony aumentou os preços em até R$ 600 em abril/2026 por causa de pressões econômicas globais. Os preços podem variar entre varejistas.",
+      "createdAt": "2026-06-21T18:26:00.945Z",
+      "resolvedAt": "2026-06-21T18:26:31.261Z"
+    }
+  ],
   "commands": []
 }
