@@ -33,7 +33,8 @@ module.exports = {
     }
 
     try {
-      await pc.notificar("Neon", "Neon iniciando novamente!");
+      pc.tts("Neon iniciando de novo").catch(() => {});
+      await pc.notificarToast("Neon", "Neon iniciando de novo!");
     } catch {
       log("WARN", "Notificação Windows falhou");
     }

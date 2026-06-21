@@ -375,10 +375,26 @@ if ($bat) {
   return await ps(script, "battery");
 }
 
-async function notificar(titulo, mensagem) {
-  const script = `$popup = New-Object -ComObject wscript.shell; $popup.Popup("${mensagem.replace(/"/g,'""')}", 5, "${titulo.replace(/"/g,'""')}", 64) | Out-Null`;
-  try { await ps(script, "notify"); } catch {}
+async function notificarToast(titulo, mensagem) {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+$n = New-Object System.Windows.Forms.NotifyIcon
+$n.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon("$env:windir\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
+$n.BalloonTipTitle = "${titulo.replace(/"/g,'""')}"
+$n.BalloonTipText = "${mensagem.replace(/"/g,'""')}"
+$n.Visible = $true
+$n.ShowBalloonTip(5000)
+Start-Sleep -Seconds 6
+$n.Dispose()`;
+  try { await ps(script, "toast"); } catch {
+    const fallback = `$popup = New-Object -ComObject wscript.shell; $popup.Popup("${mensagem.replace(/"/g,'""')}", 5, "${titulo.replace(/"/g,'""')}", 64) | Out-Null`;
+    await ps(fallback, "notify").catch(() => {});
+  }
   return `🔔 Notificação enviada: "${titulo}"`;
+}
+
+async function notificar(titulo, mensagem) {
+  return await notificarToast(titulo, mensagem);
 }
 
 async function enviarEmail(para, assunto, corpo) {
@@ -396,7 +412,7 @@ async function enviarEmail(para, assunto, corpo) {
 
 module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
-  listarProcessos, matarProcesso, infoRede, bateria, notificar, enviarEmail,
+  listarProcessos, matarProcesso, infoRede, bateria, notificar, notificarToast, enviarEmail,
   moverMouse, clicarMouse, duploClique, arrastar, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   verTela,
