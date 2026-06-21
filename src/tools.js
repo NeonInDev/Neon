@@ -84,6 +84,7 @@ const FERRAMENTAS_LOCAIS = new Set([
   "tecla", "mover_mouse", "arrastar", "achar_janela", "listar_janelas", "fechar_janela",
   "visao", "clicar_em", "digitar_em", "ffmpeg", "agendar", "lembrete", "contexto", "alarme",
   "codar", "opencode", "youtube_pip", "youtube_fullscreen",
+  "tocar_musica", "tocar_playlist", "tocar_video",
 ]);
 
 async function executarFerramenta(ferramenta, userId = null) {
@@ -160,7 +161,8 @@ async function executarFerramenta(ferramenta, userId = null) {
         return `✅ Lembrei: ${chave} = ${valor.slice(0, 100)}`;
       }
 
-      case "tocar_musica": {
+      case "tocar_musica":
+      case "tocar_playlist": {
         if (!args) return "Nada para tocar.";
         musicQueue.items.push({ type: "spotify", termo: args });
         processMusicQueue();
