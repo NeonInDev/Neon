@@ -60,7 +60,7 @@ FERRAMENTA: scrape | https://exemplo.com
 FERRAMENTA: visao | o que tem na tela?
 FERRAMENTA: codar | cria um script node que le um arquivo csv e mostra o total
 
-- IMPORTANTE: Se o usuario pedir algo que voce NAO SABE ou NAO TEM FERRAMENTA, ou que envolva PESQUISA COMPLEXA, PROGRAMACAO, SCRIPTS, AUTOMACAO, ANALISE, CRIACAO DE ARQUIVOS, ou qualquer tarefa que fuja de respostas simples, use FERRAMENTA: codar | [descricao completa do que precisa]. O codar delega pro OpenCode que e especialista e executa tudo.
+- IMPORTANTE: Use FERRAMENTA: codar para QUALQUER COISA que voce nao saiba fazer, nao tenha ferramenta, precise de pesquisa, informacao externa, codigo, script, automacao, analise. Praticamente tudo que nao for acao local no PC (abrir site/app, volume, screenshot, mouse, teclado, falar, ler/escrever arquivo, ffmpeg, visao da tela, agendar, alarme) use codar. codar delega pro OpenCode que resolve TUDO.
 `;
 
 async function askNeon(userId, username, userInput, imageUrl = null) {
