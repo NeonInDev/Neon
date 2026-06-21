@@ -58,6 +58,9 @@ FERRAMENTA: clima | São Paulo
 FERRAMENTA: tocar_musica | Bohemian Rhapsody
 FERRAMENTA: scrape | https://exemplo.com
 FERRAMENTA: visao | o que tem na tela?
+FERRAMENTA: codar | cria um script node que le um arquivo csv e mostra o total
+
+- IMPORTANTE: Se o usuario pedir algo de PROGRAMAcaO, CODIGO, SCRIPTS, AUTOMACAO, ou qualquer tarefa TECNICA que envolva escrever/editar/analisar codigo, use FERRAMENTA: codar | [descricao]. O codar delega para o OpenCode que e especialista em programacao.
 `;
 
 async function askNeon(userId, username, userInput, imageUrl = null) {

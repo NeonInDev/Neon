@@ -4,6 +4,7 @@ const pc = require("./pc");
 const { lembrar } = require("./memoria");
 const { abrirUrlNoOpera, tocarSpotify, tocarVideoYouTube, pesquisarDuckDuckGo, scrapeTexto, scrapeLinks, scrapeEstrutura, navegarPlaywright, extrairComFallback, tirarScreenshotPlaywright } = require("./browser");
 const opencode = require("./opencode");
+const bridge = require("./bridge");
 const ffmpeg = require("./ffmpeg");
 
 const musicQueue = { items: [], current: null, processing: false };
@@ -49,7 +50,8 @@ const FERRAMENTAS = [
   { nome: "escrever_arquivo", desc: "Escreve conteudo em um arquivo. Uso: escrever_arquivo | [caminho]: [conteudo]" },
   { nome: "click_at", desc: "Clica em coordenada da tela (x y). Uso: click_at | [x] [y]" },
   { nome: "right_click_at", desc: "Clique direito em coordenada (x y). Uso: right_click_at | [x] [y]" },
-  { nome: "opencode", desc: "Executa tarefa usando OpenCode. Uso: opencode | [descricao da tarefa]" },
+  { nome: "opencode", desc: "Pede pro OpenCode (especialista em programacao) executar uma tarefa. Uso: opencode | [descricao detalhada da tarefa]" },
+  { nome: "codar", desc: "Delega tarefa de programacao/codigo pro OpenCode. Uso: codar | [descricao do que precisa ser feito]" },
   { nome: "wake_on_lan", desc: "Liga PC remoto via Wake-on-LAN. Uso: wake_on_lan | [mac_address]" },
   { nome: "navegar", desc: "Navega em site com acoes (scroll, clicar, pesquisar). Uso: navegar | [url] > [acao]" },
   { nome: "blender", desc: "Abre o Blender ou executa acoes 3D. Uso: blender | abrir/script/render/export/gerar [descricao]" },
@@ -245,9 +247,18 @@ async function executarFerramenta(ferramenta, userId = null) {
         return `🖱️ Clique direito em (${x}, ${y}).`;
       }
 
+      case "codar":
       case "opencode": {
         if (!args) return "❌ Descreva a tarefa.";
-        return await opencode.executar(args);
+        const taskId = bridge.pedirOpencode(args, userId);
+        const task = await bridge.aguardarTask(taskId, 300000);
+        if (task.status === "done") return task.result || "✅ Tarefa concluída pelo opencode.";
+        if (task.status === "timeout") {
+          const resultado = await opencode.executar(args);
+          if (resultado) return resultado;
+          return "⏱️ opencode não respondeu. Tente novamente.";
+        }
+        return "❌ Falha ao executar no opencode.";
       }
 
       case "wake_on_lan": {

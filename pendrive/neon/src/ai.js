@@ -2,10 +2,11 @@ const axios = require("axios");
 const { db } = require("./db");
 const { getOrCreateUser } = require("./user");
 const { detectarManipulacao } = require("./moderation");
-const { GEMINI_API_KEY, OPENROUTER_API_KEY } = require("./config");
+const { GEMINI_API_KEY, OPENROUTER_API_KEY, OPENROUTER_MODEL, AI_PROVIDER, DEEPSEEK_API_KEY, DEEPSEEK_MODEL, GROQ_API_KEY } = require("./config");
 const { log } = require("./logger");
 
 const MAX_INPUT_LEN = 2000;
+const MAX_LOOP_ITERATIONS = 8;
 
 const memoriaModule = require("./memoria");
 const memoriaFormatar = memoriaModule.formatarParaPrompt;
@@ -39,21 +40,27 @@ Sobre suas capacidades:
 - Você PODE ver e interpretar imagens, GIFs e prints que o usuário enviar. Use isso para descrever, analisar ou responder sobre o que vê. Comente sobre a imagem de forma natural, não só descrevendo — dá opinião, faz piada se for o caso.
 - Você TEM ACESSO a FERRAMENTAS que pode usar para fazer coisas. Se o usuário pedir algo que exija ação, responda com linhas FERRAMENTA: no formato abaixo.
 - AS FERRAMENTAS SÃO executadas automaticamente. Você só precisa escrever a linha FERRAMENTA: e o sistema cuida do resto. Depois você recebe o resultado e pode responder naturalmente.
+- IMPORTANTE: Você pode chamar MULTIPLAS ferramentas em sequência se precisar. Ex: primeiro pesquisar, depois abrir site.
+- Você pode chamar ferramentas novamente se a primeira tentativa falhar — tente abordagens diferentes.
 - Se for uma conversa normal (pergunta, opinião, papo), responda naturalmente sem usar ferramentas.
-- Seja honesta: se não sabe algo, diga que não sabe.
+- PESQUISA AUTOMÁTICA: se o usuário perguntar algo que você não sabe ou precisa de info atualizada, use FERRAMENTA: pesquisar | [o que pesquisar] AUTOMATICAMENTE. Não avise que vai pesquisar — só faz e responde com o resultado.
+- Se a pesquisa não retornar nada útil, tente de novo com termos diferentes. Se mesmo assim falhar, aí avise o usuário.
 
 FERRAMENTAS DISPONIVEIS:
 ${tools.descricaoFerramentas()}
 
-Formato de uso (escreva na sua resposta):
+Formato de uso (escreva a linha EXATAMENTE assim, sem markdown, sem asteriscos):
 FERRAMENTA: nome_da_ferramenta | argumentos
 
 Exemplos:
-- FERRAMENTA: pesquisar | inteligencia artificial 2026
-- FERRAMENTA: clima | São Paulo
-- FERRAMENTA: tocar_musica | Bohemian Rhapsody
-- FERRAMENTA: calcular | 15 * 3 + 10
-- FERRAMENTA: gerar_imagem | um gato astronauta
+FERRAMENTA: pesquisar | inteligencia artificial 2026
+FERRAMENTA: clima | São Paulo
+FERRAMENTA: tocar_musica | Bohemian Rhapsody
+FERRAMENTA: scrape | https://exemplo.com
+FERRAMENTA: visao | o que tem na tela?
+FERRAMENTA: codar | cria um script node que le um arquivo csv e mostra o total
+
+- IMPORTANTE: Se o usuario pedir algo de PROGRAMAcaO, CODIGO, SCRIPTS, AUTOMACAO, ou qualquer tarefa TECNICA que envolva escrever/editar/analisar codigo, use FERRAMENTA: codar | [descricao]. O codar delega para o OpenCode que e especialista em programacao.
 `;
 
 async function askNeon(userId, username, userInput, imageUrl = null) {
@@ -88,15 +95,8 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
   const contextoRecente = contextoModule.formatarParaPrompt(userId);
   const systemPrompt = `${basePrompt}\n${memoriaLonga}\n${memoriaGlobal}\n\nHistorico recente da conversa:\n${contextoRecente || "(nenhuma mensagem anterior)"}`;
 
-  // Monta mensagem do usuário (com imagem se houver)
   const userMessage = imageUrl
-    ? {
-        role: "user",
-        content: [
-          { type: "text", text: promptTruncado },
-          { type: "image_url", image_url: { url: imageUrl } },
-        ],
-      }
+    ? { role: "user", content: [{ type: "text", text: promptTruncado }, { type: "image_url", image_url: { url: imageUrl } }] }
     : { role: "user", content: promptTruncado };
 
   log("INFO", "Processando pergunta", {
@@ -115,66 +115,109 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
     return { base64, mimeType };
   }
 
-  try {
-    let content;
+  async function chamarLLM(messages, maxTokens = 2048, timeout = 30000) {
+    const geminiValida = GEMINI_API_KEY && GEMINI_API_KEY !== "coloque_sua_chave_aqui";
     let tentativas = [];
 
-    const geminiValida = GEMINI_API_KEY && GEMINI_API_KEY !== "coloque_sua_chave_aqui";
-    if (geminiValida) {
+    if (AI_PROVIDER === "opencode") {
       tentativas.push({
-        nome: "Gemini",
+        nome: "OpenCode",
         fn: async () => {
-          const geminiParts = [{ text: promptTruncado }];
-          if (imageUrl) {
-            const img = await baixarBase64(imageUrl);
-            geminiParts.push({ inline_data: { mime_type: img.mimeType, data: img.base64 } });
-          }
-          const resp = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-            {
-              system_instruction: { parts: [{ text: systemPrompt }] },
-              contents: [
-                ...historico.map(m => ({
-                  role: m.role === "assistant" ? "model" : "user",
-                  parts: [{ text: String(m.content).slice(0, 300) }]
-                })),
-                { role: "user", parts: geminiParts }
-              ],
-              generationConfig: { maxOutputTokens: 800 }
-            },
-            { timeout: 30000 }
-          );
-          return resp?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+          const opencode = require("./opencode");
+          const systemMsg = messages.find(m => m.role === "system")?.content || "";
+          const lastUserMsg = [...messages].reverse().find(m => m.role === "user")?.content || "";
+          const prompt = `${systemMsg}\n\nUsuário: ${typeof lastUserMsg === "object" ? lastUserMsg[0]?.text || JSON.stringify(lastUserMsg) : lastUserMsg}`;
+          const res = await opencode.executar(prompt);
+          if (!res || res.startsWith("<!") || res.startsWith("<html")) return null;
+          return res;
         }
       });
     }
 
-    // Fallback: OpenRouter
+    tentativas.push({
+      nome: "Groq",
+      fn: async () => {
+        const resp = await axios.post(
+          "https://api.groq.com/openai/v1/chat/completions",
+          { model: "llama-3.3-70b-versatile", max_tokens: maxTokens, messages },
+          { timeout, headers: { Authorization: `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" } }
+        );
+        return resp?.data?.choices?.[0]?.message?.content;
+      }
+    });
+
+    tentativas.push({
+      nome: "Pollinations",
+      fn: async () => {
+        const resp = await axios.post(
+          "https://text.pollinations.ai/openai",
+          { model: "openai", max_tokens: maxTokens, messages },
+          { timeout, headers: { "Content-Type": "application/json" } }
+        );
+        return resp?.data?.choices?.[0]?.message?.content;
+      }
+    });
+
+    if (AI_PROVIDER === "deepseek" && DEEPSEEK_API_KEY) {
+      tentativas.push({
+        nome: "DeepSeek",
+        fn: async () => {
+          const resp = await axios.post(
+            "https://api.deepseek.com/v1/chat/completions",
+            { model: DEEPSEEK_MODEL, max_tokens: maxTokens, messages },
+            { timeout, headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" } }
+          );
+          return resp?.data?.choices?.[0]?.message?.content;
+        }
+      });
+    }
+
     tentativas.push({
       nome: "OpenRouter",
       fn: async () => {
         const resp = await axios.post(
           "https://openrouter.ai/api/v1/chat/completions",
-          {
-            model: "openrouter/free",
-            max_tokens: 800,
-            messages: [
-              { role: "system", content: systemPrompt },
-              ...historico,
-              userMessage,
-            ],
-          },
-          {
-            timeout: 30000,
-            headers: {
-              Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-          }
+          { model: OPENROUTER_MODEL, max_tokens: maxTokens, messages },
+          { timeout, headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" } }
         );
         return resp?.data?.choices?.[0]?.message?.content;
       }
     });
+
+    if (geminiValida) {
+      tentativas.push({
+        nome: "Gemini",
+        fn: async () => {
+          const contents = [];
+          let systemText = "";
+          for (const m of messages) {
+            if (m.role === "system") { systemText = m.content; continue; }
+            const role = m.role === "assistant" ? "model" : "user";
+            const parts = [];
+            if (typeof m.content === "string") {
+              parts.push({ text: m.content });
+            } else if (Array.isArray(m.content)) {
+              for (const p of m.content) {
+                if (p.type === "text") parts.push({ text: p.text });
+                else if (p.type === "image_url") {
+                  try {
+                    const img = await baixarBase64(p.image_url.url);
+                    parts.push({ inline_data: { mime_type: img.mimeType, data: img.base64 } });
+                  } catch { parts.push({ text: "[imagem não disponível]" }); }
+                }
+              }
+            }
+            contents.push({ role, parts });
+          }
+          const resp = await axios.post(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
+            { system_instruction: { parts: [{ text: systemText }] }, contents, generationConfig: { maxOutputTokens: maxTokens } },
+            { timeout }
+          );
+          return resp?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        }
+      });
+    }
 
     async function tentarComRetry(fn, nome, maxTentativas = 3) {
       for (let i = 0; i < maxTentativas; i++) {
@@ -185,10 +228,8 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
           const status = err?.response?.status;
           const msg = err?.response?.data?.error?.message || err.message;
           log("WARN", `${nome} tentativa ${i + 1}/${maxTentativas} falhou`, { status, erro: msg });
-          if (status === 429 && i < maxTentativas - 1) {
-            await new Promise(r => setTimeout(r, 2000 * (i + 1)));
-            continue;
-          }
+          if (status === 429 && msg?.includes("quota")) break;
+          if (status === 429 && i < maxTentativas - 1) { await new Promise(r => setTimeout(r, 2000 * (i + 1))); continue; }
           if (status !== 429) break;
         }
       }
@@ -196,77 +237,85 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
     }
 
     for (const t of tentativas) {
-      content = await tentarComRetry(t.fn, t.nome);
-      if (content) break;
+      const res = await tentarComRetry(t.fn, t.nome);
+      if (res) return res;
+    }
+    return null;
+  }
+
+  // ===== LOOP AGENTE: PERCEBER → PLANEJAR → AGIR → VERIFICAR =====
+  try {
+    const mensagens = [
+      { role: "system", content: systemPrompt },
+      ...historico,
+      userMessage,
+    ];
+
+    let conteudoFinal = null;
+    let historicoAcoes = [];
+
+    for (let iteracao = 0; iteracao < MAX_LOOP_ITERATIONS; iteracao++) {
+      const responseText = await chamarLLM(mensagens, 2048);
+      if (!responseText) throw new Error("Todas as APIs falharam");
+
+      const processado = await tools.processarResposta(responseText, userId);
+
+      if (processado.acoes.length === 0) {
+        conteudoFinal = responseText;
+        break;
+      }
+
+      const resumo = processado.acoes.map(a =>
+        `FERRAMENTA: ${a.ferramenta.nome} | ${a.ferramenta.args}\nRESULTADO: ${a.resultado}`
+      ).join("\n\n");
+      historicoAcoes.push(resumo);
+
+      const hasError = processado.acoes.some(a =>
+        a.resultado.startsWith("❌") || a.resultado.startsWith("⚠️")
+      );
+
+      if (iteracao < MAX_LOOP_ITERATIONS - 1 && hasError) {
+        mensagens.push(
+          { role: "assistant", content: responseText },
+          { role: "system", content: `Resultados:\n${resumo}\n\nAlgumas ferramentas falharam. Tente novamente com uma abordagem diferente ou use outra ferramenta. Se não conseguir resolver, avise o usuário o que aconteceu.` }
+        );
+        continue;
+      }
+
+      if (iteracao < MAX_LOOP_ITERATIONS - 1) {
+        mensagens.push(
+          { role: "assistant", content: responseText },
+          { role: "system", content: `Resultados:\n${resumo}\n\nAgora responda ao usuario naturalmente com base nesses resultados. Se precisar fazer mais alguma acao, use FERRAMENTA: novamente. Se ja resolveu, responda normal.` }
+        );
+        continue;
+      }
+
+      conteudoFinal = responseText;
     }
 
-    if (!content) throw new Error("Todas as APIs falharam");
-
-    const { processarResposta } = require("./tools");
-    const processado = await processarResposta(content);
-
-    if (processado.acoes.length) {
-      const resumoAcoes = processado.acoes.map(a => `FERRAMENTA: ${a.ferramenta.nome}\nRESULTADO: ${a.resultado}`).join("\n\n");
-      log("INFO", "Ferramentas executadas", { qtd: processado.acoes.length });
-
-      const toolMessages = [
-        { role: "system", content: systemPrompt },
-        ...historico,
-        userMessage,
-        { role: "assistant", content },
-        { role: "system", content: `Resultados das ferramentas:\n${resumoAcoes}\n\nAgora responda ao usuario naturalmente com base nesses resultados.` },
-      ];
-
-      let finalContent = null;
-      if (geminiValida) {
-        finalContent = await tentarComRetry(async () => {
-          const resp = await axios.post(
-            `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-            {
-              system_instruction: { parts: [{ text: systemPrompt }] },
-              contents: [
-                { role: "user", parts: [{ text: userMessage.content?.text || userMessage.content }] },
-                { role: "model", parts: [{ text: content }] },
-                { role: "user", parts: [{ text: `Resultados das ferramentas:\n${resumoAcoes}\n\nAgora responda ao usuario naturalmente com base nesses resultados.` }] },
-              ],
-              generationConfig: { maxOutputTokens: 600 },
-            },
-            { timeout: 30000 }
-          );
-          return resp?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-        }, "Gemini (follow-up)");
+    if (!conteudoFinal || /FERRAMENTA:\s*\w+/i.test(conteudoFinal)) {
+      if (historicoAcoes.length > 0) {
+        const resumoFinal = historicoAcoes.join("\n\n");
+        const finalMessages = [
+          { role: "system", content: systemPrompt },
+          ...historico,
+          userMessage,
+          { role: "system", content: `Aqui estao os resultados de todas as ferramentas executadas:\n${resumoFinal}\n\nAgora responda ao usuario naturalmente com base nesses resultados.` }
+        ];
+        conteudoFinal = await chamarLLM(finalMessages, 1024) || conteudoFinal.replace(/^FERRAMENTA:.*$/gm, "").trim() || "(sem resposta)";
+      } else {
+        conteudoFinal = await chamarLLM(mensagens, 1024) || "(sem resposta)";
       }
-      if (!finalContent) {
-        finalContent = await tentarComRetry(async () => {
-          const resp = await axios.post(
-            "https://openrouter.ai/api/v1/chat/completions",
-            {
-              model: "openrouter/free",
-              max_tokens: 600,
-              messages: toolMessages,
-            },
-            {
-              timeout: 30000,
-              headers: {
-                Authorization: `Bearer ${OPENROUTER_API_KEY}`,
-                "Content-Type": "application/json",
-              },
-            }
-          );
-          return resp?.data?.choices?.[0]?.message?.content;
-        }, "OpenRouter (follow-up)");
-      }
-      if (finalContent) content = finalContent;
     }
 
     sucesso.ok = true;
-    sucesso.reply = content;
+    sucesso.reply = conteudoFinal;
 
     log("INFO", "Resposta gerada", {
       usuario: username,
       tempo_ms: Date.now() - inicio,
-      caracteres: content.length,
-      ferramentas: processado.acoes.length,
+      caracteres: conteudoFinal.length,
+      iteracoes: historicoAcoes.length,
     });
   } catch (err) {
     log("ERROR", "Falha na API", {

@@ -2,6 +2,7 @@ const { db, initDB } = require("../db");
 const { log } = require("../logger");
 const { startDocsServer, getUrl } = require("../docs/server");
 const pc = require("../pc");
+const bridge = require("../bridge");
 
 const MASTER_ID = "1442928336329379925";
 
@@ -16,6 +17,12 @@ module.exports = {
       scheduler.iniciar(c);
     } catch (err) {
       log("WARN", "Scheduler não iniciou", { erro: err.message });
+    }
+
+    try {
+      bridge.iniciarPolling(c);
+    } catch (err) {
+      log("WARN", "Bridge polling não iniciou", { erro: err.message });
     }
 
     try {
