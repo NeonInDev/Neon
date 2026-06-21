@@ -561,8 +561,8 @@ async function buscarTrackIdSpotify(termo) {
 
 async function tocarSpotify(termo) {
   const trackId = await buscarTrackIdSpotify(termo);
-  await execAsync(`start "" "spotify:track:${trackId}"`);
-  return `Tocando "${termo}" no Spotify Desktop.`;
+  await abrirUrlNoOpera(`https://open.spotify.com/track/${trackId}`);
+  return `Tocando "${termo}" no Spotify (Opera).`;
 }
 
 // ─── YouTube ───
