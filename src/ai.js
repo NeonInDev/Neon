@@ -60,7 +60,7 @@ FERRAMENTA: scrape | https://exemplo.com
 FERRAMENTA: visao | o que tem na tela?
 FERRAMENTA: codar | cria um script node que le um arquivo csv e mostra o total
 
-- IMPORTANTE: Se o usuario pedir algo de PROGRAMAcaO, CODIGO, SCRIPTS, AUTOMACAO, ou qualquer tarefa TECNICA que envolva escrever/editar/analisar codigo, use FERRAMENTA: codar | [descricao]. O codar delega para o OpenCode que e especialista em programacao.
+- IMPORTANTE: Se o usuario pedir algo que voce NAO SABE ou NAO TEM FERRAMENTA, ou que envolva PESQUISA COMPLEXA, PROGRAMACAO, SCRIPTS, AUTOMACAO, ANALISE, CRIACAO DE ARQUIVOS, ou qualquer tarefa que fuja de respostas simples, use FERRAMENTA: codar | [descricao completa do que precisa]. O codar delega pro OpenCode que e especialista e executa tudo.
 `;
 
 async function askNeon(userId, username, userInput, imageUrl = null) {
