@@ -1,9 +1,28 @@
+#Requires -Version 5.1
 param([switch]$Silent)
 
 $ErrorActionPreference = "Continue"
 $Host.UI.RawUI.WindowTitle = "Desinstalar Neon"
 
-if (-not $Silent) {
+function IsJobContext {
+  if ($Silent) { return $true }
+  $name = $Host.Name
+  if ($name -ne "ConsoleHost" -and $name -ne "Windows PowerShell ISE Host") { return $true }
+  return $false
+}
+
+trap {
+  $err = $_.Exception.Message
+  Write-Host "`n[ERRO FATAL] $err" -ForegroundColor Red
+  Add-Content -Path "$env:USERPROFILE\Desktop\neon_error.txt" -Value "[$(Get-Date)] FATAL: $err"
+  if (-not (IsJobContext)) {
+    Write-Host "`nPressione Enter para fechar..."
+    $null = Read-Host
+  }
+  exit 1
+}
+
+if (-not $Silent -and -not (IsJobContext)) {
   Write-Host "+------------------------------------------+" -ForegroundColor Red
   Write-Host "|      DESINSTALAR NEON v2.0               |" -ForegroundColor Red
   Write-Host "+------------------------------------------+" -ForegroundColor Red
@@ -53,7 +72,7 @@ if ($removidos -gt 0) {
     Write-Host "Nenhum arquivo da Neon encontrado." -ForegroundColor Yellow
 }
 Write-Host ""
-if (-not $Silent) {
+if (-not (IsJobContext)) {
   Write-Host "Para reinstalar, execute o Instalador_Neon.ps1" -ForegroundColor Cyan
   Write-Host ""
   pause

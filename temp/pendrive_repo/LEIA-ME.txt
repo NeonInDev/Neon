@@ -1,0 +1,10 @@
+⚡ NEON - Assistente Pessoal
+
+Para instalar:
+  1. Abra o pendrive no Explorer
+  2. Execute INICIAR.bat (ou instalar.bat)
+
+O instalador copia o projeto, Node.js portátil e FFmpeg para:
+  C:\Users\SEU_USUARIO\Neon\
+
+Após a instalação, execute: Neon.bat (na área de trabalho ou na pasta NeON)

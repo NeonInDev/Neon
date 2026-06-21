@@ -99,10 +99,10 @@ function New-ISO {
   $oscdimg2 = "${env:ProgramFiles(x86)}\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg\oscdimg.exe"
 
   if (Test-Path $oscdimg) {
-    & $oscdimg -n -m -l"$LABEL" -bootdata:2#$pxe,$etfsboot=0,0x80 $workDir $OutputPath
+    & $oscdimg -n -m -l"$LABEL" $workDir $OutputPath
     Write-Host "[OK] ISO criada: $OutputPath" -ForegroundColor Green
   } elseif (Test-Path $oscdimg2) {
-    & $oscdimg2 -n -m -l"$LABEL" -bootdata:2#$pxe,$etfsboot=0,0x80 $workDir $OutputPath
+    & $oscdimg2 -n -m -l"$LABEL" $workDir $OutputPath
     Write-Host "[OK] ISO criada: $OutputPath" -ForegroundColor Green
   } else {
     Write-Host "[AVISO] oscdimg.exe nao encontrado." -ForegroundColor Yellow

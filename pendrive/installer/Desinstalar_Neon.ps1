@@ -1,9 +1,28 @@
+#Requires -Version 5.1
 param([switch]$Silent)
 
 $ErrorActionPreference = "Continue"
 $Host.UI.RawUI.WindowTitle = "Desinstalar Neon"
 
-if (-not $Silent) {
+function IsJobContext {
+  if ($Silent) { return $true }
+  $name = $Host.Name
+  if ($name -ne "ConsoleHost" -and $name -ne "Windows PowerShell ISE Host") { return $true }
+  return $false
+}
+
+trap {
+  $err = $_.Exception.Message
+  Write-Host "`n[ERRO FATAL] $err" -ForegroundColor Red
+  Add-Content -Path "$env:USERPROFILE\Desktop\neon_error.txt" -Value "[$(Get-Date)] FATAL: $err"
+  if (-not (IsJobContext)) {
+    Write-Host "`nPressione Enter para fechar..."
+    $null = Read-Host
+  }
+  exit 1
+}
+
+if (-not $Silent -and -not (IsJobContext)) {
   Write-Host "+------------------------------------------+" -ForegroundColor Red
   Write-Host "|      DESINSTALAR NEON v2.0               |" -ForegroundColor Red
   Write-Host "+------------------------------------------+" -ForegroundColor Red
@@ -43,7 +62,11 @@ foreach ($a in $atalhos) {
     if (Test-Path $a) { try { Remove-Item -Path $a -Force; Write-Host "  [OK] Atalho: $a" -ForegroundColor Green; $removidos++ } catch { Write-Host "  [!] Falha atalho: $a" -ForegroundColor Red } }
 }
 
-try { Stop-Process -Name "node" -Force -ErrorAction SilentlyContinue; Write-Host "  [OK] Processos Node encerrados" -ForegroundColor Green } catch {}
+try {
+    $neonPids = Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object { $_.CommandLine -like "*$env:USERPROFILE\Neon*" } | Select-Object -ExpandProperty ProcessId
+    foreach ($pid in $neonPids) { Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue }
+    Write-Host "  [OK] Processos Node da Neon encerrados" -ForegroundColor Green
+} catch {}
 
 Write-Host ""
 if ($removidos -gt 0) {
@@ -53,7 +76,7 @@ if ($removidos -gt 0) {
     Write-Host "Nenhum arquivo da Neon encontrado." -ForegroundColor Yellow
 }
 Write-Host ""
-if (-not $Silent) {
+if (-not (IsJobContext)) {
   Write-Host "Para reinstalar, execute o Instalador_Neon.ps1" -ForegroundColor Cyan
   Write-Host ""
   pause

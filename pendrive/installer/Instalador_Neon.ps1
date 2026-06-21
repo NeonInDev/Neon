@@ -11,7 +11,13 @@ function IsJobContext {
   return $false
 }
 function SafePause { if (-not (IsJobContext)) { Write-Host "`nPressione Enter para continuar..."; $null = Read-Host } }
-function Write-Step { $msg = "[$(Get-Date -Format 'HH:mm:ss')] $args"; Write-Host $msg -ForegroundColor Cyan }
+function Write-Step {
+    $msg = "$args"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $msg" -ForegroundColor Cyan
+    if ($msg -match "Passo (\d+)/8") {
+        Write-Progress -Activity "Instalando Neon" -Status $msg -PercentComplete ([Math]::Round(($Matches[1] - 1) / 8 * 100))
+    }
+}
 function Write-OK { Write-Host "  [OK] $args" -ForegroundColor Green }
 function Write-Warn { Write-Host "  [!] $args" -ForegroundColor Yellow }
 
@@ -158,7 +164,7 @@ if (Test-Path $envFile) {
                 $ptr  = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
                 $pass = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
                 [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr)
-                $result = & "$PENDRIVE\installer\cripitar.js" "$encFile" "$envFile" "$pass" 2>&1
+                $result = & "$($nodeDir.FullName)\node.exe" "$PENDRIVE\installer\cripitar.js" "$encFile" "$envFile" "$pass" 2>&1
                 if ($LASTEXITCODE -eq 0 -and (Test-Path $envFile)) { Write-OK ".env configurado"; break }
                 else { Write-Warn "Senha incorreta. Tentativa $($tryCount+1)/3"; $tryCount++ }
             } catch { Write-Warn "Erro: $_"; $tryCount++ }
@@ -176,8 +182,8 @@ $desktop  = [Environment]::GetFolderPath("Desktop")
 $startBat = Join-Path $proj "start.bat"
 if (Test-Path $startBat) {
     $link = $wshell.CreateShortcut("$desktop\Neon.lnk")
-    $link.TargetPath = "powershell.exe"
-    $link.Arguments  = "-ExecutionPolicy Bypass -WindowStyle Hidden -File `"$startBat`""
+    $link.TargetPath = "cmd.exe"
+    $link.Arguments  = "/c `"`"$startBat`"`""
     $link.WorkingDirectory = $proj
     $link.IconLocation = Join-Path $PENDRIVE "assets\neon.ico"
     $link.Save()
