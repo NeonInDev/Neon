@@ -1,0 +1,54 @@
+{
+  "servidores": [
+    {
+      "nome": "filesystem",
+      "comando": "node node_modules/@modelcontextprotocol/server-filesystem/dist/index.js",
+      "args": ["C:\\Meus Projetos\\Neon"],
+      "enabled": true,
+      "descricao": "Acesso padronizado ao sistema de arquivos (MCP oficial)"
+    },
+    {
+      "nome": "memory",
+      "comando": "node node_modules/@modelcontextprotocol/server-memory/dist/index.js",
+      "enabled": true,
+      "descricao": "Grafo de conhecimento persistente (MCP oficial)"
+    },
+    {
+      "nome": "thinking",
+      "comando": "node node_modules/@modelcontextprotocol/server-sequential-thinking/dist/index.js",
+      "enabled": true,
+      "descricao": "Raciocinio sequencial passo-a-passo (MCP oficial)"
+    },
+    {
+      "nome": "everything",
+      "comando": "node node_modules/@modelcontextprotocol/server-everything/dist/index.js",
+      "enabled": false,
+      "descricao": "Servidor de teste/echo (MCP oficial)"
+    },
+    {
+      "nome": "fetch",
+      "comando": "uvx mcp-server-fetch",
+      "enabled": false,
+      "descricao": "Web fetching sem browser (MCP oficial — requer Python/uvx)"
+    },
+    {
+      "nome": "github",
+      "comando": "npx -y @modelcontextprotocol/server-github",
+      "enabled": false,
+      "descricao": "API do GitHub (MCP oficial — requer GITHUB_PERSONAL_ACCESS_TOKEN)"
+    },
+    {
+      "nome": "puppeteer",
+      "comando": "npx -y @modelcontextprotocol/server-puppeteer",
+      "enabled": false,
+      "descricao": "Browser automation via Puppeteer (MCP oficial)"
+    },
+    {
+      "nome": "sqlite",
+      "comando": "uvx mcp-server-sqlite",
+      "args": ["C:\\Meus Projetos\\Neon\\mcp_data.db"],
+      "enabled": false,
+      "descricao": "Banco de dados SQLite (MCP oficial — requer Python/uvx)"
+    }
+  ]
+}

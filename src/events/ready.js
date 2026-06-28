@@ -3,6 +3,8 @@ const { log } = require("../logger");
 const { startDocsServer, getUrl } = require("../docs/server");
 const pc = require("../pc");
 const bridge = require("../bridge");
+const tools = require("../tools");
+const mcp = require("../mcp");
 
 const MASTER_ID = "1442928336329379925";
 
@@ -11,6 +13,12 @@ module.exports = {
   once: true,
   async execute(c) {
     await initDB();
+
+    tools.iniciar();
+
+    mcp.iniciarServidoresExternos().catch((err) => {
+      log("WARN", "[READY] Servidores MCP externos nao iniciaram", { erro: err.message });
+    });
 
     try {
       const scheduler = require("../scheduler");
@@ -45,6 +53,17 @@ module.exports = {
     } catch {
       log("WARN", "DM ao mestre falhou");
     }
+
+    process.on("SIGINT", () => {
+      log("INFO", "[READY] Encerrando servidores MCP...");
+      mcp.pararTodos();
+      process.exit(0);
+    });
+
+    process.on("SIGTERM", () => {
+      mcp.pararTodos();
+      process.exit(0);
+    });
 
     log("INFO", "Client conectado", {
       tag: c.user.tag,
