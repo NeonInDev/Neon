@@ -20,10 +20,8 @@ function cripitar(entrada, saida, senha) {
   const key = derivar(senha, salt)
   const iv = crypto.randomBytes(IV_LEN)
   const cipher = crypto.createCipheriv(ALGO, key, iv)
-
   const cip = Buffer.concat([cipher.update(dados), cipher.final()])
   const tag = cipher.getAuthTag()
-
   const buf = Buffer.concat([
     Buffer.from(MAGIC, "utf8"),
     Buffer.from([SALT_LEN]), salt,
@@ -31,7 +29,6 @@ function cripitar(entrada, saida, senha) {
     Buffer.from([TAG_LEN]), tag,
     cip
   ])
-
   fs.writeFileSync(saida, buf)
   console.log(`[OK] Criptografado: ${saida}`)
 }
@@ -39,57 +36,48 @@ function cripitar(entrada, saida, senha) {
 function decripitar(entrada, saida, senha) {
   const buf = fs.readFileSync(entrada)
   let off = 0
-
   const magic = buf.slice(off, off + 8).toString("utf8"); off += 8
   if (magic !== MAGIC) throw new Error("Arquivo invalido (magic)")
-
   const saltLen = buf[off]; off++
   const salt = buf.slice(off, off + saltLen); off += saltLen
-
   const ivLen = buf[off]; off++
   const iv = buf.slice(off, off + ivLen); off += ivLen
-
   const tagLen = buf[off]; off++
   const tag = buf.slice(off, off + tagLen); off += tagLen
-
   const cip = buf.slice(off)
   const key = derivar(senha, salt)
-
   const decipher = crypto.createDecipheriv(ALGO, key, iv)
   decipher.setAuthTag(tag)
   const plain = Buffer.concat([decipher.update(cip), decipher.final()])
-
   fs.writeFileSync(saida, plain)
   console.log(`[OK] Decriptado: ${saida}`)
 }
 
-const acao = process.argv[2]
-const args = process.argv.slice(3)
-
-if (acao === "cripitar") {
-  const [entrada, saida, senha] = args
-  if (!entrada || !saida || !senha) { console.error("Uso: node cripitar.js cripitar <entrada> <saida> <senha>"); process.exit(1) }
-  cripitar(entrada, saida, senha)
-} else if (acao === "decripitar") {
-  const [entrada, saida, senha] = args
-  if (!entrada || !saida || !senha) { console.error("Uso: node cripitar.js decripitar <entrada> <saida> <senha>"); process.exit(1) }
-  decripitar(entrada, saida, senha)
+// ── CLI ──
+if (process.argv.length >= 5) {
+  // Old style: node cripitar.js <acao> <entrada> <saida> <senha>
+  const acao = process.argv[2]
+  const [entrada, saida, senha] = process.argv.slice(3)
+  if (!entrada || !saida || !senha) { console.error("Uso: node cripitar.js <acao> <entrada> <saida> <senha>"); process.exit(1) }
+  if (acao === "cripitar") cripitar(entrada, saida, senha)
+  else if (acao === "decripitar") decripitar(entrada, saida, senha)
+  else { console.error("Acao invalida. Use cripitar ou decripitar."); process.exit(1) }
 } else {
-  // Modo interativo
-  const readline = require("readline")
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
-  const pergunta = (q) => new Promise(r => rl.question(q, r))
-
-  ;(async () => {
-    const acao2 = await pergunta("Acao (cripitar/decripitar): ")
-    const entrada = await pergunta("Arquivo de entrada: ")
-    const saida = await pergunta("Arquivo de saida: ")
-    const s1 = await pergunta("Senha: ")
-    if (acao2 === "cripitar") {
-      cripitar(entrada, saida, s1)
-    } else {
-      decripitar(entrada, saida, s1)
+  // Stdin JSON: echo '{"action":"...","input":"...","output":"...","password":"..."}' | node cripitar.js
+  let stdinData = ""
+  process.stdin.setEncoding("utf8")
+  process.stdin.on("data", chunk => stdinData += chunk)
+  process.stdin.on("end", () => {
+    try {
+      const opts = JSON.parse(stdinData)
+      if (!opts.action || !opts.input || !opts.output || !opts.password) {
+        console.error('Stdin JSON deve ter: action, input, output, password'); process.exit(1)
+      }
+      if (opts.action === "encrypt" || opts.action === "cripitar") cripitar(opts.input, opts.output, opts.password)
+      else if (opts.action === "decrypt" || opts.action === "decripitar") decripitar(opts.input, opts.output, opts.password)
+      else { console.error("Acao invalida"); process.exit(1) }
+    } catch (e) {
+      console.error("Erro ao parsear stdin:", e.message); process.exit(1)
     }
-    rl.close()
-  })()
+  })
 }

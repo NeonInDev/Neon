@@ -14,6 +14,8 @@ const axios = require("axios");
 const processando = new Set();
 const cooldowns = new Map();
 const COOLDOWN_MS = 3000;
+const DEBOUNCE_MS = 1500;
+const mensagensPendentes = new Map();
 
 async function verificarChaveMestra(message) {
   if (message.content.trim() !== MASTER_KEY) return false;
@@ -44,7 +46,6 @@ function checkCooldown(userId) {
 async function enviarResposta(message, texto) {
   if (!texto) { await message.reply("❌ erro interno"); return; }
 
-  // Arquivo local (screenshot, camera, etc): __FILE__:C:\path\to\file.png
   const fileMatch = texto.match(/__FILE__:(.+)/);
   if (fileMatch) {
     try {
@@ -60,7 +61,6 @@ async function enviarResposta(message, texto) {
     return;
   }
 
-  // URLs de imagem — baixa e envia como attachment
   const urlMatch = texto.match(/https?:\/\/[^\s]+/i);
   if (urlMatch) {
     const url = urlMatch[0];
@@ -88,6 +88,66 @@ async function enviarResposta(message, texto) {
   await message.reply(texto);
 }
 
+function combinarTextoMensagens(mensagens) {
+  const textos = mensagens
+    .map(m => m.content.trim())
+    .filter(t => t.length > 0);
+  if (textos.length === 0) return "";
+  return textos.join(" ");
+}
+
+function algumaAtiva(mensagens, message) {
+  for (const m of mensagens) {
+    const lower = m.content.toLowerCase();
+    if (/^\/neon\b/.test(lower)) return true;
+  }
+  if (message.reference) return true;
+  if (message.channel.type === ChannelType.DM) return true;
+  return false;
+}
+
+async function processarLote(userId, lote) {
+  mensagensPendentes.delete(userId);
+  const message = lote.ultimoObjeto;
+
+  const combinedInput = combinarTextoMensagens(lote.mensagens);
+  if (!combinedInput) return;
+  if (!algumaAtiva(lote.mensagens, message)) return;
+  if (checkCooldown(userId)) return;
+
+  enfileirar(userId, async () => {
+    processando.delete(message.id);
+    try {
+      const mestre = db.data.users?.[userId]?.mestre || false;
+      const username = message.author.username;
+
+      await message.channel.sendTyping();
+      const resultadoAcao = await executarAcao(combinedInput, mestre, userId, message);
+      if (resultadoAcao && !resultadoAcao.startsWith("❌")) {
+        addContexto(userId, username, combinedInput, resultadoAcao);
+        auditar(userId, username, combinedInput, resultadoAcao.slice(0, 100));
+        await enviarResposta(message, resultadoAcao);
+        return;
+      }
+
+      const imageUrl = message.attachments.first()?.url || null;
+      const reply = await askNeon(userId, username, combinedInput, imageUrl);
+      if (!message.replied) {
+        addContexto(userId, username, combinedInput, reply);
+        auditar(userId, username, combinedInput, reply?.slice(0, 100));
+        await enviarResposta(message, reply);
+      }
+    } catch (err) {
+      log("ERROR", "Erro ao processar lote", { usuario: message.author.username, erro: err.message });
+      try {
+        await message.reply("❌ erro interno");
+      } catch {}
+    } finally {
+      processando.delete(message.id);
+    }
+  });
+}
+
 module.exports = {
   name: "messageCreate",
   async execute(message) {
@@ -97,7 +157,6 @@ module.exports = {
     if (processando.has(message.id)) return;
     processando.add(message.id);
 
-    // Rate limiting
     const rl = verificarRateLimit(message.author.id);
     if (!rl.permitido) {
       processando.delete(message.id);
@@ -108,70 +167,25 @@ module.exports = {
       return;
     }
 
-    enfileirar(message.author.id, async () => {
-      try {
-        // Audio do Discord (voice message) — processa SEMPRE
-        const { processarAudioMessage } = require("../discord_audio");
-        if (await processarAudioMessage(message)) return;
+    // Audio (voice message) — processa imediatamente, sem debounce
+    const { processarAudioMessage } = require("../discord_audio");
+    if (await processarAudioMessage(message)) {
+      processando.delete(message.id);
+      return;
+    }
 
-        const content = message.content;
-        let ativar = false;
-        let userInput = content;
+    // Debounce: agrupa mensagens do mesmo usuário enviadas em sequência
+    const pendente = mensagensPendentes.get(message.author.id);
+    if (pendente) {
+      clearTimeout(pendente.timer);
+      pendente.mensagens.push(message);
+      pendente.ultimoObjeto = message;
+      pendente.timer = setTimeout(() => processarLote(message.author.id, pendente), DEBOUNCE_MS);
+      return;
+    }
 
-        const lowerContent = content.toLowerCase();
-        if (!ativar) {
-          const slashMatch = lowerContent.match(/^\/neon\s+(.*)/);
-          if (slashMatch) {
-            ativar = true;
-            userInput = slashMatch[1] || "";
-          }
-        }
-
-        if (message.reference && !ativar) {
-          try {
-            const replied = await message.channel.messages.fetch(message.reference.messageId);
-            if (replied.author.id === message.client.user.id) ativar = true;
-          } catch {
-            log("WARN", "Falha ao buscar mensagem respondida");
-          }
-        }
-
-        if (message.channel.type === ChannelType.DM && !ativar) {
-          if (content.trim().length >= 2) ativar = true;
-        }
-
-        if (!ativar) return;
-        if (checkCooldown(message.author.id)) return;
-
-        const mestre = db.data.users?.[message.author.id]?.mestre || false;
-        const userId = message.author.id;
-        const username = message.author.username;
-
-        await message.channel.sendTyping();
-        const resultadoAcao = await executarAcao(userInput, mestre, userId, message);
-        if (resultadoAcao) {
-          addContexto(userId, username, userInput, resultadoAcao);
-          auditar(userId, username, userInput, resultadoAcao.slice(0, 100));
-          await enviarResposta(message, resultadoAcao);
-          return;
-        }
-
-        await message.channel.sendTyping();
-        const imageUrl = message.attachments.first()?.url || null;
-        const reply = await askNeon(userId, username, userInput, imageUrl);
-        if (!message.replied) {
-          addContexto(userId, username, userInput, reply);
-          auditar(userId, username, userInput, reply?.slice(0, 100));
-          await enviarResposta(message, reply);
-        }
-      } catch (err) {
-        log("ERROR", "Erro ao processar mensagem", { usuario: message.author.username, erro: err.message });
-        try {
-          await message.reply("❌ erro interno");
-        } catch {}
-      } finally {
-        processando.delete(message.id);
-      }
-    });
+    const lote = { mensagens: [message], ultimoObjeto: message, timer: null };
+    lote.timer = setTimeout(() => processarLote(message.author.id, lote), DEBOUNCE_MS);
+    mensagensPendentes.set(message.author.id, lote);
   },
 };

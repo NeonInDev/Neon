@@ -218,6 +218,7 @@ async function extrairComFallback(url) {
 async function findBrowserPath() {
   const { execSync } = require("child_process");
   const candidates = [
+    process.env.LOCALAPPDATA + "\\Programs\\Opera GX\\opera.exe",
     "C:\\Program Files\\Opera\\opera.exe",
     "C:\\Program Files (x86)\\Opera\\opera.exe",
     process.env.LOCALAPPDATA + "\\Programs\\Opera\\opera.exe",
@@ -240,8 +241,10 @@ async function findBrowserPath() {
 async function abrirUrlNoOpera(url) {
   const operaPath = process.env.LOCALAPPDATA + "\\Programs\\Opera GX\\opera.exe";
   if (fs.existsSync(operaPath)) {
+    log("INFO", "[BROWSER] Abrindo no Opera GX", { url: url.slice(0, 60) });
     await execAsync(`"${operaPath}" "${url}"`);
   } else {
+    log("WARN", "[BROWSER] Opera GX nao encontrado, fallback start", { path: operaPath });
     await execAsync(`start "" "${url}"`);
   }
 }
@@ -550,17 +553,19 @@ async function buscarTrackIdSpotify(termo) {
   try {
     return await buscarSpotify(termo);
   } catch {
-    const puppeteer = require("puppeteer");
-    const b = await iniciar();
-    const page = await b.newPage();
-    await page.setUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
-    await page.goto(`https://open.spotify.com/search/${encodeURIComponent(termo)}`, { waitUntil: "networkidle0", timeout: 30000 });
-    await sleep(2000);
-    const html = await page.content();
-    await page.close().catch(() => {});
-    const pm = html.match(/\/track\/([a-zA-Z0-9]{22})/);
-    if (pm) return pm[1];
-    throw new Error("Track ID não encontrado");
+    const pw = await getPlaywright();
+    const context = await pw.newContext({ userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" });
+    const page = await context.newPage();
+    try {
+      await page.goto(`https://open.spotify.com/search/${encodeURIComponent(termo)}`, { waitUntil: "networkidle0", timeout: 30000 });
+      await sleep(2000);
+      const html = await page.content();
+      const pm = html.match(/\/track\/([a-zA-Z0-9]{22})/);
+      if (pm) return pm[1];
+      throw new Error("Track ID não encontrado");
+    } finally {
+      await context.close();
+    }
   }
 }
 

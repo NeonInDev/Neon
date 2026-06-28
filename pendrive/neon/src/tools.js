@@ -55,6 +55,8 @@ const FERRAMENTAS = [
   { nome: "lembrete", desc: "Cria lembrete pra horario especifico. Uso: lembrete | [em X minutos ou HH:MM] | [texto]" },
   { nome: "contexto", desc: "Mostra historico da conversa. Uso: contexto" },
   { nome: "alarme", desc: "Cria alarme com som. Uso: alarme | [data/hora] | [mensagem]" },
+  { nome: "neon_pc", desc: "Mostra em qual PC a Neon foi instalada. Uso: neon_pc" },
+  { nome: "proativo", desc: "Ativa/desativa o modo autonomo da Neon (como o Jarvis). Uso: proativo | [on/off]" },
 ];
 
 function descricaoFerramentas() {
@@ -84,6 +86,8 @@ const FERRAMENTAS_LOCAIS = new Set([
   "tecla", "mover_mouse", "arrastar", "achar_janela", "listar_janelas", "fechar_janela",
   "visao", "clicar_em", "digitar_em", "ffmpeg", "agendar", "lembrete", "contexto", "alarme",
   "codar", "opencode", "youtube_pip", "youtube_fullscreen",
+  "tocar_musica", "tocar_playlist", "tocar_video",
+  "neon_pc", "proativo",
 ]);
 
 async function executarFerramenta(ferramenta, userId = null) {
@@ -128,6 +132,40 @@ async function executarFerramenta(ferramenta, userId = null) {
       case "cinema": return args ? await api.cinema(args) : await api.cinema("São Paulo");
       case "pcInfo": return await pc.pcInfo();
 
+      case "neon_pc": {
+        try {
+          const fs = require("fs");
+          const path = require("path");
+          const pcFile = path.join(__dirname, "..", "neon_pc.json");
+          if (fs.existsSync(pcFile)) {
+            const data = JSON.parse(fs.readFileSync(pcFile, "utf8"));
+            return `🖥️ Neon foi instalada em **${data.hostname}** (usuário: ${data.usuario}, em ${data.installedAt})`;
+          }
+          const fallback = require("os").hostname();
+          return `🖥️ Neon está rodando em **${fallback}** (neon_pc.json não encontrado)`;
+        } catch { return `🖥️ ${require("os").hostname()}`; }
+      }
+
+      case "proativo": {
+        const proativo = require("./proativo");
+        if (args === "off" || args === "desativar" || args === "parar") {
+          proativo.parar();
+          return "⏹️ Modo autonomo desativado.";
+        }
+        if (args === "on" || args === "ativar" || args === "iniciar") {
+          const { client } = require("./client");
+          if (client?.isReady()) {
+            await proativo.iniciar(client);
+            return "▶️ Modo autonomo ativado! Neon agora age como Jarvis.";
+          }
+          return "❌ Cliente Discord nao esta pronto.";
+        }
+        if (proativo.isRunning()) {
+          return "🤖 Modo autonomo está **ATIVADO**. Neon está monitorando o PC e agindo por conta própria.";
+        }
+        return "💤 Modo autonomo está **DESATIVADO**. Use `proativo | on` para ativar.";
+      }
+
       case "screenshot": {
         const caminho = await pc.screenshot();
         return `📸 Print salvo em: ${caminho}`;
@@ -160,7 +198,8 @@ async function executarFerramenta(ferramenta, userId = null) {
         return `✅ Lembrei: ${chave} = ${valor.slice(0, 100)}`;
       }
 
-      case "tocar_musica": {
+      case "tocar_musica":
+      case "tocar_playlist": {
         if (!args) return "Nada para tocar.";
         musicQueue.items.push({ type: "spotify", termo: args });
         processMusicQueue();

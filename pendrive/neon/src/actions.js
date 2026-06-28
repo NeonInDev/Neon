@@ -610,7 +610,6 @@ function detectarCategoria(texto) {
   if (encontrarBrowser(texto)) return "browser";
   if (encontrarNavegar(texto)) return "navegar";
   if (encontrarCEP(texto)) return "cep";
-  if (encontrarDefinicao(texto)) return "definicao";
   if (encontrarIP(texto)) return "ip";
   if (encontrarMostrarImagem(texto)) return "mostrarImagem";
   if (/status.*discord|discord.*status/i.test(texto)) return "statusDiscord";
@@ -627,14 +626,6 @@ function detectarCategoria(texto) {
   if (encontrarCalendario(texto)) return "calendario";
   if (encontrarAudit(texto)) return "audit";
   if (encontrarMemoria(texto)) return "memoria";
-  // Detecta nome de app sem "abrir" (ex: "steam", "valorant") — só se for app conhecido
-  if (isWin() && texto.trim().length > 3) {
-    const lower = texto.toLowerCase().trim();
-    const appConhecido = apps.some(a =>
-      a.nomes.some(n => lower.includes(n))
-    );
-    if (appConhecido && encontrarApp("abrir " + texto)) return "app";
-  }
   return null;
 }
 
@@ -761,7 +752,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   }
 
   // ─── EX-TERMINATOR ───
-  if (/ex[- ]?terminat(?:or|ador)|ultron|protocolo.*destrui|autodestrui/i.test(lower)) {
+  if (/ex[- ]?terminat(?:or|ador)|protocolo\s+ultron|protocolo\s+ex[- ]?terminat|autodestrui/i.test(lower)) {
     if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
     // TTS opcional com timeout — nao trava o comando
     (async () => {
@@ -806,7 +797,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   // Apps
   if (categoria === "app") {
     const app = encontrarApp(texto);
-    if (!app) return "❌ App não encontrado.";
+    if (!app) return null;
     const label = app.nomes[0];
     log("INFO", "[ACTION] app detectado", { label, texto, url: app.url, comando: app.comando });
 

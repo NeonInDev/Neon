@@ -1,9 +1,0 @@
-[Autorun]
-open=instalar.vbs
-action=Instalar Neon - Assistente Pessoal
-icon=assets\neon.ico
-label=Neon Installer
-shell\install=Instalar Neon
-shell\install\command=instalar.vbs
-shell\uninstall=Desinstalar Neon
-shell\uninstall\command=desinstalar.vbs

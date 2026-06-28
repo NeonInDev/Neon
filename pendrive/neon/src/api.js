@@ -224,6 +224,97 @@ function qrCode(texto) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(texto)}`;
 }
 
+async function cotacao(args) {
+  const alvo = (args || "").trim().toUpperCase();
+
+  // Se vazio, retorna todas as moedas fiduciárias
+  if (!alvo) {
+    const m = await cotacaoMoeda();
+    return `💱 **Cotações:**\n` +
+      `Dólar: R$ ${m.dolar.compra} (${m.dolar.variacao > 0 ? "+" : ""}${m.dolar.variacao}%)\n` +
+      `Euro: R$ ${m.euro.compra} (${m.euro.variacao > 0 ? "+" : ""}${m.euro.variacao}%)\n` +
+      `Libra: R$ ${m.libra.compra} (${m.libra.variacao > 0 ? "+" : ""}${m.libra.variacao}%)\n` +
+      `Peso ARS: R$ ${m.peso.compra} (${m.peso.variacao > 0 ? "+" : ""}${m.peso.variacao}%)\n` +
+      `📅 ${m.data}`;
+  }
+
+  // Criptomoedas
+  const cryptoMap = { BTC: "bitcoin", ETH: "ethereum", SOL: "solana" };
+  if (cryptoMap[alvo]) {
+    const crypto = await cotacaoCrypto();
+    const key = cryptoMap[alvo];
+    if (!crypto[key]) throw new Error(`${alvo} não encontrado.`);
+    return `📊 **${alvo}:** $${crypto[key].usd} (${crypto[key].variacao24h > 0 ? "+" : ""}${crypto[key].variacao24h?.toFixed(2)}% em 24h)`;
+  }
+
+  // Moedas fiduciárias específicas
+  if (["USD", "EUR", "GBP", "ARS"].includes(alvo)) {
+    const m = await cotacaoMoeda();
+    const map = { USD: "dolar", EUR: "euro", GBP: "libra", ARS: "peso" };
+    const key = map[alvo];
+    return `💱 **${alvo}:** R$ ${m[key].compra} (${m[key].variacao > 0 ? "+" : ""}${m[key].variacao}%)`;
+  }
+
+  // Ações/BDRs (ex: PETR4, AAPL34, WEGE3)
+  const acao = await cotacaoAcao(alvo);
+  return `📈 **${acao.nome} (${acao.ticker}):** R$ ${acao.preco} (${acao.variacao > 0 ? "+" : ""}${acao.variacao?.toFixed(2)}%)\n` +
+    `Abertura: R$ ${acao.abertura} | Máx: R$ ${acao.maxima} | Mín: R$ ${acao.minima}`;
+}
+
+async function cinema(args) {
+  const partes = args.split("|").map(s => s.trim());
+  const cidadeNome = partes[0] || "São Paulo";
+  const cinemaNome = partes[1];
+
+  // Busca cidade pelo nome
+  const ingressoApi = "https://api-content.ingresso.com/v0";
+  const { data: cidade } = await axios.get(`${ingressoApi}/states/city/name/${encodeURIComponent(cidadeNome)}`, { timeout: 10000 });
+  if (!cidade?.id) throw new Error(`Cidade "${cidadeNome}" não encontrada.`);
+
+  // Busca cinemas da cidade
+  const { data: cinemas } = await axios.get(`${ingressoApi}/theaters/city/${cidade.id}`, { timeout: 10000 });
+  if (!cinemas?.length) throw new Error(`Nenhum cinema encontrado em ${cidade.name}.`);
+
+  // Se especificou um cinema, busca sessões
+  if (cinemaNome) {
+    const cinema = cinemas.find(c =>
+      c.name.toLowerCase().includes(cinemaNome.toLowerCase())
+    );
+    if (!cinema) {
+      const lista = cinemas.slice(0, 10).map(c => `- ${c.name}`).join("\n");
+      return `Cinema "${cinemaNome}" não encontrado em ${cidade.name}. Cinemas disponíveis:\n${lista}`;
+    }
+
+    const hoje = new Date().toISOString().split("T")[0];
+    const { data: sessoes } = await axios.get(
+      `${ingressoApi}/sessions/city/${cidade.id}/theater/${cinema.id}?date=${hoje}`,
+      { timeout: 10000 }
+    );
+    if (!sessoes?.length) return `Nenhuma sessão hoje em ${cinema.name}.`;
+
+    let resultado = `🎬 **${cinema.name}** - ${cidade.name}\n`;
+    for (const dia of sessoes) {
+      resultado += `\n📅 ${dia.dateFormatted} (${dia.dayOfWeek}):\n`;
+      for (const movie of dia.movies || []) {
+        const horarios = (movie.rooms || [])
+          .flatMap(r => r.sessions || [])
+          .map(s => s.time)
+          .filter(Boolean)
+          .join(", ");
+        resultado += `  **${movie.title}** ${movie.contentRating ? `(${movie.contentRating})` : ""} - ${movie.duration}min\n`;
+        if (horarios) resultado += `    Horários: ${horarios}\n`;
+      }
+    }
+    return resultado;
+  }
+
+  // Só listar cinemas da cidade
+  const lista = cinemas.map((c, i) =>
+    `${i + 1}. **${c.name}** ${c.address?.street ? `- ${c.address.street}` : ""}`
+  ).join("\n");
+  return `🎬 **Cinemas em ${cidade.name}:**\n${lista}\n\nUse: cinema | ${cidadeNome} | Nome do Cinema para ver horários.`;
+}
+
 async function cotacaoAcao(ticker) {
   const { data } = await axios.get(`https://brapi.dev/api/quote/${encodeURIComponent(ticker)}?range=1d&interval=1d`, { timeout: 10000 });
   const s = data.results?.[0];
@@ -239,4 +330,4 @@ async function cotacaoAcao(ticker) {
   };
 }
 
-module.exports = { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao };
+module.exports = { cotacao, cotacaoMoeda, cotacaoCrypto, cinema, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao };
