@@ -336,6 +336,20 @@ function encontrarClipboard(texto) {
   return false;
 }
 
+function encontrarObsIniciar(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:começa|comecar|inicia|iniciar|liga|ligar)\s+(?:a\s+)?(?:gravar|gravacao|gravação|recording)/i.test(lower)) return true;
+  if (/^(?:gravar|start)\s+(?:recording|obs)/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarObsParar(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:para|parar|pausa|pausar|stop)\s+(?:de\s+)?(?:gravar|gravacao|gravação|recording)/i.test(lower)) return true;
+  if (/^parar\s+obs|stop\s+recording/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarTTS(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (lower === "fala" || lower === "falar" || lower === "diz" || lower === "dizer" || lower === "leia" || lower === "ler" || lower === "le") return false;
@@ -626,6 +640,8 @@ function detectarCategoria(texto) {
   if (encontrarCalendario(texto)) return "calendario";
   if (encontrarAudit(texto)) return "audit";
   if (encontrarMemoria(texto)) return "memoria";
+  if (isWin() && encontrarObsIniciar(texto)) return "obs_iniciar";
+  if (isWin() && encontrarObsParar(texto)) return "obs_parar";
   return null;
 }
 
@@ -1276,6 +1292,14 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   if (categoria === "screenshot") {
     try {
       const path = await pc.screenshot();
+      try {
+        const { client } = require("./client");
+        const master = await client.users.fetch("1442928336329379925");
+        if (master) {
+          const { AttachmentBuilder } = require("discord.js");
+          await master.send({ files: [new AttachmentBuilder(path, { name: "screenshot.png" })] });
+        }
+      } catch {}
       return `📸 Print tirado!\n__FILE__:${path}`;
     } catch (err) {
       return `❌ Erro ao tirar print: ${err.message}`;
@@ -1730,6 +1754,24 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       const s = await cotacaoAcao(ticker);
       const variacao = s.variacao >= 0 ? `+${s.variacao?.toFixed(2)}%` : `${s.variacao?.toFixed(2)}%`;
       return `📈 **${s.nome} (${s.ticker})**\nPreço: **R$ ${s.preco?.toFixed(2)}** (${variacao})\nAbertura: R$ ${s.abertura?.toFixed(2)} | Máx: R$ ${s.maxima?.toFixed(2)} | Mín: R$ ${s.minima?.toFixed(2)}`;
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
+    }
+  }
+
+  // OBS
+  if (categoria === "obs_iniciar") {
+    try {
+      const obs = require("./obs");
+      return await obs.startRecording();
+    } catch (err) {
+      return `❌ Erro: ${err.message}`;
+    }
+  }
+  if (categoria === "obs_parar") {
+    try {
+      const obs = require("./obs");
+      return await obs.stopRecording();
     } catch (err) {
       return `❌ Erro: ${err.message}`;
     }

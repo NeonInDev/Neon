@@ -27,7 +27,7 @@
     },
     {
       "nome": "fetch",
-      "comando": "uvx mcp-server-fetch",
+      "comando": "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\uvx.exe mcp-server-fetch",
       "enabled": false,
       "descricao": "Web fetching sem browser (MCP oficial — requer Python/uvx)"
     },
@@ -35,7 +35,8 @@
       "nome": "github",
       "comando": "npx -y @modelcontextprotocol/server-github",
       "enabled": false,
-      "descricao": "API do GitHub (MCP oficial — requer GITHUB_PERSONAL_ACCESS_TOKEN)"
+      "env": {},
+      "descricao": "API do GitHub (MCP oficial — token em GITHUB_PERSONAL_ACCESS_TOKEN via .env)"
     },
     {
       "nome": "puppeteer",
@@ -45,7 +46,7 @@
     },
     {
       "nome": "sqlite",
-      "comando": "uvx mcp-server-sqlite",
+      "comando": "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Python\\Python312\\Scripts\\uvx.exe mcp-server-sqlite",
       "args": ["C:\\Meus Projetos\\Neon\\mcp_data.db"],
       "enabled": false,
       "descricao": "Banco de dados SQLite (MCP oficial — requer Python/uvx)"
