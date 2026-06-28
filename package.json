@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "start",
-    "start": "node index.js"
+    "start": "node index.js",
+    "mcp": "node src/mcp-server.js"
   },
   "author": "Neon",
   "license": "ISC",

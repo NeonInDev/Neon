@@ -166,7 +166,7 @@ class StioTransport extends EventEmitter {
         this.pendentes.delete(id);
         resolve(null);
         log("WARN", `[MCP:${this.nome}] Timeout na request ${method} (${id})`);
-      }, 30000);
+      }, 20000);
       this.pendentes.set(id, { resolve, timeout });
       try {
         this.processo.stdin.write(msg);
@@ -376,15 +376,37 @@ function getFerramentas() {
 }
 
 function getSchemaFerramentas() {
-  return Array.from(toolMap.values()).map(({ tool }) => ({
-    name: tool.nome,
-    description: tool.desc,
-    inputSchema: {
-      type: "object",
-      properties: tool.schema?.properties || {},
-      required: tool.schema?.required || [],
-    },
-  }));
+  return Array.from(toolMap.values()).map(({ tool }) => {
+    if (tool.schema?.properties && Object.keys(tool.schema.properties).length > 0) {
+      return {
+        name: tool.nome,
+        description: tool.desc,
+        inputSchema: {
+          type: "object",
+          properties: tool.schema.properties,
+          required: tool.schema.required || [],
+        },
+      };
+    }
+    const props = {};
+    const required = [];
+    if (tool.formato) {
+      const partes = tool.formato.split("|").map((s) => s.trim());
+      for (const parte of partes) {
+        const match = parte.match(/^\[(.+?)\]$/);
+        if (match) {
+          const nome = match[1];
+          props[nome] = { type: "string", description: `Argumento: ${nome}` };
+          required.push(nome);
+        }
+      }
+    }
+    return {
+      name: tool.nome,
+      description: tool.desc,
+      inputSchema: { type: "object", properties: props, required },
+    };
+  });
 }
 
 async function executar(nome, args, userId = null) {

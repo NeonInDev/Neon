@@ -12,9 +12,9 @@ async function ps(script, label) {
   const tmpFile = path.join(TMP, `neon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.ps1`);
   fs.writeFileSync(tmpFile, script, "utf8");
   try {
-    const { stdout, stderr } = await execAsync(`powershell -NoProfile -File "${tmpFile}"`, { timeout: 30000 });
-    if (stderr) throw new Error(stderr.trim());
-    return stdout.trim();
+    const { stdout, stderr } = await execAsync(`powershell -NoProfile -File "${tmpFile}"`, { timeout: 15000 });
+    if (stderr && !stdout) throw new Error(stderr.trim());
+    return stdout.trim() || stderr.trim();
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}
   }
@@ -275,7 +275,27 @@ async function verTela(objetivo = "") {
 // ===================== FUNÇÕES EXISTENTES (MANTIDAS) =====================
 
 async function pcInfo() {
-  return await ps(fs.readFileSync(path.join(SCRIPTS_DIR, "pcinfo.ps1"), "utf8"), "pcInfo");
+  const script = [
+    '$cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average',
+    '$os = Get-CimInstance Win32_OperatingSystem',
+    '$ramTotal = $os.TotalVisibleMemorySize',
+    '$ramFree = $os.FreePhysicalMemory',
+    '$ramPct = [math]::Round(($ramTotal - $ramFree) / $ramTotal * 100)',
+    '$disk = Get-PSDrive C | Select-Object @{N=\'Pct\';E={[math]::Round(($_.Used+1)/($_.Used+$_.Free)*100)}}',
+    '$uptime = (Get-Date) - $os.LastBootUpTime',
+    '$hostname = $env:COMPUTERNAME',
+    '$cpuModel = (Get-CimInstance Win32_Processor).Name',
+    'Write-Output "== Sistema =="',
+    'Write-Output "PC: ${hostname}"',
+    'Write-Output "CPU: ${cpuModel}"',
+    'Write-Output "Uptime: $($uptime.Days)d $($uptime.Hours)h $($uptime.Minutes)min"',
+    'Write-Output ""',
+    'Write-Output "== Hardware =="',
+    'Write-Output "CPU: ${cpu}%"',
+    'Write-Output "RAM: ${ramPct}%"',
+    'Write-Output "Disco: $($disk.Pct)%"',
+  ].join("\n");
+  return await ps(script, "pcInfo");
 }
 
 async function pcInfoJson() {
