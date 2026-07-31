@@ -26,7 +26,7 @@ function Push-Neon {
     }
 
     for ($tentativa = 1; $tentativa -le 3; $tentativa++) {
-        git push origin main 2>&1 | Out-Null
+        git push origin main 2>$null
         if ($LASTEXITCODE -eq 0) {
             Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Commit + push OK: $($status.Count) arquivo(s)" -ForegroundColor Green
             return
