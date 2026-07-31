@@ -24,6 +24,21 @@
       "type": "local",
       "command": ["npx", "-y", "@playwright/mcp", "--headless", "--browser", "chrome"],
       "enabled": true
+    },
+    "pc": {
+      "type": "local",
+      "command": ["node", "src/pc.js"],
+      "enabled": true
+    },
+    "system": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-system"],
+      "enabled": false
+    },
+    "voice": {
+      "type": "local",
+      "command": ["node", "src/voz.js"],
+      "enabled": false
     }
   }
 }
