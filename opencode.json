@@ -1,0 +1,29 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "groq/qwen-3-coder-480b",
+  "small_model": "groq/qwen-3-coder-480b",
+  "default_agent": "neon",
+  "provider": {
+    "groq": {}
+  },
+  "agent": {
+    "neon": {
+      "mode": "primary",
+      "description": "Neon - Bot de IA para Discord",
+      "permission": { "edit": "allow", "bash": "allow" }
+    }
+  },
+  "permission": { "bash": "allow", "edit": "allow" },
+  "mcp": {
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
+      "enabled": true
+    },
+    "browser": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp", "--headless", "--browser", "chrome"],
+      "enabled": true
+    }
+  }
+}
