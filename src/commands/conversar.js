@@ -36,7 +36,7 @@ module.exports = {
         await interaction.reply("❌ Não consegui iniciar a conversa.");
       }
     } else {
-      voz.pararConversa();
+      voz.pararConversa(interaction.guildId);
       await interaction.reply("⏹️ Conversa contínua parada.");
     }
   },

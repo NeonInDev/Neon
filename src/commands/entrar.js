@@ -20,7 +20,7 @@ module.exports = {
 
     const ok = await voz.entrarVoz(guildId, channelId, adapter);
     if (ok) {
-      await interaction.editReply("✅ Conectada ao canal de voz! Já estou te ouvindo.");
+      await interaction.editReply("✅ Conectada ao canal de voz! Diga **Neon** para falar comigo.");
     } else {
       await interaction.editReply("❌ Não consegui entrar no canal de voz.");
     }

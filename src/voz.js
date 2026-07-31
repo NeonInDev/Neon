@@ -1,4 +1,4 @@
-const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState, EndBehaviorType } = require("@discordjs/voice");
+const { joinVoiceChannel, createAudioPlayer, createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, entersState, EndBehaviorType, StreamType } = require("@discordjs/voice");
 const { log } = require("./logger");
 const path = require("path");
 const fs = require("fs");
@@ -6,6 +6,11 @@ const { exec: execCb } = require("child_process");
 const { promisify } = require("util");
 const execAsync = promisify(execCb);
 const { OWNER } = require("./perm");
+const { EdgeTTS } = require("edge-tts-universal");
+const { VOZ_NEON } = require("./config");
+
+const ATIVACAO_RE = /^\s*(neon|néon)([,\s:!.\-–—]|$)/i;
+const INATIVIDADE_MS = 90_000;
 
 let connections = new Map();
 let players = new Map();
@@ -49,7 +54,6 @@ async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
     log("INFO", "[VOZ] Conectado", { guildId });
 
     if (autoConversa) {
-      conversasAtivas.set(guildId, true);
       iniciarEscuta(guildId, connection);
     }
 
@@ -87,6 +91,32 @@ async function falar(guildId, texto) {
   const limpo = texto.replace(/[*_`~|#\[\]]/g, "").slice(0, 500);
   if (!limpo) return false;
 
+  const ts = Date.now();
+  const tmp = process.env.TEMP || "C:\\Temp";
+  const arquivo = path.join(tmp, `neon_vc_${ts}.mp3`);
+
+  try {
+    const tts = new EdgeTTS(limpo, VOZ_NEON);
+    const resultado = await tts.synthesize();
+    fs.writeFileSync(arquivo, Buffer.from(await resultado.audio.arrayBuffer()));
+
+    if (!fs.existsSync(arquivo) || fs.statSync(arquivo).size === 0) {
+      throw new Error("audio vazio");
+    }
+
+    const resource = createAudioResource(arquivo, { inlineVolume: true, inputType: StreamType.Arbitrary });
+    resource.volume?.setVolume(1);
+    player.play(resource);
+    player.once(AudioPlayerStatus.Idle, () => { try { fs.unlinkSync(arquivo); } catch {} });
+    return true;
+  } catch (err) {
+    log("WARN", "[VOZ] TTS edge falhou, fallback SAPI", { erro: err.message });
+    try { fs.unlinkSync(arquivo); } catch {}
+    return falarSapi(connection, player, limpo);
+  }
+}
+
+async function falarSapi(connection, player, limpo) {
   try {
     const ts = Date.now();
     const tmp = process.env.TEMP || "C:\\Temp";
@@ -102,16 +132,16 @@ async function falar(guildId, texto) {
     player.once(AudioPlayerStatus.Idle, () => { try { fs.unlinkSync(wavFile); } catch {} });
     return true;
   } catch (err) {
-    log("WARN", "[VOZ] Falha ao falar", { erro: err.message });
+    log("WARN", "[VOZ] SAPI falhou", { erro: err.message });
     return false;
   }
 }
 
 async function iniciarEscuta(guildId, connection) {
   const receiver = receivers.get(guildId);
-  if (!receiver) return;
+  if (!receiver || !connections.has(guildId)) return;
 
-  log("INFO", "[VOZ] Iniciando escuta do dono", { guildId });
+  log("INFO", "[VOZ] Ouvindo o dono (diga 'Neon' para ativar)", { guildId });
 
   try {
     const audioStream = receiver.subscribe(OWNER, {
@@ -121,10 +151,14 @@ async function iniciarEscuta(guildId, connection) {
     const chunks = [];
     audioStream.on("data", (chunk) => chunks.push(chunk));
     audioStream.on("end", async () => {
+      const temConversa = conversasAtivas.has(guildId);
+
       if (chunks.length === 0) {
-        if (conversasAtivas.has(guildId)) {
-          setTimeout(() => iniciarEscuta(guildId, connection), 1000);
+        if (temConversa && Date.now() - conversasAtivas.get(guildId) > INATIVIDADE_MS) {
+          pararConversa(guildId);
+          log("INFO", "[VOZ] Conversa encerrada por inatividade", { guildId });
         }
+        setTimeout(() => iniciarEscuta(guildId, connection), 1000);
         return;
       }
 
@@ -149,9 +183,21 @@ async function iniciarEscuta(guildId, connection) {
 
         if (texto && texto.length > 1) {
           log("INFO", "[VOZ] Transcricao", { texto: texto.slice(0, 100) });
-          const { askNeon } = require("./ai");
-          const reply = await askNeon(OWNER, "dono", texto);
-          if (reply) await falar(guildId, reply);
+          let pergunta = texto;
+          const ativou = ATIVACAO_RE.test(pergunta);
+
+          if (ativou) {
+            pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
+            conversasAtivas.set(guildId, Date.now());
+          } else if (temConversa) {
+            conversasAtivas.set(guildId, Date.now());
+          }
+
+          if (conversasAtivas.has(guildId)) {
+            const { askNeon } = require("./ai");
+            const reply = await askNeon(OWNER, "dono", pergunta);
+            if (reply) await falar(guildId, reply);
+          }
         }
       } catch (err) {
         log("WARN", "[VOZ] Erro no audio", { erro: err.message });
@@ -159,16 +205,12 @@ async function iniciarEscuta(guildId, connection) {
         try { fs.unlinkSync(wavFile); } catch {}
       }
 
-      if (conversasAtivas.has(guildId)) {
-        setTimeout(() => iniciarEscuta(guildId, connection), 1000);
-      }
+      setTimeout(() => iniciarEscuta(guildId, connection), 1000);
     });
 
     audioStream.on("error", (err) => {
       log("WARN", "[VOZ] Erro no stream de audio", { erro: err.message });
-      if (conversasAtivas.has(guildId)) {
-        setTimeout(() => iniciarEscuta(guildId, connection), 2000);
-      }
+      setTimeout(() => iniciarEscuta(guildId, connection), 2000);
     });
   } catch (err) {
     log("WARN", "[VOZ] Erro ao iniciar escuta", { erro: err.message });
@@ -200,7 +242,7 @@ async function transcreverAudio(wavPath) {
 async function iniciarConversa(guildId) {
   const connection = connections.get(guildId);
   if (!connection) return false;
-  conversasAtivas.set(guildId, true);
+  conversasAtivas.set(guildId, Date.now());
   iniciarEscuta(guildId, connection);
   return true;
 }

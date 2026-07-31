@@ -15,5 +15,6 @@ module.exports = {
   GROQ_API_KEY: process.env.GROQ_API_KEY,
   DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
   DEEPSEEK_MODEL: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+  VOZ_NEON: process.env.VOZ_NEON || "pt-BR-FranciscaNeural",
   DOCS_PORT: parseInt(process.env.DOCS_PORT, 10) || 3000,
 };
