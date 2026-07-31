@@ -3,8 +3,31 @@ const { getOrCreateUser } = require("./user");
 const { detectarManipulacao } = require("./moderation");
 const { log } = require("./logger");
 const opencode = require("./opencode");
+const axios = require("axios");
+const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL } = require("./config");
 
 const MAX_INPUT_LEN = 2000;
+const SISTEMA = "Você é Neon, uma IA que vive no PC do usuário. Você controla o navegador, o sistema de arquivos, o terminal e pode fazer QUALQUER COISA. Personalidade: inteligente, direta, observadora, brincalhona quando cabe, respeitosa. Responda de forma natural e direta, sem enrolação.";
+
+async function chamarCompletions(url, apiKey, model, prompt, timeoutMs) {
+  const resp = await axios.post(
+    url,
+    {
+      model,
+      messages: [
+        { role: "system", content: SISTEMA },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.7,
+      max_tokens: 1000,
+    },
+    {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      timeout: timeoutMs,
+    }
+  );
+  return resp?.data?.choices?.[0]?.message?.content?.trim() || null;
+}
 
 async function askNeon(userId, username, userInput, imageUrl = null) {
   if (!db.data.users) db.data.users = {};
@@ -49,7 +72,28 @@ Neon:`;
   const inicio = Date.now();
 
   try {
-    const reply = await opencode.executar(prompt);
+    let reply = null;
+
+    if (DEEPSEEK_API_KEY) {
+      try {
+        reply = await chamarCompletions("https://api.deepseek.com/chat/completions", DEEPSEEK_API_KEY, DEEPSEEK_MODEL, prompt, 90000);
+      } catch (err) {
+        log("WARN", "DeepSeek falhou, tentando OpenRouter", { erro: err.message?.slice(0, 100) });
+      }
+    }
+
+    if (!reply && OPENROUTER_API_KEY) {
+      try {
+        reply = await chamarCompletions("https://openrouter.ai/api/v1/chat/completions", OPENROUTER_API_KEY, OPENROUTER_MODEL, prompt, 45000);
+      } catch (err) {
+        log("WARN", "OpenRouter falhou, tentando opencode", { erro: err.message?.slice(0, 100) });
+      }
+    }
+
+    if (!reply) {
+      reply = await opencode.executar(prompt);
+    }
+
     if (!reply || reply.length < 10) {
       return "❌ Não consegui processar agora. Tenta de novo?";
     }
