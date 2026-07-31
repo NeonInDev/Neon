@@ -22,6 +22,14 @@ function getBinPath() {
 const OPENCODE_BIN = getBinPath();
 const CONFIG_DIR = path.join(__dirname, "..");
 
+function envSeguro() {
+  const e = { ...process.env, OPENCODE_DISABLE_PROJECT_CONFIG: "" };
+  for (const k of Object.keys(e)) {
+    if (/KEY|TOKEN|SECRET|PASS(WORD)?|AUTH|API/i.test(k)) delete e[k];
+  }
+  return e;
+}
+
 let serverProcess = null;
 let serverPort = null;
 
@@ -32,17 +40,12 @@ async function iniciarServer() {
     try {
       log("INFO", "[OPENCODE] Iniciando servidor...", { bin: OPENCODE_BIN, configDir: CONFIG_DIR });
 
-      const env = {
-        ...process.env,
-        OPENCODE_DISABLE_PROJECT_CONFIG: "",
-      };
-
       const proc = spawn(OPENCODE_BIN, ["serve", "--port", "0", "--hostname", "127.0.0.1", "--print-logs"], {
         cwd: CONFIG_DIR,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
         shell: true,
-        env,
+        env: envSeguro(),
       });
 
       let output = "";
@@ -110,7 +113,7 @@ async function executar(tarefa) {
       timeout: 180000,
       windowsHide: true,
       maxBuffer: 10 * 1024 * 1024,
-      env: { ...process.env },
+      env: envSeguro(),
     });
     const result = stdout?.trim();
     return result?.length > 10 ? result.slice(0, 4000) : null;
