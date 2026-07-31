@@ -217,10 +217,84 @@ async function iniciarEscuta(guildId, connection) {
   }
 }
 
+function lerWavSamples(wavBuf) {
+  let dataOffset = 12;
+  while (dataOffset + 8 <= wavBuf.length) {
+    const chunkId = wavBuf.toString("ascii", dataOffset, dataOffset + 4);
+    const chunkSize = wavBuf.readUInt32LE(dataOffset + 4);
+    if (chunkId === "data") {
+      const sampleStart = dataOffset + 8;
+      const numSamples = Math.floor(chunkSize / 2);
+      const samples = new Float32Array(numSamples);
+      for (let i = 0; i < numSamples; i++) {
+        samples[i] = wavBuf.readInt16LE(sampleStart + i * 2) / 32768.0;
+      }
+      return samples;
+    }
+    dataOffset += 8 + chunkSize;
+  }
+  throw new Error("Chunk data nao encontrado no WAV");
+}
+
+let whisperPipeline = null;
+
+async function transcreverLocal(wavPath) {
+  try {
+    if (!whisperPipeline) {
+      log("INFO", "[VOZ] Carregando Whisper local");
+      const { pipeline } = require("@xenova/transformers");
+      const modelo = process.env.WHISPER_MODEL || "Xenova/whisper-small";
+      whisperPipeline = await pipeline("automatic-speech-recognition", modelo, { quantized: true });
+      log("INFO", "[VOZ] Whisper local pronto");
+    }
+    const result = await whisperPipeline(lerWavSamples(fs.readFileSync(wavPath)), {
+      language: process.env.WHISPER_LANGUAGE || "pt",
+      task: "transcribe",
+      sampling_rate: 16000,
+    });
+    return result?.text?.trim() || null;
+  } catch (err) {
+    log("WARN", "[VOZ] Whisper local falhou", { erro: err.message?.slice(0, 100) });
+    return null;
+  }
+}
+
 async function transcreverAudio(wavPath) {
+  const { GROQ_API_KEY, DEEPSEEK_API_KEY } = require("./config");
+
+  const local = await transcreverLocal(wavPath);
+  if (local) return local;
+
+  if (GROQ_API_KEY) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const blob = new Blob([fs.readFileSync(wavPath)], { type: "audio/wav" });
+      const form = new FormData();
+      form.append("file", blob, "audio.wav");
+      form.append("model", "whisper-large-v3-turbo");
+      form.append("language", "pt");
+      form.append("response_format", "json");
+      const resp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+        body: form,
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (resp.ok) {
+        const data = await resp.json();
+        const texto = data?.text?.trim();
+        if (texto) return texto;
+      }
+      log("WARN", "[VOZ] Groq HTTP", { status: resp.status });
+    } catch (err) {
+      log("WARN", "[VOZ] Groq falhou", { erro: err.message?.slice(0, 100) });
+    }
+  }
+
   try {
     const axios = require("axios");
-    const { DEEPSEEK_API_KEY } = require("./config");
     const fs2 = require("fs");
     const FormData = require("form-data");
 
