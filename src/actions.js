@@ -523,7 +523,7 @@ function encontrarRede(texto) {
 
 function encontrarBateria(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
-  if (/^(?:bateria|battery|carga|nível\s+da\s+bateria|nivel\s+da\s+bateria|quanto\s+ta\s+a\s+bateria)/i.test(lower)) return true;
+  if (/^(?:bateria|battery|carga|nível\s+da\s+bateria|nivel\s+da\s+bateria|quanto\s+ta\s+a\s+bateria|quanto\s+de\s+%\s*(?:t[aá])?\s*a?\s*bateria|qual\s+(?:a\s+|é\s+|e\s+)?(?:a\s+)?porcentagem\s+(?:da\s+)?bateria)/i.test(lower)) return true;
   return false;
 }
 

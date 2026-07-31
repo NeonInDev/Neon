@@ -284,48 +284,96 @@ async function analisarImagem(base64, prompt = "Descreva detalhadamente o que vo
 
 async function pcInfo() {
   const script = [
-    '$cpu = (Get-CimInstance Win32_Processor | Measure-Object -Property LoadPercentage -Average).Average',
-    '$os = Get-CimInstance Win32_OperatingSystem',
-    '$ramTotal = $os.TotalVisibleMemorySize',
-    '$ramFree = $os.FreePhysicalMemory',
-    '$ramPct = [math]::Round(($ramTotal - $ramFree) / $ramTotal * 100)',
-    '$disk = Get-PSDrive C | Select-Object @{N=\'Pct\';E={[math]::Round(($_.Used+1)/($_.Used+$_.Free)*100)}}',
-    '$uptime = (Get-Date) - $os.LastBootUpTime',
+    'Add-Type -TypeDefinition @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'namespace Neon {',
+    'public static class Native {',
+    '  [DllImport(\"kernel32.dll\")] public static extern bool GetSystemTimes(out long idle, out long kernel, out long user);',
+    '  [DllImport(\"kernel32.dll\")] public static extern ulong GetTickCount64();',
+    '  [DllImport(\"kernel32.dll\")] public static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);',
+    '}',
+    '[StructLayout(LayoutKind.Sequential)]',
+    'public struct MEMORYSTATUSEX {',
+    '  public uint dwLength; public uint dwMemoryLoad; public ulong ullTotalPhys; public ulong ullAvailPhys;',
+    '  public ulong ullTotalPageFile; public ulong ullAvailPageFile; public ulong ullTotalVirtual; public ulong ullAvailVirtual;',
+    '  public ulong ullAvailExtendedVirtual;',
+    '}',
+    '}',
+    '"@',
+    '$i1=0; $k1=0; $u1=0; $null = [Neon.Native]::GetSystemTimes([ref]$i1,[ref]$k1,[ref]$u1)',
+    'Start-Sleep -Milliseconds 500',
+    '$i2=0; $k2=0; $u2=0; $null = [Neon.Native]::GetSystemTimes([ref]$i2,[ref]$k2,[ref]$u2)',
+    '$total = ($k2-$k1) + ($u2-$u1)',
+    '$cpu = if ($total -gt 0) { [math]::Round((($total - ($i2-$i1)) / $total) * 100) } else { 0 }',
+    '$mem = New-Object Neon.MEMORYSTATUSEX',
+    '$mem.dwLength = [System.Runtime.InteropServices.Marshal]::SizeOf([type][Neon.MEMORYSTATUSEX])',
+    '$null = [Neon.Native]::GlobalMemoryStatusEx([ref]$mem)',
+    '$ramPct = if ($mem.ullTotalPhys -gt 0) { [math]::Round(($mem.ullTotalPhys - $mem.ullAvailPhys) / $mem.ullTotalPhys * 100) } else { 0 }',
+    '$ramStr = "$([math]::Round(($mem.ullTotalPhys - $mem.ullAvailPhys)/1GB))/$([math]::Round($mem.ullTotalPhys/1GB)) GB"',
+    '$ts = [TimeSpan]::FromMilliseconds([Neon.Native]::GetTickCount64())',
+    '$cpuNome = (Get-ItemProperty "HKLM:\\HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0" -ErrorAction SilentlyContinue).ProcessorNameString',
+    '$disk = Get-PSDrive C -ErrorAction SilentlyContinue',
     '$hostname = $env:COMPUTERNAME',
-    '$cpuModel = (Get-CimInstance Win32_Processor).Name',
     'Write-Output "== Sistema =="',
     'Write-Output "PC: ${hostname}"',
-    'Write-Output "CPU: ${cpuModel}"',
-    'Write-Output "Uptime: $($uptime.Days)d $($uptime.Hours)h $($uptime.Minutes)min"',
+    'Write-Output "CPU: ${cpuNome}"',
+    'Write-Output "OS: $([System.Environment]::OSVersion.VersionString)"',
+    'Write-Output "Uptime: $([math]::Floor($ts.TotalDays))d $($ts.Hours)h $($ts.Minutes)min"',
     'Write-Output ""',
     'Write-Output "== Hardware =="',
     'Write-Output "CPU: ${cpu}%"',
-    'Write-Output "RAM: ${ramPct}%"',
-    'Write-Output "Disco: $($disk.Pct)%"',
+    'Write-Output "RAM: ${ramPct}% (${ramStr})"',
+    'if ($disk) { Write-Output "Disco C: usado $([math]::Round($disk.Used/1GB)) GB / livre $([math]::Round($disk.Free/1GB)) GB" }',
   ].join("\n");
   return await ps(script, "pcInfo");
 }
 
 async function pcInfoJson() {
   const script = [
-    '$cpu = Get-CimInstance Win32_Processor | Select-Object -First 1',
-    '$mem = Get-CimInstance Win32_OperatingSystem',
-    '$disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID=\'C:\'"',
-    '$temp = Get-CimInstance MSAcpi_ThermalZoneTemperature -Namespace root/wmi -ErrorAction SilentlyContinue | Select-Object -First 1',
+    'Add-Type -TypeDefinition @"',
+    'using System;',
+    'using System.Runtime.InteropServices;',
+    'namespace Neon {',
+    'public static class Native {',
+    '  [DllImport(\"kernel32.dll\")] public static extern bool GetSystemTimes(out long idle, out long kernel, out long user);',
+    '  [DllImport(\"kernel32.dll\")] public static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);',
+    '}',
+    '[StructLayout(LayoutKind.Sequential)]',
+    'public struct MEMORYSTATUSEX {',
+    '  public uint dwLength; public uint dwMemoryLoad; public ulong ullTotalPhys; public ulong ullAvailPhys;',
+    '  public ulong ullTotalPageFile; public ulong ullAvailPageFile; public ulong ullTotalVirtual; public ulong ullAvailVirtual;',
+    '  public ulong ullAvailExtendedVirtual;',
+    '}',
+    '}',
+    '"@',
+    '$i1=0; $k1=0; $u1=0; $null = [Neon.Native]::GetSystemTimes([ref]$i1,[ref]$k1,[ref]$u1)',
+    'Start-Sleep -Milliseconds 500',
+    '$i2=0; $k2=0; $u2=0; $null = [Neon.Native]::GetSystemTimes([ref]$i2,[ref]$k2,[ref]$u2)',
+    '$total = ($k2-$k1) + ($u2-$u1)',
+    '$cpuUso = if ($total -gt 0) { [math]::Round((($total - ($i2-$i1)) / $total) * 100, 1) } else { $null }',
+    '$mem = New-Object Neon.MEMORYSTATUSEX',
+    '$mem.dwLength = [System.Runtime.InteropServices.Marshal]::SizeOf([type][Neon.MEMORYSTATUSEX])',
+    '$null = [Neon.Native]::GlobalMemoryStatusEx([ref]$mem)',
+    '$ramTotal = if ($mem.ullTotalPhys -gt 0) { [math]::Round($mem.ullTotalPhys / 1GB, 1) } else { $null }',
+    '$ramLivre = if ($mem.ullTotalPhys -gt 0) { [math]::Round($mem.ullAvailPhys / 1GB, 1) } else { $null }',
+    '$ramUso = if ($mem.ullTotalPhys -gt 0) { [math]::Round(($mem.ullTotalPhys - $mem.ullAvailPhys) / $mem.ullTotalPhys * 100, 1) } else { $null }',
+    '$cpuNome = (Get-ItemProperty "HKLM:\\HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0" -ErrorAction SilentlyContinue).ProcessorNameString',
+    '$disk = Get-PSDrive C -ErrorAction SilentlyContinue',
     '$json = @{',
-    '  cpuNome = if ($cpu) { "$($cpu.Name)" } else { "N/A" }',
-    '  cpuUso = if ($cpu) { $cpu.LoadPercentage } else { $null }',
-    '  ramTotal = if ($mem) { [math]::Round($mem.TotalVisibleMemorySize / 1MB, 1) } else { $null }',
-    '  ramLivre = if ($mem) { [math]::Round($mem.FreePhysicalMemory / 1MB, 1) } else { $null }',
-    '  ramUso = if ($mem) { [math]::Round(($mem.TotalVisibleMemorySize - $mem.FreePhysicalMemory) / $mem.TotalVisibleMemorySize * 100, 1) } else { $null }',
-    '  discoTotal = if ($disk) { [math]::Round($disk.Size / 1GB, 1) } else { $null }',
-    '  discoLivre = if ($disk) { [math]::Round($disk.FreeSpace / 1GB, 1) } else { $null }',
-    '  discoUso = if ($disk) { [math]::Round(($disk.Size - $disk.FreeSpace) / $disk.Size * 100, 1) } else { $null }',
-    '  temperatura = if ($temp) { [math]::Round(($temp.CurrentTemperature - 2732) / 10, 1) } else { $null }',
-    '  temperaturaDisponivel = if ($temp) { $true } else { $false }',
+    '  cpuNome = if ($cpuNome) { "$cpuNome" } else { "N/A" }',
+    '  cpuUso = if ($null -ne $cpuUso) { $cpuUso } else { $null }',
+    '  ramTotal = $ramTotal',
+    '  ramLivre = $ramLivre',
+    '  ramUso = $ramUso',
+    '  discoTotal = if ($disk) { [math]::Round(($disk.Used + $disk.Free) / 1GB, 1) } else { $null }',
+    '  discoLivre = if ($disk) { [math]::Round($disk.Free / 1GB, 1) } else { $null }',
+    '  discoUso = if ($disk -and ($disk.Used + $disk.Free) -gt 0) { [math]::Round($disk.Used / ($disk.Used + $disk.Free) * 100, 1) } else { $null }',
+    '  temperatura = $null',
+    '  temperaturaDisponivel = $false',
     '}',
     '$json | ConvertTo-Json -Compress',
-  ].join("`n");
+  ].join("\n");
   const raw = await ps(script, "pcInfoJson");
   return JSON.parse(raw);
 }
@@ -390,17 +438,30 @@ Write-Output "Adaptador: $($adapter.Name)"`;
 }
 
 async function bateria() {
-  const script = `$bat = Get-WmiObject Win32_Battery
-if ($bat) {
-  $pct = [int]$bat.EstimatedChargeRemaining
-  $s = switch ($bat.BatteryStatus) {
-    1 { "Descarregando" }; 2 { "Carregando" }; 3 { "Completa" }; 4 { "Baixa" }; 5 { "Critica" }; 6 { "Em pausa" }; 7 { "Carregando (alto)" }; 11 { "Conectada" }; default { "Desconhecido" }
-  }
+  const script = `Add-Type -AssemblyName System.Windows.Forms
+$ps = [System.Windows.Forms.SystemInformation]::PowerStatus
+if ([int]$ps.BatteryChargeStatus -eq 128 -or $ps.BatteryLifePercent -lt 0) {
+  Write-Output "Sem bateria detectada (PC de mesa?)"
+} else {
+  $pct = [int][math]::Round($ps.BatteryLifePercent * 100)
+  $s = if ($ps.PowerLineStatus -eq 1) { "Carregando (conectado)" } else { "Descarregando (na bateria)" }
   Write-Output "Nivel: $pct%"
   Write-Output "Status: $s"
-  if ($bat.EstimatedRunTime -gt 0) { Write-Output "Autonomia: $($bat.EstimatedRunTime) min" }
-} else { Write-Output "Sem bateria detectada (PC de mesa?)" }`;
+  if ($ps.BatteryLifeRemaining -gt 0) { Write-Output "Autonomia: $([int]($ps.BatteryLifeRemaining / 60)) min" }
+}`;
   return await ps(script, "battery");
+}
+
+async function bateriaJson() {
+  const script = `Add-Type -AssemblyName System.Windows.Forms
+$ps = [System.Windows.Forms.SystemInformation]::PowerStatus
+if ([int]$ps.BatteryChargeStatus -eq 128 -or $ps.BatteryLifePercent -lt 0) {
+  Write-Output '{"temBateria":false}'
+} else {
+  $obj = @{ temBateria = $true; pct = [int][math]::Round($ps.BatteryLifePercent * 100); status = if ($ps.PowerLineStatus -eq 1) { "carregando" } else { "descarregando" } }
+  $obj | ConvertTo-Json -Compress
+}`;
+  return JSON.parse(await ps(script, "batteryJson"));
 }
 
 async function notificarToast(titulo, mensagem) {
@@ -440,7 +501,7 @@ async function enviarEmail(para, assunto, corpo) {
 
 module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
-  listarProcessos, matarProcesso, infoRede, bateria, notificar, notificarToast, enviarEmail,
+  listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
   moverMouse, clicarMouse, duploClique, arrastar, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   verTela, analisarImagem,

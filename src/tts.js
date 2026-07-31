@@ -10,15 +10,22 @@ const FFMPEG = "C:\\ffmpeg\\ffmpeg.exe"
 let edgeTts = null
 try { edgeTts = require("edge-tts-universal") } catch {}
 
+async function gerarAudio(texto, voz = "auto") {
+  if (!texto) return null;
+  const t = texto.slice(0, 500);
+  if (!edgeTts) return null;
+  const voice = voz === "auto" ? "pt-BR-FranciscaNeural" : voz;
+  const tts = new edgeTts.UniversalEdgeTTS(t, voice);
+  const result = await tts.synthesize();
+  return Buffer.from(await result.audio.arrayBuffer());
+}
+
 async function falar(texto, voz = "auto") {
   if (!texto) return
   const t = texto.slice(0, 500)
   if (edgeTts) {
     try {
-      const voice = voz === "auto" ? "pt-BR-FranciscaNeural" : voz
-      const tts = new edgeTts.UniversalEdgeTTS(t, voice)
-      const result = await tts.synthesize()
-      const mp3 = Buffer.from(await result.audio.arrayBuffer())
+      const mp3 = await gerarAudio(t, voz)
       const ts = Date.now()
       const mp3File = path.join(TMP, `neon_tts_${ts}.mp3`)
       const wavFile = path.join(TMP, `neon_tts_${ts}.wav`)
@@ -43,4 +50,4 @@ async function testar() {
   return { ok: true, metodo: "Edge TTS Neural (pt-BR-FranciscaNeural)" }
 }
 
-module.exports = { falar, testar }
+module.exports = { falar, testar, gerarAudio }
