@@ -2,7 +2,8 @@ const fs = require("fs")
 const path = require("path")
 const { log } = require("./logger")
 
-const OWNER_ID = "1442928336329379925"
+const { OWNER } = require("./perm")
+const OWNER_ID = OWNER
 const RATE_LIMIT = 5
 const RATE_WINDOW = 10000
 

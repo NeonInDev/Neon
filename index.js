@@ -4,37 +4,26 @@ const { client } = require("./src/client");
 const { db } = require("./src/db");
 const { TOKEN } = require("./src/config");
 const { log, fechar: fecharLogger } = require("./src/logger");
-const { stopDocsServer } = require("./src/docs/server");
 const { fechar: fecharBrowser } = require("./src/browser");
-const voice = require("./src/voice");
+const opencode = require("./src/opencode");
+const apiPublica = require("./src/api_publica");
 const monitor = require("./src/monitor");
 const proativo = require("./src/proativo");
-const opencode = require("./src/opencode");
-const plugins = require("./src/plugin_loader");
-const telegram = require("./src/telegram");
 const agendados = require("./src/agendados");
 const alarmes = require("./src/lembrete_alarme");
-const whatsapp = require("./src/whatsapp");
-const email = require("./src/email");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
-  await plugins.pararTodos();
   agendados.parar();
-  telegram.parar();
   proativo.parar();
   monitor.parar();
-  voice.parar();
   opencode.parar();
   alarmes.parar();
-  await whatsapp.parar();
-  await email.parar();
   try {
     await db.write();
   } catch (err) {
     log("ERROR", "Erro ao salvar dados", { erro: err.message });
   }
-  stopDocsServer();
   await fecharBrowser();
   client.destroy();
   await fecharLogger();
@@ -42,18 +31,16 @@ async function desligar(sinal) {
 }
 
 client.once("clientReady", async () => {
-  await plugins.carregarTodos();
   monitor.iniciar(client);
   proativo.iniciar(client);
-  telegram.iniciar();
   agendados.verificarCadaMinuto();
   alarmes.iniciar();
   opencode.iniciarServer().then(port => {
     if (port) log("INFO", `[OPENCODE] Servidor rodando na porta ${port}`);
     else log("INFO", "[OPENCODE] Servidor nao iniciado (opencode run continua disponivel)");
   });
-  const { iniciar: iniciarWhatsApp } = require("./src/whatsapp");
-  iniciarWhatsApp();
+  const apiPort = parseInt(process.env.API_PORT, 10) || 3000;
+  apiPublica.iniciar(apiPort);
 });
 
 process.on("SIGINT", () => desligar("SIGINT"));

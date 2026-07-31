@@ -9,6 +9,7 @@ memory.json
 .npm
 *.log
 memoria_global.json
+*ANALISE*
 
 .env
 

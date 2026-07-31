@@ -21,7 +21,7 @@ function limparFiller(t) {
 
 const exec = promisify(execCb);
 const TIMEOUT = 5000;
-const OWNER_ID = "1442928336329379925";
+const { isOwner, OWNER } = require("./perm");
 
 async function tentar(comando) {
   log("INFO", "[ACTION] tentando comando", { comando });
@@ -589,7 +589,7 @@ function encontrarMemoria(texto) {
 }
 
 function permitido(userId) {
-  return userId === OWNER_ID;
+  return isOwner(userId);
 }
 
 function detectarCategoria(texto) {
@@ -965,7 +965,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     // "mim"/"me"/"eu" → dono
     if (/^(?:mim|me|eu|dono|owner)$/i.test(alvo)) {
       try {
-        usuarioDiscord = await dc.users.fetch(OWNER_ID);
+        usuarioDiscord = await dc.users.fetch(OWNER);
       } catch {}
       if (usuarioDiscord) {
         try {
@@ -1294,7 +1294,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       const path = await pc.screenshot();
       try {
         const { client } = require("./client");
-        const master = await client.users.fetch("1442928336329379925");
+        const master = await client.users.fetch(OWNER);
         if (master) {
           const { AttachmentBuilder } = require("discord.js");
           await master.send({ files: [new AttachmentBuilder(path, { name: "screenshot.png" })] });

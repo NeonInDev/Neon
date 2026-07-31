@@ -7,6 +7,11 @@ module.exports = {
   async execute(interaction) {
     if (!interaction.isChatInputCommand()) return;
 
+    const { permitido } = require("../perm");
+    if (!permitido(interaction.user.id)) {
+      return interaction.reply({ content: "❌ Acesso negado.", ephemeral: true });
+    }
+
     const command = commands.get(interaction.commandName);
     if (!command) return;
 

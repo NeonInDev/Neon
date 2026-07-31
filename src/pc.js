@@ -223,53 +223,61 @@ async function verTela(objetivo = "") {
   const axios = require("axios");
   const fs2 = require("fs");
   const imgBase64 = fs2.readFileSync(caminho, { encoding: "base64" });
-  const dataUrl = `data:image/png;base64,${imgBase64}`;
   const prompt = objetivo
     ? `Descreva o que você vê nesta imagem da tela do computador. Foco em: ${objetivo}. Responda em português, seja detalhado sobre posições de elementos, botões, textos.`
     : `Descreva detalhadamente o que você vê nesta imagem da tela do computador. Inclua todos os textos, botões, janelas e elementos visíveis. Responda em português.`;
 
-  // 1. Ollama local (gratuito, sem limites, modelo de visão)
+  const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL } = require("./config");
+
   try {
-    const resp = await axios.post("http://localhost:11434/api/generate", {
-      model: "minicpm-v",
-      prompt,
-      images: [imgBase64],
-      stream: false,
-      options: { temperature: 0.5, num_predict: 1024 },
-    }, { timeout: 120000 });
-    const descricao = resp?.data?.response;
+    const resp = await axios.post(
+      "https://api.deepseek.com/v1/chat/completions",
+      {
+        model: DEEPSEEK_MODEL,
+        max_tokens: 1024,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: `data:image/png;base64,${imgBase64}` } }
+          ]
+        }]
+      },
+      { timeout: 30000, headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" } }
+    );
+    const descricao = resp?.data?.choices?.[0]?.message?.content;
     if (descricao) return { descricao, caminho };
-  } catch { /* fallback */ }
+  } catch {}
 
-  // 2. OpenRouter (gemma-3-12b-it)
-  const { OPENROUTER_API_KEY } = require("./config");
-  if (OPENROUTER_API_KEY) {
-    try {
-      const resp = await axios.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        { model: "google/gemma-3-12b-it", max_tokens: 1024, messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: dataUrl } }] }] },
-        { timeout: 30000, headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" } }
-      );
-      const descricao = resp?.data?.choices?.[0]?.message?.content;
-      if (descricao) return { descricao, caminho };
-    } catch { /* fallback */ }
+  return { erro: "DeepSeek não conseguiu analisar a tela", caminho };
+}
+
+async function analisarImagem(base64, prompt = "Descreva detalhadamente o que você vê nesta imagem. Responda em português.") {
+  const axios = require("axios");
+  const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL } = require("./config");
+
+  try {
+    const resp = await axios.post(
+      "https://api.deepseek.com/v1/chat/completions",
+      {
+        model: DEEPSEEK_MODEL,
+        max_tokens: 1024,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: base64.startsWith("data:") ? base64 : `data:image/png;base64,${base64}` } }
+          ]
+        }]
+      },
+      { timeout: 30000, headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" } }
+    );
+    const descricao = resp?.data?.choices?.[0]?.message?.content;
+    if (descricao) return { descricao };
+  } catch (err) {
+    return { erro: err.message };
   }
-
-  // 3. Gemini (fallback final)
-  const { GEMINI_API_KEY } = require("./config");
-  if (GEMINI_API_KEY && GEMINI_API_KEY !== "coloque_sua_chave_aqui") {
-    try {
-      const resp = await axios.post(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`,
-        { contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: "image/png", data: imgBase64 } }] }], generationConfig: { maxOutputTokens: 1024 } },
-        { timeout: 20000 }
-      );
-      const descricao = resp?.data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (descricao) return { descricao, caminho };
-    } catch { /* fallback */ }
-  }
-
-  return { erro: "Sem provider de visão disponível", caminho };
+  return { erro: "DeepSeek não respondeu" };
 }
 
 // ===================== FUNÇÕES EXISTENTES (MANTIDAS) =====================
@@ -435,5 +443,5 @@ module.exports = {
   listarProcessos, matarProcesso, infoRede, bateria, notificar, notificarToast, enviarEmail,
   moverMouse, clicarMouse, duploClique, arrastar, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
-  verTela,
+  verTela, analisarImagem,
 };

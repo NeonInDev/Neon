@@ -2,6 +2,9 @@ const { log } = require("./logger");
 const api = require("./api");
 const pc = require("./pc");
 const { lembrar } = require("./memoria");
+const axios = require("axios");
+const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL } = require("./config");
+const { OWNER } = require("./perm");
 
 let client = null;
 let intervalId = null;
@@ -9,7 +12,7 @@ let ultimaAcao = 0;
 let cicloCount = 0;
 const COOLDOWN_MS = 3 * 60 * 1000;
 const CICLO_MS = 15 * 60 * 1000;
-const OWNER_ID = "1442928336329379925";
+const OWNER_ID = OWNER;
 
 async function iniciar(discordClient) {
   client = discordClient;
@@ -57,14 +60,12 @@ async function ciclo() {
   try {
     const contexto = await montarContexto();
 
-    // 1. Verifica emergencias (bateria, CPU)
     const alertas = await verificarEmergencias();
     if (alertas.length > 0) {
       ultimaAcao = Date.now();
       await enviarMensagem("🚨 **Neon - Alerta**\n" + alertas.join("\n"));
     }
 
-    // 2. A cada 3 ciclos (~45min), faz algo proativo
     if (cicloCount % 3 === 0) {
       const agora = Date.now();
       if (agora - ultimaAcao >= COOLDOWN_MS) {
@@ -79,7 +80,6 @@ async function ciclo() {
       }
     }
 
-    // 3. Log do ciclo
     log("INFO", `[PROATIVO] Ciclo #${cicloCount} OK`, { alertas: alertas.length });
   } catch (err) {
     log("WARN", "[PROATIVO] Erro no ciclo", { erro: err.message });
@@ -99,7 +99,7 @@ async function montarContexto() {
     ctx += ` | CPU: ${pcInfo.cpuUso || "?"}% | RAM: ${pcInfo.ramUso || "?"}%`;
     if (pcInfo.temperatura) ctx += ` | Temp: ${pcInfo.temperatura}°C`;
     if (pcInfo.discoUso) ctx += ` | Disco: ${pcInfo.discoUso}%`;
-    ultimaAcao = Date.now(); // reset cooldown on active check
+    ultimaAcao = Date.now();
   }
 
   const horaNum = agora.getHours();
@@ -138,55 +138,18 @@ async function verificarEmergencias() {
   return alertas;
 }
 
-async function chamarProvider(messages, maxTokens = 400, timeout = 20000) {
-  const axios = require("axios");
-  const { GROQ_API_KEY, OPENROUTER_API_KEY, DEEPSEEK_API_KEY } = require("./config");
-
-  const tentativas = [];
-
-  if (GROQ_API_KEY) {
-    tentativas.push({
-      nome: "Groq",
-      fn: async () => {
-        const resp = await axios.post("https://api.groq.com/openai/v1/chat/completions",
-          { model: "llama-3.3-70b-versatile", max_tokens: maxTokens, messages },
-          { timeout, headers: { Authorization: `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" } }
-        );
-        return resp?.data?.choices?.[0]?.message?.content?.trim();
-      }
-    });
-  }
-
-  tentativas.push({
-    nome: "Pollinations",
-    fn: async () => {
-      const resp = await axios.post("https://text.pollinations.ai/openai",
-        { model: "openai", max_tokens: maxTokens, messages },
-        { timeout, headers: { "Content-Type": "application/json" } }
+async function chamarDeepSeek(messages, maxTokens = 400, timeout = 20000) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      const resp = await axios.post(
+        "https://api.deepseek.com/v1/chat/completions",
+        { model: DEEPSEEK_MODEL, max_tokens: maxTokens, messages },
+        { timeout, headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" } }
       );
       return resp?.data?.choices?.[0]?.message?.content?.trim();
-    }
-  });
-
-  if (OPENROUTER_API_KEY) {
-    tentativas.push({
-      nome: "OpenRouter",
-      fn: async () => {
-        const resp = await axios.post("https://openrouter.ai/api/v1/chat/completions",
-          { model: "openrouter/free", max_tokens: maxTokens, messages },
-          { timeout, headers: { Authorization: `Bearer ${OPENROUTER_API_KEY}`, "Content-Type": "application/json" } }
-        );
-        return resp?.data?.choices?.[0]?.message?.content?.trim();
-      }
-    });
-  }
-
-  for (const t of tentativas) {
-    try {
-      const res = await t.fn();
-      if (res) return res;
     } catch (err) {
-      log("WARN", `[PROATIVO] ${t.nome} falhou`, { erro: err.response?.status || err.message });
+      log("WARN", `DeepSeek tentativa ${i + 1}/3 falhou`, { erro: err.response?.status || err.message });
+      if (i < 2) await new Promise(r => setTimeout(r, 2000 * (i + 1)));
     }
   }
   return null;
@@ -224,7 +187,7 @@ IMPORTANTE: No maximo 2 acoes. Seja util, nao invente comandos.`;
       { role: "system", content: "Você é Neon no modo Jarvis. Personalidade: util, observadora, as vezes engraçada. Respostas curtas." },
       { role: "user", content: prompt },
     ];
-    const content = await chamarProvider(messages);
+    const content = await chamarDeepSeek(messages);
     if (!content || content.trim() === "NADA") return null;
     return content;
   } catch (err) {

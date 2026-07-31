@@ -1,11 +1,7 @@
 const { spawn } = require("child_process");
 const { log } = require("./logger");
 const axios = require("axios");
-const { exec: execCb } = require("child_process");
-const { promisify } = require("util");
-const fs = require("fs");
 const path = require("path");
-const execAsync = promisify(execCb);
 
 function getBinPath() {
   const npmDir = path.join(process.env.APPDATA || "", "npm");
@@ -24,6 +20,7 @@ function getBinPath() {
 }
 
 const OPENCODE_BIN = getBinPath();
+const CONFIG_DIR = path.join(__dirname, "..");
 
 let serverProcess = null;
 let serverPort = null;
@@ -33,37 +30,51 @@ async function iniciarServer() {
   parar();
   return new Promise((resolve) => {
     try {
-      log("INFO", "[OPENCODE] Iniciando servidor...", { bin: OPENCODE_BIN });
+      log("INFO", "[OPENCODE] Iniciando servidor...", { bin: OPENCODE_BIN, configDir: CONFIG_DIR });
+
+      const env = {
+        ...process.env,
+        OPENCODE_DISABLE_PROJECT_CONFIG: "",
+      };
+
       const proc = spawn(OPENCODE_BIN, ["serve", "--port", "0", "--hostname", "127.0.0.1", "--print-logs"], {
+        cwd: CONFIG_DIR,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
         shell: true,
+        env,
       });
+
       let output = "";
       let settled = false;
-      const finish = (port) => { if (!settled) { settled = true; serverPort = port; if (port) log("INFO", "[OPENCODE] Servidor OK", { port }); else log("WARN", "[OPENCODE] Servidor nao iniciou"); resolve(port); } };
+      const finish = (port) => { if (!settled) { settled = true; serverPort = port; if (port) log("INFO", "[OPENCODE] Servidor OK", { port }); else { log("WARN", "[OPENCODE] Servidor nao iniciou"); if (output) log("WARN", "[OPENCODE] Logs do servidor", { output: output.slice(-500) }); } resolve(port); } };
+
       proc.stdout.on("data", (data) => {
         const text = data.toString();
         output += text;
         const m = text.match(/http:\/\/127\.0\.0\.1:(\d+)/i);
         if (m) finish(parseInt(m[1]));
       });
+
       proc.stderr.on("data", (data) => {
         const text = data.toString();
         output += text;
         const m = text.match(/http:\/\/127\.0\.0\.1:(\d+)/i);
         if (m) finish(parseInt(m[1]));
       });
+
       proc.on("error", (err) => {
         log("WARN", "[OPENCODE] Erro ao iniciar servidor", { erro: err.message });
         finish(null);
       });
+
       proc.on("exit", (code) => {
         serverProcess = null;
         serverPort = null;
-        log("INFO", "[OPENCODE] Servidor encerrou", { code, output: output.slice(-200) });
+        log("INFO", "[OPENCODE] Servidor encerrou", { code, output: output.slice(-300) });
       });
-      setTimeout(() => finish(null), 15000);
+
+      setTimeout(() => finish(null), 20000);
       serverProcess = proc;
     } catch (err) {
       log("WARN", "[OPENCODE] Erro ao iniciar servidor", { erro: err.message });
@@ -73,34 +84,40 @@ async function iniciarServer() {
 }
 
 async function executar(tarefa) {
+  const maxAttempts = serverPort ? 1 : 0;
+
   if (serverPort) {
     try {
       const res = await axios.post(`http://127.0.0.1:${serverPort}/chat`, { message: tarefa }, {
-        timeout: 120000,
+        timeout: 180000,
         responseType: "text",
         headers: { "Content-Type": "application/json", "Accept": "text/plain" },
       });
       const data = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-      if (data && !data.startsWith("<!doctype") && !data.startsWith("<html")) return data.slice(0, 2000);
-      log("WARN", "[OPENCODE] Server retornou HTML, caindo pra CLI");
+      if (data && !data.startsWith("<!doctype") && !data.startsWith("<html")) return data.slice(0, 4000);
     } catch (err) {
       log("WARN", "[OPENCODE] HTTP falhou", { erro: err.message?.slice(0, 100) });
     }
   }
+
   try {
-    const safe = tarefa.replace(/"/g, '\\"').replace(/\n/g, " ").slice(0, 1500);
+    const safe = tarefa.replace(/"/g, '\\"').replace(/\n/g, " ").slice(0, 2000);
+    const { exec: execCb } = require("child_process");
+    const { promisify } = require("util");
+    const execAsync = promisify(execCb);
     const { stdout } = await execAsync(`opencode run "${safe}"`, {
-      timeout: 120000, windowsHide: true, maxBuffer: 5 * 1024 * 1024,
+      cwd: CONFIG_DIR,
+      timeout: 180000,
+      windowsHide: true,
+      maxBuffer: 10 * 1024 * 1024,
+      env: { ...process.env },
     });
-    return stdout?.trim()?.slice(0, 2000) || "Sem resposta do OpenCode.";
+    const result = stdout?.trim();
+    return result?.length > 10 ? result.slice(0, 4000) : null;
   } catch (err) {
     log("WARN", "[OPENCODE] CLI falhou", { erro: err.message.slice(0, 100) });
     return null;
   }
-}
-
-async function gerarBlenderScript(descricao) {
-  return await executar(`Gere APENAS codigo Python para Blender 3D ${descricao}. Retorne SOMENTE o codigo Python puro, sem \`\`\` markers, sem texto antes ou depois.`);
 }
 
 function parar() {
@@ -111,4 +128,4 @@ function parar() {
   }
 }
 
-module.exports = { iniciarServer, executar, gerarBlenderScript, parar };
+module.exports = { iniciarServer, executar, parar };

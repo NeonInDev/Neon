@@ -1,24 +1,8 @@
 const { log } = require("./logger");
-const mcp = require("./mcp");
-const mcpPC = require("./mcp-servers/mcp-pc");
-const mcpBrowser = require("./mcp-servers/mcp-browser");
-const mcpSystem = require("./mcp-servers/mcp-system");
-const mcpBridge = require("./mcp-servers/mcp-bridge");
-
-function iniciar() {
-  mcp.registrar(mcpPC);
-  mcp.registrar(mcpBrowser);
-  mcp.registrar(mcpSystem);
-  mcp.registrar(mcpBridge);
-  log("INFO", "[TOOLS] MCP iniciado com servidores: PC, Browser, System, Bridge");
-}
+const opencode = require("./opencode");
 
 function descricaoFerramentas() {
-  return mcp.listarFerramentas();
-}
-
-function getFerramentas() {
-  return mcp.getFerramentas();
+  return `- codar: Delega QUALQUER tarefa ao opencode. Usa navegador, PC, codigo, pesquisa, arquivo, TUDO. Uso: codar | [descricao detalhada do que fazer]`;
 }
 
 function extrairFerramentas(texto) {
@@ -33,18 +17,10 @@ function extrairFerramentas(texto) {
 
 async function executarFerramenta(ferramenta, userId = null) {
   const { nome, args } = ferramenta;
-  log("INFO", "[TOOLS] Executando ferramenta via MCP", { nome, args: args.slice(0, 100) });
+  log("INFO", "[TOOLS] Delegando pro opencode", { nome, args: args?.slice(0, 100) });
 
-  if (!mcp.isToolLocal(nome)) {
-    log("INFO", "[TOOLS] Tool nao encontrada -> bridge fallback", { nome });
-    const bridge = require("./bridge");
-    const taskId = bridge.pedirOpencode(`${nome}: ${args}`, userId);
-    const task = await bridge.aguardarTask(taskId, 300000);
-    if (task.status === "done") return task.result || "✅ Feito pelo opencode.";
-    return "⏱️ opencode nao respondeu. Tenta de novo?";
-  }
-
-  return await mcp.executar(nome, args, userId);
+  const resultado = await opencode.executar(args);
+  return resultado || "❌ OpenCode não respondeu.";
 }
 
 async function processarResposta(texto, userId = null) {
@@ -58,4 +34,8 @@ async function processarResposta(texto, userId = null) {
   return { texto, acoes: resultados };
 }
 
-module.exports = { iniciar, executarFerramenta, processarResposta, descricaoFerramentas, extrairFerramentas, getFerramentas };
+function iniciar() {
+  log("INFO", "[TOOLS] Tudo delegado ao opencode serve");
+}
+
+module.exports = { iniciar, executarFerramenta, processarResposta, descricaoFerramentas, extrairFerramentas };

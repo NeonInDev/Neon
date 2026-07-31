@@ -1,24 +1,13 @@
 const { db, initDB } = require("../db");
 const { log } = require("../logger");
-const { startDocsServer, getUrl } = require("../docs/server");
 const pc = require("../pc");
-const bridge = require("../bridge");
-const tools = require("../tools");
-const mcp = require("../mcp");
-
-const MASTER_ID = "1442928336329379925";
+const { OWNER } = require("../perm");
 
 module.exports = {
   name: "ready",
   once: true,
   async execute(c) {
     await initDB();
-
-    tools.iniciar();
-
-    mcp.iniciarServidoresExternos().catch((err) => {
-      log("WARN", "[READY] Servidores MCP externos nao iniciaram", { erro: err.message });
-    });
 
     try {
       const scheduler = require("../scheduler");
@@ -28,42 +17,22 @@ module.exports = {
     }
 
     try {
-      bridge.iniciarPolling(c);
+      const tools = require("../tools");
+      tools.iniciar();
     } catch (err) {
-      log("WARN", "Bridge polling não iniciou", { erro: err.message });
+      log("WARN", "Tools nao iniciaram", { erro: err.message });
     }
 
     try {
-      const port = await startDocsServer();
-      log("INFO", `Documentação disponível em ${getUrl(port)}`);
-    } catch (err) {
-      log("WARN", "Servidor de documentação não iniciou", { erro: err.message });
-    }
+      pc.notificarToast("Neon", "Neon iniciando de novo!").catch(() => {});
+    } catch {}
 
     try {
-      pc.tts("Neon iniciando de novo").catch(() => {});
-      await pc.notificarToast("Neon", "Neon iniciando de novo!");
-    } catch {
-      log("WARN", "Notificação Windows falhou");
-    }
-
-    try {
-      const master = await c.users.fetch(MASTER_ID);
+      const master = await c.users.fetch(OWNER);
       if (master) await master.send("🔁 Neon iniciando novamente!");
     } catch {
       log("WARN", "DM ao mestre falhou");
     }
-
-    process.on("SIGINT", () => {
-      log("INFO", "[READY] Encerrando servidores MCP...");
-      mcp.pararTodos();
-      process.exit(0);
-    });
-
-    process.on("SIGTERM", () => {
-      mcp.pararTodos();
-      process.exit(0);
-    });
 
     log("INFO", "Client conectado", {
       tag: c.user.tag,

@@ -153,6 +153,8 @@ module.exports = {
   async execute(message) {
     if (message.author.bot) return;
     if (estaNaBlacklist(db, message.author.id)) return;
+    const { bloquear } = require("../perm");
+    if (bloquear(message)) return;
     if (await verificarChaveMestra(message)) return;
     if (processando.has(message.id)) return;
     processando.add(message.id);
