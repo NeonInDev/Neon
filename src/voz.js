@@ -96,21 +96,18 @@ async function falar(guildId, texto) {
   const arquivo = path.join(tmp, `neon_vc_${ts}.mp3`);
 
   try {
-    const tts = new EdgeTTS(limpo, vozPorModo());
-    const resultado = await tts.synthesize();
-    fs.writeFileSync(arquivo, Buffer.from(await resultado.audio.arrayBuffer()));
-
-    if (!fs.existsSync(arquivo) || fs.statSync(arquivo).size === 0) {
-      throw new Error("audio vazio");
-    }
-
+    const tts = require('./tts');
+    const vozModo = vozPorModo();
+    const mp3 = await tts.gerarAudio(limpo, vozModo);
+    if (!mp3 || mp3.length === 0) throw new Error('TTS vazio');
+    fs.writeFileSync(arquivo, mp3);
     const resource = createAudioResource(arquivo, { inlineVolume: true, inputType: StreamType.Arbitrary });
     resource.volume?.setVolume(1);
     player.play(resource);
     player.once(AudioPlayerStatus.Idle, () => { try { fs.unlinkSync(arquivo); } catch {} });
     return true;
   } catch (err) {
-    log("WARN", "[VOZ] TTS edge falhou, fallback SAPI", { erro: err.message });
+    log('WARN', '[VOZ] TTS falhou, fallback SAPI', { erro: err.message });
     try { fs.unlinkSync(arquivo); } catch {}
     return falarSapi(connection, player, limpo);
   }
@@ -241,21 +238,13 @@ let whisperPipeline = null;
 
 async function transcreverLocal(wavPath) {
   try {
-    if (!whisperPipeline) {
-      log("INFO", "[VOZ] Carregando Whisper local");
-      const { pipeline } = require("@xenova/transformers");
-      const modelo = process.env.WHISPER_MODEL || "Xenova/whisper-small";
-      whisperPipeline = await pipeline("automatic-speech-recognition", modelo, { quantized: true });
-      log("INFO", "[VOZ] Whisper local pronto");
-    }
-    const result = await whisperPipeline(lerWavSamples(fs.readFileSync(wavPath)), {
-      language: process.env.WHISPER_LANGUAGE || "pt",
-      task: "transcribe",
-      sampling_rate: 16000,
-    });
-    return result?.text?.trim() || null;
+    const stt = require('./stt');
+    const timeout = parseInt(process.env.STT_TIMEOUT_MS, 10) || 30000;
+    const res = await stt.transcribeFile(wavPath, { language: process.env.WHISPER_LANGUAGE || 'pt', timeout });
+    if (res && res.text) return res.text;
+    return null;
   } catch (err) {
-    log("WARN", "[VOZ] Whisper local falhou", { erro: err.message?.slice(0, 100) });
+    log('WARN', '[VOZ] STT falhou', { erro: err.message?.slice(0, 100) });
     return null;
   }
 }

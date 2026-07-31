@@ -197,6 +197,72 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url === "/api/stt" && req.method === "POST") {
+      try {
+        const { file, language } = await lerBody(req);
+        if (!file) { responder(res, 400, { erro: 'file (base64 wav) é obrigatório' }); return; }
+        const tmp = process.env.TEMP || 'C:\\Temp';
+        const ts = Date.now();
+        const caminho = path.join(tmp, `neon_api_stt_${ts}.wav`);
+        // strip data: prefix if present
+        const b64 = String(file).replace(/^data:audio\/[a-zA-Z0-9-+.]+;base64,/, '');
+        fs.writeFileSync(caminho, Buffer.from(b64, 'base64'));
+        const stt = require('./stt');
+        const resp = await stt.transcribeFile(caminho, { language: language || process.env.WHISPER_LANGUAGE || 'pt' });
+        try { fs.unlinkSync(caminho) } catch {}
+        if (!resp || !resp.text) { responder(res, 500, { erro: 'transcricao falhou' }); return; }
+        responder(res, 200, { texto: resp.text, provider: resp.provider || null });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/tts" && req.method === "POST") {
+      try {
+        const { texto, voz, velocidade } = await lerBody(req);
+        if (!texto) { responder(res, 400, { erro: 'texto é obrigatório' }); return; }
+        const tts = require('./tts');
+        const mp3 = await tts.gerarAudio(texto, voz, velocidade || 1.0);
+        if (!mp3) { responder(res, 500, { erro: 'tts indisponivel' }); return; }
+        res.writeHead(200, { 'Content-Type': 'audio/mpeg', 'Content-Length': mp3.length });
+        res.end(mp3);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/voice-id/register" && req.method === "POST") {
+      try {
+        const { rotulo, file } = await lerBody(req);
+        if (!rotulo || !file) { responder(res, 400, { erro: 'rotulo e file(base64 wav) são obrigatórios' }); return; }
+        const tmp = process.env.TEMP || 'C:\\Temp';
+        const caminho = path.join(tmp, `neon_voiceid_${Date.now()}.wav`);
+        const b64 = String(file).replace(/^data:audio\/[a-zA-Z0-9-+.]+;base64,/, '');
+        fs.writeFileSync(caminho, Buffer.from(b64, 'base64'));
+        const vozId = require('./voz_id');
+        const wavBuf = fs.readFileSync(caminho);
+        const vetor = vozId.registrar(rotulo, wavBuf);
+        try { fs.unlinkSync(caminho) } catch {}
+        responder(res, 200, { ok: true, rotulo });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/voice-id/identify" && req.method === "POST") {
+      try {
+        const { file } = await lerBody(req);
+        if (!file) { responder(res, 400, { erro: 'file (base64 wav) é obrigatório' }); return; }
+        const tmp = process.env.TEMP || 'C:\\Temp';
+        const caminho = path.join(tmp, `neon_voiceid_${Date.now()}.wav`);
+        const b64 = String(file).replace(/^data:audio\/[a-zA-Z0-9-+.]+;base64,/, '');
+        fs.writeFileSync(caminho, Buffer.from(b64, 'base64'));
+        const vozId = require('./voz_id');
+        const wavBuf = fs.readFileSync(caminho);
+        const r = vozId.identificar(wavBuf);
+        try { fs.unlinkSync(caminho) } catch {}
+        responder(res, 200, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url === "/api/terminal" && req.method === "POST") {
       if (!temChave(req)) { responder(res, 401, { erro: "chave inválida" }); return; }
       try {
