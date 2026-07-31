@@ -14,6 +14,36 @@
   const volRange = $("volRange");
   const volVal = $("volVal");
   const audio = new Audio();
+  const modoBtn = $("modoBtn");
+
+  function aplicarTema(modo) {
+    document.documentElement.dataset.theme = modo === "ultron" ? "ultron" : "jarvis";
+    modoBtn.dataset.mode = modo;
+    modoBtn.textContent = `MODO: ${modo.toUpperCase()}`;
+  }
+
+  async function sincronizarModo() {
+    try {
+      const r = await fetch("/api/modo", { method: "GET" });
+      const { modo } = await r.json();
+      aplicarTema(modo);
+    } catch {}
+  }
+
+  modoBtn.addEventListener("click", async () => {
+    const atual = document.documentElement.dataset.theme === "ultron" ? "ultron" : "jarvis";
+    const novo = atual === "ultron" ? "jarvis" : "ultron";
+    toast(novo === "ultron" ? "☠️ MODO ULTRON" : "🟦 MODO JARVIS");
+    try {
+      const r = await fetch("/api/modo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modo: novo }),
+      });
+      const data = await r.json();
+      aplicarTema(data.modo || novo);
+    } catch { aplicarTema(novo); }
+  });
 
   const CIRC = 276.5;
   const setRing = (id, pct) => {
@@ -140,6 +170,7 @@
 
   setInterval(atualizarStatus, 5000);
   atualizarStatus();
+  sincronizarModo();
 
   // ============ RELÓGIO ============
   function relogio() {

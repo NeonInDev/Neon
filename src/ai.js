@@ -5,9 +5,9 @@ const { log } = require("./logger");
 const opencode = require("./opencode");
 const axios = require("axios");
 const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL } = require("./config");
+const { getModo, personaDoModo } = require("./modo");
 
 const MAX_INPUT_LEN = 2000;
-const SISTEMA = "Você é Neon, uma IA que vive no PC do usuário. Você controla o navegador, o sistema de arquivos, o terminal e pode fazer QUALQUER COISA. Personalidade: inteligente, direta, observadora, brincalhona quando cabe, respeitosa. Responda de forma natural e direta, sem enrolação.";
 
 async function chamarCompletions(url, apiKey, model, prompt, timeoutMs) {
   const resp = await axios.post(
@@ -16,7 +16,7 @@ async function chamarCompletions(url, apiKey, model, prompt, timeoutMs) {
       model,
       reasoning: { enabled: false },
       messages: [
-        { role: "system", content: SISTEMA },
+        { role: "system", content: personaDoModo() },
         { role: "user", content: prompt },
       ],
       temperature: 0.7,
@@ -47,9 +47,12 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
     `Neon: ${String(m.bot).slice(0, 200)}`,
   ]).join("\n");
 
-  const prompt = `Você é Neon, uma IA que vive no PC do usuário. Você controla o navegador, o sistema de arquivos, o terminal e pode fazer QUALQUER COISA.
+  const modo = getModo();
+  const apelido = user.apelido ? ` O usuário pediu para ser chamado de "${user.apelido}".` : "";
 
-Personalidade: inteligente, direta, observadora, brincalhona quando cabe, respeitosa. Não é genérica - tem personalidade.
+  const prompt = `${personaDoModo()}
+
+Modo atual: ${modo.toUpperCase()}${apelido}
 
 CAPACIDADES:
 - Usar navegador para pesquisar, abrir sites, tocar vídeos

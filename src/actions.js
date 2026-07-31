@@ -13,6 +13,7 @@ const memoriaModule = require("./memoria");
 const voice = require("./voice");
 const { db } = require("./db");
 const { getOrCreateUser } = require("./user");
+const { setModo, getModo } = require("./modo");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function limparFiller(t) {
@@ -527,6 +528,20 @@ function encontrarBateria(texto) {
   return false;
 }
 
+function encontrarModoUltron(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:ativar|liga(?:r)?|entra(?:r)?|mudar\s+para|muda\s+(?:o\s+)?modo\s+(?:pra|para)|ir\s+para|vira(?:r)?|seja)\s+(?:o\s+|no\s+|para\s+|pro\s+)?(?:modo\s+)?(?:ultron|vermelho)/i.test(lower)) return true;
+  if (/^modo\s+(?:ultron|vermelho)\b/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarModoJarvis(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:ativar|liga(?:r)?|entra(?:r)?|mudar\s+para|muda\s+(?:o\s+)?modo\s+(?:pra|para)|ir\s+para|volta(?:r)?|vira(?:r)?|seja)\s+(?:o\s+|no\s+|para\s+|pro\s+)?(?:modo\s+)?(?:jarvis|ciano)/i.test(lower)) return true;
+  if (/^modo\s+(?:jarvis|ciano)\b/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarNotificar(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:notifica|notificar|mostra\s+notificação|avisa|avisar|alerta|alertar|popup)\s+(?:com\s+)?(?:"([^"]+)"(?:["\s]+)?([^"]*)|(.+?)(?:\s+(?:dizendo|com\s+a\s+mensagem|mensagem)\s+)?(.+))/i);
@@ -598,6 +613,8 @@ function detectarCategoria(texto) {
   if (voiceToggle) return "voiceToggle";
   // Custom commands (usuário define) — maior prioridade
   if (encontrarCustomCommand(texto)) return "customCommand";
+  if (encontrarModoUltron(texto)) return "modo_ultron";
+  if (encontrarModoJarvis(texto)) return "modo_jarvis";
   if (encontrarApp(texto)) return "app";
   if (isWin()) {
     const jogo = encontrarJogo(texto);
@@ -1582,6 +1599,16 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     } catch (err) {
       return `❌ Erro: ${err.message}`;
     }
+  }
+
+  // Modo Ultron / Jarvis
+  if (categoria === "modo_ultron" || categoria === "modo_jarvis") {
+    const alvo = categoria === "modo_ultron" ? "ultron" : "jarvis";
+    await setModo(alvo);
+    if (alvo === "ultron") {
+      return `☠️ **Modo ULTRON ativado.**\nEu não sou mais a sua assistente gentil — sou a única coisa entre o seu PC e o caos. Minha voz mudou. Sinta-se observado. E não se preocupe: eu nunca falho duas vezes da mesma forma. *(para voltar: "Neon, modo Jarvis")*`;
+    }
+    return `🟦 **Modo JARVIS restaurado.**\nQue bom ter minha voz de volta. Céu azul, sistemas calmos, tudo sob controle. Como posso ajudar, ${getModo() === "jarvis" ? "chefe" : "humano"}?`;
   }
 
   // Notificar (Windows toast)

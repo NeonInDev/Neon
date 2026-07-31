@@ -93,6 +93,22 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url === "/api/modo" && req.method === "GET") {
+      const { getModo } = require("./modo");
+      responder(res, 200, { modo: getModo() });
+      return;
+    }
+
+    if (req.url === "/api/modo" && req.method === "POST") {
+      try {
+        const { setModo } = require("./modo");
+        const { modo } = await lerBody(req);
+        const novo = await setModo(modo);
+        responder(res, 200, { ok: true, modo: novo });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url === "/api/pc" && req.method === "GET") {
       try {
         const pc = require("./pc");
@@ -167,7 +183,8 @@ function iniciar(port = 3000) {
         const { texto, voz } = await lerBody(req);
         if (!texto) { responder(res, 400, { erro: "texto é obrigatório" }); return; }
         const tts = require("./tts");
-        const mp3 = await tts.gerarAudio(texto, voz);
+        const { vozPorModo } = require("./modo");
+        const mp3 = await tts.gerarAudio(texto, voz || vozPorModo());
         if (!mp3) { responder(res, 500, { erro: "TTS indisponível" }); return; }
         res.writeHead(200, { "Content-Type": "audio/mpeg", "Content-Length": mp3.length });
         res.end(mp3);

@@ -7,7 +7,7 @@ const { promisify } = require("util");
 const execAsync = promisify(execCb);
 const { OWNER } = require("./perm");
 const { EdgeTTS } = require("edge-tts-universal");
-const { VOZ_NEON } = require("./config");
+const { vozPorModo } = require("./modo");
 
 const ATIVACAO_RE = /^\s*(neon|néon)([,\s:!.\-–—]|$)/i;
 const INATIVIDADE_MS = 90_000;
@@ -96,7 +96,7 @@ async function falar(guildId, texto) {
   const arquivo = path.join(tmp, `neon_vc_${ts}.mp3`);
 
   try {
-    const tts = new EdgeTTS(limpo, VOZ_NEON);
+    const tts = new EdgeTTS(limpo, vozPorModo());
     const resultado = await tts.synthesize();
     fs.writeFileSync(arquivo, Buffer.from(await resultado.audio.arrayBuffer()));
 
