@@ -3,6 +3,7 @@ const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
 const { askNeon } = require("./ai");
+const { MASTER_KEY } = require("./config");
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const MIME = {
@@ -20,6 +21,10 @@ const MIME = {
 };
 
 let server = null;
+
+function temChave(req) {
+  return req.headers["x-hud-key"] === MASTER_KEY;
+}
 
 function responder(res, status, obj) {
   res.writeHead(status, { "Content-Type": "application/json" });
@@ -188,6 +193,65 @@ function iniciar(port = 3000) {
         if (!mp3) { responder(res, 500, { erro: "TTS indisponível" }); return; }
         res.writeHead(200, { "Content-Type": "audio/mpeg", "Content-Length": mp3.length });
         res.end(mp3);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/terminal" && req.method === "POST") {
+      if (!temChave(req)) { responder(res, 401, { erro: "chave inválida" }); return; }
+      try {
+        const { comando } = await lerBody(req);
+        if (!comando) { responder(res, 400, { erro: "comando é obrigatório" }); return; }
+        const remoto = require("./remoto");
+        const r = await remoto.executarComando(comando);
+        responder(res, 200, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/arquivos" && req.method === "GET") {
+      if (!temChave(req)) { responder(res, 401, { erro: "chave inválida" }); return; }
+      try {
+        const remoto = require("./remoto");
+        const dir = new URL(req.url, "http://x").searchParams.get("dir") || undefined;
+        const lista = await remoto.listarDir(dir);
+        responder(res, 200, lista);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/arquivos/conteudo" && req.method === "GET") {
+      if (!temChave(req)) { responder(res, 401, { erro: "chave inválida" }); return; }
+      try {
+        const remoto = require("./remoto");
+        const caminho = new URL(req.url, "http://x").searchParams.get("path");
+        if (!caminho) { responder(res, 400, { erro: "path é obrigatório" }); return; }
+        const r = await remoto.lerArquivo(caminho);
+        responder(res, 200, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/arquivos/salvar" && req.method === "POST") {
+      if (!temChave(req)) { responder(res, 401, { erro: "chave inválida" }); return; }
+      try {
+        const remoto = require("./remoto");
+        const { caminho, conteudo } = await lerBody(req);
+        if (!caminho) { responder(res, 400, { erro: "caminho é obrigatório" }); return; }
+        const r = await remoto.salvarArquivo(caminho, conteudo);
+        responder(res, 200, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/arquivos/abrir" && req.method === "POST") {
+      if (!temChave(req)) { responder(res, 401, { erro: "chave inválida" }); return; }
+      try {
+        const remoto = require("./remoto");
+        const { caminho } = await lerBody(req);
+        if (!caminho) { responder(res, 400, { erro: "caminho é obrigatório" }); return; }
+        const r = await remoto.abrirArquivo(caminho);
+        responder(res, 200, r);
       } catch (err) { responder(res, 400, { erro: err.message }); }
       return;
     }

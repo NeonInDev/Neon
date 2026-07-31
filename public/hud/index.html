@@ -24,14 +24,53 @@
   </header>
 
   <main class="layout">
-    <!-- CHAT -->
+    <!-- ESQUERDA: ABAS -->
     <section class="panel chat-panel">
       <div class="panel-title">INTERFACE NEURAL <span class="accent">v2.0</span></div>
-      <div id="chat" class="chat"></div>
-      <form id="chatForm" class="chat-form" autocomplete="off">
-        <input id="chatInput" type="text" placeholder="Fale com a Neon..." maxlength="1000" />
-        <button type="submit" id="sendBtn" title="Enviar">▲</button>
-      </form>
+      <nav class="tabs">
+        <button class="tab active" data-view="chat">CHAT</button>
+        <button class="tab" data-view="terminal">TERMINAL</button>
+        <button class="tab" data-view="arquivos">ARQUIVOS</button>
+      </nav>
+
+      <!-- CHAT -->
+      <div id="viewChat" class="view active">
+        <div id="chat" class="chat"></div>
+        <form id="chatForm" class="chat-form" autocomplete="off">
+          <input id="chatInput" type="text" placeholder="Fale com a Neon..." maxlength="1000" />
+          <button type="submit" id="sendBtn" title="Enviar">▲</button>
+        </form>
+      </div>
+
+      <!-- TERMINAL -->
+      <div id="viewTerminal" class="view">
+        <div id="termOut" class="term"></div>
+        <form id="termForm" class="chat-form" autocomplete="off">
+          <span class="term-prompt">&gt;</span>
+          <input id="termInput" type="text" placeholder="powershell - ex: Get-Process | Select-Object -First 5" spellcheck="false" />
+          <button type="submit" title="Executar">▶</button>
+        </form>
+      </div>
+
+      <!-- ARQUIVOS -->
+      <div id="viewArquivos" class="view">
+        <div class="filebar">
+          <span id="filePath" class="file-path">C:\</span>
+          <button id="btnSubir" class="btn small" title="Pasta anterior">↑</button>
+          <button id="btnAtualizar" class="btn small" title="Atualizar">⟳</button>
+        </div>
+        <div id="fileList" class="file-list"></div>
+        <div id="fileEditor" class="file-editor hidden">
+          <div class="file-editor-head">
+            <span id="fileEditPath" class="file-path"></span>
+            <div>
+              <button id="btnEditarSalvar" class="btn small">SALVAR</button>
+              <button id="btnEditarFechar" class="btn small">✕</button>
+            </div>
+          </div>
+          <textarea id="fileEditText" spellcheck="false"></textarea>
+        </div>
+      </div>
     </section>
 
     <!-- STATUS -->

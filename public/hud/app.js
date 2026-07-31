@@ -282,4 +282,172 @@
   });
 
   document.body.insertAdjacentHTML("beforeend", '<div id="voiceBadge">● OUVINDO</div>');
+
+  // ============ CHAVE (terminal/arquivos) ============
+  function hudKey() {
+    let k = localStorage.getItem("hud_key");
+    if (!k) {
+      k = prompt("Digite a chave de acesso (MASTER_KEY do .env):");
+      if (k) localStorage.setItem("hud_key", k);
+    }
+    return k;
+  }
+
+  function api(pathname, opts = {}) {
+    const k = hudKey();
+    if (!k) throw new Error("sem chave");
+    return fetch(pathname, {
+      ...opts,
+      headers: { ...(opts.headers || {}), "X-Hud-Key": k },
+    });
+  }
+
+  // ============ ABAS ============
+  const tabs = document.querySelectorAll(".tab");
+  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos") };
+
+  tabs.forEach((t) => {
+    t.addEventListener("click", () => {
+      tabs.forEach((x) => x.classList.remove("active"));
+      t.classList.add("active");
+      Object.entries(views).forEach(([k, el]) => el.classList.toggle("active", k === t.dataset.view));
+      if (t.dataset.view === "arquivos" && !fileList.dataset.carregado) carregarArquivos();
+    });
+  });
+
+  // ============ TERMINAL ============
+  const termOut = $("termOut");
+  const termForm = $("termForm");
+  const termInput = $("termInput");
+
+  function termEscrever(html) {
+    const div = document.createElement("div");
+    div.innerHTML = html;
+    termOut.appendChild(div);
+    while (termOut.childNodes.length > 2000) termOut.removeChild(termOut.firstChild);
+    termOut.scrollTop = termOut.scrollHeight;
+  }
+
+  termEscrever('<div class="t-hint">Terminal remoto — PowerShell do PC da Neon. Use com responsabilidade.</div>');
+
+  termForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const comando = termInput.value.trim();
+    if (!comando) return;
+    termInput.value = "";
+    termEscrever(`<div class="t-cmd">&gt; ${escapeHtml(comando)}</div>`);
+    try {
+      const r = await api("/api/terminal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comando }),
+      });
+      const data = await r.json();
+      if (data.stdout) termEscrever(`<div class="t-out">${escapeHtml(data.stdout)}</div>`);
+      if (data.stderr) termEscrever(`<div class="t-err">${escapeHtml(data.stderr)}</div>`);
+      if (data.erro) termEscrever(`<div class="t-err">[erro] ${escapeHtml(data.erro)}</div>`);
+    } catch (err) {
+      termEscrever(`<div class="t-err">[erro] ${escapeHtml(err.message)}</div>`);
+    }
+  });
+
+  // ============ ARQUIVOS ============
+  const fileList = $("fileList");
+  const filePathEl = $("filePath");
+  const fileEditor = $("fileEditor");
+  const fileEditPath = $("fileEditPath");
+  const fileEditText = $("fileEditText");
+  let dirAtual = "";
+
+  function fmtTamanho(n) {
+    if (!n) return "";
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  async function carregarArquivos(dir) {
+    fileList.dataset.carregado = "1";
+    fileEditor.classList.add("hidden");
+    try {
+      const url = dir ? `/api/arquivos?dir=${encodeURIComponent(dir)}` : "/api/arquivos";
+      const r = await api(url);
+      const data = await r.json();
+      if (data.erro) throw new Error(data.erro);
+      dirAtual = data.dir;
+      filePathEl.textContent = data.dir;
+      fileList.innerHTML = "";
+
+      if (data.raiz) {
+        data.raizes.forEach((l) => fileList.appendChild(itemPasta(l, `${l}`, true)));
+      } else {
+        fileList.appendChild(itemPasta("..", data.pai));
+        data.itens.forEach((i) => {
+          if (i.pasta) fileList.appendChild(itemPasta(i.nome, joinDir(data.dir, i.nome)));
+          else fileList.appendChild(itemArquivo(i));
+        });
+      }
+    } catch (err) {
+      fileList.innerHTML = `<div class="f-item erro">${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function joinDir(base, nome) {
+    return base.endsWith("\\") ? base + nome : base + "\\" + nome;
+  }
+
+  function itemPasta(nome, caminho, raiz) {
+    const el = document.createElement("div");
+    el.className = "f-item pasta";
+    el.innerHTML = `<span class="f-icon">${raiz ? "▣" : "📁"}</span><span class="f-nome">${escapeHtml(nome)}</span>`;
+    el.addEventListener("click", () => carregarArquivos(caminho));
+    return el;
+  }
+
+  function itemArquivo(i) {
+    const el = document.createElement("div");
+    el.className = "f-item";
+    const data = i.mtime ? new Date(i.mtime).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+    el.innerHTML = `<span class="f-icon">📄</span><span class="f-nome">${escapeHtml(i.nome)}</span><span class="f-meta">${fmtTamanho(i.tamanho)} ${data}</span>`;
+    el.addEventListener("click", () => abrirEditor(joinDir(dirAtual, i.nome)));
+    return el;
+  }
+
+  async function abrirEditor(caminho) {
+    try {
+      const r = await api(`/api/arquivos/conteudo?path=${encodeURIComponent(caminho)}`);
+      const data = await r.json();
+      if (data.erro) { toast(data.erro); return; }
+      fileEditPath.textContent = data.caminho;
+      fileEditText.value = data.conteudo;
+      fileList.style.display = "none";
+      fileEditor.classList.remove("hidden");
+    } catch (err) { toast(err.message); }
+  }
+
+  $("btnSubir").addEventListener("click", async () => {
+    if (!dirAtual) { carregarArquivos(); return; }
+    const pai = dirAtual.replace(/[\\/][^\\/]*$/, "");
+    const letra = dirAtual.match(/^([A-Za-z]):[\\/]?$/);
+    carregarArquivos(letra ? "\\" : (pai || "\\"));
+  });
+
+  $("btnAtualizar").addEventListener("click", () => carregarArquivos(dirAtual));
+
+  $("btnEditarFechar").addEventListener("click", () => {
+    fileEditor.classList.add("hidden");
+    fileList.style.display = "";
+  });
+
+  $("btnEditarSalvar").addEventListener("click", async () => {
+    try {
+      const r = await api("/api/arquivos/salvar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ caminho: fileEditPath.textContent, conteudo: fileEditText.value }),
+      });
+      const data = await r.json();
+      toast(data.ok ? "Arquivo salvo" : data.erro);
+    } catch (err) { toast(err.message); }
+  });
 })();
