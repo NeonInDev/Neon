@@ -171,7 +171,8 @@ async function iniciarEscuta(guildId, connection) {
         const buf = Buffer.concat(chunks);
         fs.writeFileSync(pcmFile, buf);
 
-        await execAsync(`powershell -NoProfile -Command "$ff = 'C:\\ffmpeg\\ffmpeg.exe'; if (Test-Path $ff) { & $ff -f s16le -ar 48000 -ac 2 -i '${pcmFile}' -ar 16000 -ac 1 '${wavFile}' -y } else { copy '${pcmFile}' '${wavFile}' }"`, { timeout: 10000, windowsHide: true });
+        const ffmpegPath = require("ffmpeg-static");
+        await execAsync(`"${ffmpegPath}" -f s16le -ar 48000 -ac 2 -i "${pcmFile}" -ar 16000 -ac 1 "${wavFile}" -y`, { timeout: 10000, windowsHide: true });
 
         if (!fs.existsSync(wavFile)) {
           fs.renameSync(pcmFile, wavFile);

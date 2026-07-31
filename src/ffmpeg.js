@@ -4,8 +4,13 @@ const path = require("path");
 const fs = require("fs");
 const { log } = require("./logger");
 const exec = promisify(execCb);
-const FFMPEG = "C:\\ffmpeg\\ffmpeg.exe";
-const FFPROBE = "C:\\ffmpeg\\ffprobe.exe";
+let FFMPEG = "C:\\ffmpeg\\ffmpeg.exe";
+let FFPROBE = "C:\\ffmpeg\\ffprobe.exe";
+
+if (!require("fs").existsSync(FFMPEG)) {
+  FFMPEG = require("ffmpeg-static");
+  FFPROBE = FFMPEG;
+}
 
 async function converter(input, output, options = "") {
   const cmd = `"${FFMPEG}" -i "${input}" ${options} -y "${output}"`;

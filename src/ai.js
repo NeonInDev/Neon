@@ -14,6 +14,7 @@ async function chamarCompletions(url, apiKey, model, prompt, timeoutMs) {
     url,
     {
       model,
+      reasoning: { enabled: false },
       messages: [
         { role: "system", content: SISTEMA },
         { role: "user", content: prompt },

@@ -85,6 +85,23 @@ async function enviarResposta(message, texto) {
       } catch {}
     }
   }
+  const MAX = 2000;
+  if (texto.length > MAX) {
+    const partes = [];
+    let restante = texto;
+    while (restante.length > MAX) {
+      let corte = restante.lastIndexOf("\n", MAX);
+      if (corte <= 0) corte = MAX;
+      partes.push(restante.slice(0, corte));
+      restante = restante.slice(corte);
+    }
+    partes.push(restante);
+    await message.reply(partes[0]);
+    for (let i = 1; i < partes.length; i++) {
+      await message.channel.send(partes[i]);
+    }
+    return;
+  }
   await message.reply(texto);
 }
 

@@ -51,7 +51,7 @@ async function converterParaWav(inputPath) {
   const outputPath = inputPath.replace(/\.[^.]+$/, "") + "_conv.wav"
   try {
     const { execSync } = require("child_process")
-    execSync(`"C:\\ffmpeg\\ffmpeg.exe" -i "${inputPath}" -ar 16000 -ac 1 -sample_fmt s16 "${outputPath}" -y`, {
+    execSync(`"${require("ffmpeg-static")}" -i "${inputPath}" -ar 16000 -ac 1 -sample_fmt s16 "${outputPath}" -y`, {
       timeout: 30000, windowsHide: true, stdio: "pipe"
     })
     if (fs.existsSync(outputPath)) return outputPath

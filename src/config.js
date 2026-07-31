@@ -16,7 +16,7 @@ module.exports = {
   DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
   DEEPSEEK_MODEL: process.env.DEEPSEEK_MODEL || "deepseek-chat",
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
-  OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-super-120b-a12b:free",
+  OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-nano-30b-a3b:free",
   VOZ_NEON: process.env.VOZ_NEON || "pt-BR-FranciscaNeural",
   DOCS_PORT: parseInt(process.env.DOCS_PORT, 10) || 3000,
 };

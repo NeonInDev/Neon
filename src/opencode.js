@@ -23,7 +23,7 @@ const OPENCODE_BIN = getBinPath();
 const CONFIG_DIR = path.join(__dirname, "..");
 
 function envSeguro() {
-  const e = { ...process.env, OPENCODE_DISABLE_PROJECT_CONFIG: "" };
+  const e = { ...process.env };
   for (const k of Object.keys(e)) {
     if (/KEY|TOKEN|SECRET|PASS(WORD)?|AUTH|API/i.test(k)) delete e[k];
   }

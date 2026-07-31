@@ -70,6 +70,35 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url === "/api/voz/falar" && req.method === "POST") {
+      let body = "";
+      req.on("data", (chunk) => body += chunk);
+      req.on("end", async () => {
+        try {
+          const { texto, guildId } = JSON.parse(body);
+          if (!texto) {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ erro: "texto é obrigatório" }));
+            return;
+          }
+          const voz = require("./voz");
+          const alvo = guildId || voz.status()[0]?.guildId;
+          if (!alvo) {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ erro: "nenhum canal de voz ativo" }));
+            return;
+          }
+          const ok = await voz.falar(alvo, texto);
+          res.writeHead(ok ? 200 : 500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ ok, guildId: alvo }));
+        } catch (err) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ erro: err.message }));
+        }
+      });
+      return;
+    }
+
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ erro: "rota não encontrada" }));
   });

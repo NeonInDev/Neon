@@ -33,12 +33,12 @@
     "system": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-system"],
-      "enabled": false
+      "enabled": true
     },
     "voice": {
       "type": "local",
-      "command": ["node", "src/voz.js"],
-      "enabled": false
+      "command": ["node", "src/mcp-voz.js"],
+      "enabled": true
     }
   }
 }
