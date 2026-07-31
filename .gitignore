@@ -9,3 +9,9 @@ memory.json
 .npm
 *.log
 memoria_global.json
+
+.env
+
+.env.old
+
+.env.example
