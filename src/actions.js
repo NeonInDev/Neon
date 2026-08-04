@@ -386,6 +386,25 @@ function encontrarVoiceToggle(texto) {
   return null;
 }
 
+function encontrarCelular(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+
+  if (/^(?:espelha|espelhar|espelho|mirror|scrcpy|abre\s+a\s+tela\s+(?:do|no)\s+celular|ver\s+a\s+tela\s+(?:do|no)\s+celular)\b/i.test(lower)) return "espelhar";
+  if (/^(?:conecta|conectar)\s+(?:o\s+|no\s+|na\s+)?(?:celular|cel|telefone|smartphone)/i.test(lower)) return "conectar";
+  if (/^(?:desconecta|desconectar|disconnect)\s+(?:o\s+|do\s+)?(?:celular|cel|telefone)/i.test(lower)) return "desconectar";
+  if (/status\s+do\s+celular|como\s+ta\s+o\s+celular|celular\s+conectado\?/i.test(lower)) return "status";
+  if (/^(?:celular)\s+ip\s+[0-9.]+/i.test(lower) || /^(?:define|configura|usa)\s+(?:o\s+)?ip\s+(?:do\s+)?(?:celular)\s+[0-9.]+/i.test(lower)) return "definirIp";
+  if (/^(?:abre|abrir)\s+(.+?)\s+(?:no|do|pelo)\s+celular/i.test(lower)) return "abrirApp";
+  if (/^(?:tira|tirar|faz|fazer|captura|capturar)\s+(?:um\s+|uma\s+)?(?:print|screenshot|print\s+de\s+tela)\s+(?:do|no|da)\s+celular/i.test(lower)) return "print";
+  if (/^(?:toca|toque|tocar|tap)\s+(?:na\s+)?(?:tela\s+)?(?:do\s+)?celular\s+(?:em\s+)?(\d+)[\s,]+(\d+)/i.test(lower)) return "toque";
+  if (/^(?:desliza|deslizar|swipe|arrasta)\s+(?:na\s+)?(?:tela\s+)?(?:do\s+)?celular/i.test(lower)) return "deslizar";
+  if (/^(?:digita|digitar|escreve|escrever|type)\s+(.+?)\s+(?:no|do)\s+celular/i.test(lower)) return "digitar";
+  if (/^(?:aperta|apertar|pressiona|pressionar|tecla|aperte)\s+(.+?)\s+(?:no|do)\s+celular/i.test(lower)) return "tecla";
+  if (/^(?:roda|rodar|executa|executar)\s+(.+?)\s+(?:no|pelo|no\s+termux)\s+termux/i.test(lower)) return "termux";
+  if (/^(?:configura|configurar|set)\s+(?:o\s+)?termux/i.test(lower) || /^termux\s+(?:ip|config)/i.test(lower)) return "configurarTermux";
+  return null;
+}
+
 function encontrarBrowser(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
@@ -615,6 +634,7 @@ function detectarCategoria(texto) {
   if (encontrarCustomCommand(texto)) return "customCommand";
   if (encontrarModoUltron(texto)) return "modo_ultron";
   if (encontrarModoJarvis(texto)) return "modo_jarvis";
+  if (encontrarCelular(texto)) return "celular";
   if (encontrarApp(texto)) return "app";
   if (isWin()) {
     const jogo = encontrarJogo(texto);
@@ -1802,6 +1822,106 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     } catch (err) {
       return `❌ Erro: ${err.message}`;
     }
+  }
+
+  // Controle do celular (adb/scrcpy) + Termux (SSH)
+  if (categoria === "celular") {
+    const acao = encontrarCelular(texto);
+    const celular = require("./celular");
+
+    if (acao === "configurarTermux") {
+      const m = lower.match(/([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?:\s+(?:porta\s+)?(\d+))?(?:\s+(?:usuario\s+)?(\w+))?/i);
+      const termux = require("./termux");
+      return await termux.definirConfig(m?.[1], m?.[2], m?.[3]);
+    }
+
+    if (acao === "termux") {
+      const m = lower.match(/^(?:roda|rodar|executa|executar)\s+(.+?)\s+(?:no|pelo|no\s+termux)\s+termux/i);
+      const termux = require("./termux");
+      const r = await termux.rodarComando(m?.[1]?.trim() || "");
+      if (!r.ok) return r.msg;
+      let saida = r.msg;
+      if (saida.length > 1900) saida = saida.slice(0, 1900) + "\n... (truncado)";
+      return `🖥️ **Termux:**\n\`\`\`\n${saida}\n\`\`\``;
+    }
+
+    if (acao === "definirIp") {
+      const m = lower.match(/([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?:\s+(\d+))?/);
+      return await celular.definirIp(m?.[1], m?.[2]);
+    }
+
+    if (acao === "status") {
+      const st = await celular.status();
+      return `📱 **Celular (adb):**\nIP: ${st.ip}:${st.porta}\nStatus: ${st.conectado ? "✅ conectado" : "❌ desconectado"}`;
+    }
+
+    if (acao === "conectar") {
+      const r = await celular.conectar();
+      return r.msg;
+    }
+
+    if (acao === "desconectar") {
+      const r = await celular.desconectar();
+      return r.msg;
+    }
+
+    if (acao === "espelhar") {
+      const st = await celular.status();
+      if (!st.conectado) {
+        const c = await celular.conectar();
+        if (!c.ok) return c.msg;
+      }
+      return celular.espelhar().msg;
+    }
+
+    if (acao === "abrirApp") {
+      const m = lower.match(/^(?:abre|abrir)\s+(.+?)\s+(?:no|do|pelo)\s+celular/i);
+      const nome = m?.[1]?.trim();
+      const pacote = celular.acharPacote(nome);
+      if (!pacote) return `❌ Não sei o pacote do app "${nome}".`;
+      const st = await celular.status();
+      if (!st.conectado) return "❌ Celular não conectado. Diz: `Neon, conecta o celular`.";
+      return (await celular.abrirApp(pacote)).msg;
+    }
+
+    if (acao === "print") {
+      const st = await celular.status();
+      if (!st.conectado) return "❌ Celular não conectado. Diz: `Neon, conecta o celular`.";
+      const r = await celular.printTela();
+      if (!r.ok) return r.msg;
+      try {
+        const { client } = require("./client");
+        const master = await client.users.fetch(OWNER);
+        if (master) {
+          const { AttachmentBuilder } = require("discord.js");
+          await master.send({ files: [new AttachmentBuilder(r.caminho, { name: "celular.png" })] });
+        }
+      } catch {}
+      return r.msg + `\n__FILE__:${r.caminho}`;
+    }
+
+    if (acao === "toque") {
+      const m = lower.match(/(\d+)[\s,]+(\d+)/);
+      return (await celular.toque(m?.[1], m?.[2])).msg;
+    }
+
+    if (acao === "deslizar") {
+      const m = lower.match(/(?:de\s+)?(\d+)[\s,]+(\d+)\s+(?:pra|para|ate|até|->)?\s*(\d+)[\s,]+(\d+)/);
+      if (!m) return "❌ Use: Neon, desliza no celular de X1 Y1 pra X2 Y2";
+      return (await celular.deslizar(m[1], m[2], m[3], m[4])).msg;
+    }
+
+    if (acao === "digitar") {
+      const m = lower.match(/^(?:digita|digitar|escreve|escrever|type)\s+(.+?)\s+(?:no|do)\s+celular/i);
+      return (await celular.digitar(m?.[1]?.trim() || "")).msg;
+    }
+
+    if (acao === "tecla") {
+      const m = lower.match(/^(?:aperta|apertar|pressiona|pressionar|tecla|aperte)\s+(.+?)\s+(?:no|do)\s+celular/i);
+      return (await celular.tecla(m?.[1]?.trim() || "")).msg;
+    }
+
+    return "Comando de celular não reconhecido.";
   }
 
   // -- Plugins --
