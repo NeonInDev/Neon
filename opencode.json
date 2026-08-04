@@ -30,6 +30,11 @@
       "command": ["node", "src/pc.js"],
       "enabled": true
     },
+    "celular": {
+      "type": "local",
+      "command": ["node", "src/mcp-celular.js"],
+      "enabled": true
+    },
     "system": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-system"],
