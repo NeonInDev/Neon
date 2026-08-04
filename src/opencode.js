@@ -2,6 +2,7 @@ const { spawn } = require("child_process");
 const { log } = require("./logger");
 const axios = require("axios");
 const path = require("path");
+const os = require("os");
 
 function getBinPath() {
   const npmDir = path.join(process.env.APPDATA || "", "npm");
@@ -27,6 +28,7 @@ function envSeguro() {
   for (const k of Object.keys(e)) {
     if (/KEY|TOKEN|SECRET|PASS(WORD)?|AUTH|API/i.test(k)) delete e[k];
   }
+  e.XDG_DATA_HOME = path.join(os.tmpdir(), "neon-ocdata");
   return e;
 }
 
@@ -88,6 +90,12 @@ async function iniciarServer() {
 
 async function executar(tarefa) {
   const maxAttempts = serverPort ? 1 : 0;
+
+  if (!serverPort) {
+    try {
+      await iniciarServer();
+    } catch {}
+  }
 
   if (serverPort) {
     try {

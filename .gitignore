@@ -16,3 +16,5 @@ memoria_global.json
 .env.old
 
 .env.example
+
+ssl/

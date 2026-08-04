@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Neon Gestos</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; font-family: system-ui, sans-serif; background: #0f1115; color: #e6e6e6; }
+  header { padding: 12px 16px; display: flex; align-items: center; gap: 10px; background: #171a21; }
+  header h1 { font-size: 16px; margin: 0; flex: 1; }
+  #videoWrap { position: relative; width: 100%; background: #000; }
+  #videoWrap video, #videoWrap canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; }
+  #videoWrap video { transform: scaleX(-1); }
+  #videoWrap { aspect-ratio: 3/4; max-height: 55vh; margin: 0 auto; }
+  #statusBar { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { background: rgba(0,0,0,.6); border-radius: 20px; padding: 4px 10px; font-size: 12px; }
+  .chip.on { background: #16a34a; }
+  .chip.err { background: #dc2626; }
+  #panel { padding: 12px 16px; }
+  .row { display: flex; gap: 8px; margin: 10px 0; align-items: center; flex-wrap: wrap; }
+  input[type=text], input[type=password] { flex: 1; min-width: 120px; background: #1d212b; border: 1px solid #333; color: #eee; padding: 8px; border-radius: 8px; font-size: 14px; }
+  button { background: #2563eb; color: #fff; border: 0; border-radius: 8px; padding: 10px 14px; font-size: 14px; cursor: pointer; }
+  button:disabled { opacity: .5; }
+  button.green { background: #16a34a; }
+  button.red { background: #dc2626; }
+  label { font-size: 13px; display: flex; align-items: center; gap: 8px; }
+  input[type=range] { flex: 1; }
+  .hint { font-size: 12px; color: #9aa; line-height: 1.5; }
+  .gesture { background: #16a34a; color: #fff; padding: 2px 8px; border-radius: 6px; font-weight: 600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🖐️ Neon — Controle por Gestos</h1>
+  <span id="modoChip" class="chip">off</span>
+</header>
+
+<div id="videoWrap">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="statusBar">
+    <span id="chCam" class="chip">câmera: ...</span>
+    <span id="chModel" class="chip">modelo: ...</span>
+    <span id="chGest" class="chip">gesto: —</span>
+  </div>
+</div>
+
+<div id="panel">
+  <div class="row">
+    <input type="password" id="chave" placeholder="Chave do HUD (x-hud-key)">
+    <button id="btnTestar">Testar</button>
+  </div>
+  <div class="row">
+    <button id="btnLigar" class="green">Ligar controle</button>
+    <button id="btnCalibrar">Calibrar centro</button>
+    <button id="btnCam">Ligar câmera</button>
+  </div>
+  <div class="row">
+    <label>Sensibilidade <input type="range" id="ganho" min="0.2" max="1.6" step="0.05" value="0.8"></label>
+  </div>
+  <div class="hint" id="hint"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.js"></script>
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const chaveInput = $("chave");
+  const ganhoInput = $("ganho");
+  chaveInput.value = localStorage.getItem("neon_key") || "TESEU";
+  ganhoInput.value = localStorage.getItem("neon_ganho") || 0.8;
+  ganhoInput.onchange = () => localStorage.setItem("neon_ganho", ganhoInput.value);
+
+  let key = () => chaveInput.value.trim() || "TESEU";
+  let ativo = false;
+  let cameraOn = false;
+  let landmarker = null;
+  let video = $("video");
+  let canvas = $("canvas");
+  let ctx = canvas.getContext("2d");
+
+  function setChip(id, text, cls) {
+    const el = $(id);
+    el.textContent = text;
+    el.className = "chip" + (cls ? " " + cls : "");
+  }
+
+  function api(payload) {
+    return fetch("/api/gesture", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-hud-key": key() },
+      body: JSON.stringify(payload),
+    }).then((r) => r.json());
+  }
+
+  $("btnTestar").onclick = () => {
+    api({ tipo: "notificar", titulo: "Neon Gestos", mensagem: "Conexão e chave OK!" })
+      .then((r) => { setChip("chGest", r.ok ? "chave OK" : "erro: " + r.erro, r.ok ? "on" : "err"); })
+      .catch(() => setChip("chGest", "sem conexão", "err"));
+  };
+
+  async function ligarCam() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 640 } } });
+      video.srcObject = stream;
+      await video.play();
+      cameraOn = true;
+      setChip("chCam", "câmera: ok", "on");
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      raf();
+    } catch (e) {
+      setChip("chCam", "câmera: negada", "err");
+      $("hint").textContent = "Permita a câmera. Precisa abrir via https (endereço começa com https://).";
+    }
+  }
+
+  async function carregarModelo() {
+    try {
+      setChip("chModel", "modelo: carregando...");
+      const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+      landmarker = await HandLandmarker.createFromOptions(vision, {
+        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task" },
+        runningMode: "VIDEO",
+        numHands: 1,
+      });
+      setChip("chModel", "modelo: ok", "on");
+      $("hint").textContent = "Aponte a câmera pra sua mão. Indicador esticado = move o mouse. Pinça (dedão+indicador) = clique. Pinça (dedão+médio) = botão direito. Indicador+médio = rolar. Mão aberta = volume +. Punho = volume -.";
+    } catch (e) {
+      setChip("chModel", "modelo: falhou", "err");
+      $("hint").textContent = "Sem internet pro modelo do MediaPipe? " + e.message;
+    }
+  }
+
+  $("btnCam").onclick = ligarCam;
+  $("btnLigar").onclick = function () {
+    ativo = !ativo;
+    this.textContent = ativo ? "Desligar controle" : "Ligar controle";
+    this.className = ativo ? "red" : "green";
+    setChip("modoChip", ativo ? "on" : "off", ativo ? "on" : "");
+    if (ativo && !landmarker) carregarModelo();
+    if (ativo && !cameraOn) ligarCam();
+  };
+  $("btnCalibrar").onclick = () => {
+    centro = { x: lm.x, y: lm.y };
+    $("hint").textContent = "Centro calibrado! Deixe a mão no ponto que vira o centro da tela.";
+  };
+
+  // ---- estado do gesto ----
+  let centro = { x: 0.5, y: 0.5 };
+  let lm = { x: 0.5, y: 0.5 };
+  let estadoAnt = "";
+  let ultimoClique = 0;
+  let ultimaMover = 0;
+  let ultimaMao = null;
+
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+  function dedosEstendidos(l) {
+    const d = [
+      l[8].y < l[6].y,   // indicador
+      l[12].y < l[10].y, // médio
+      l[16].y < l[14].y, // anelar
+      l[20].y < l[18].y, // mindinho
+    ];
+    return d;
+  }
+
+  function detectarGestos(landmarks) {
+    const l = landmarks;
+    const est = dedosEstendidos(l);
+    const n = est.filter(Boolean).length;
+    const pinIndex = dist(l[4], l[8]) < 0.06;
+    const pinMid = dist(l[4], l[12]) < 0.06;
+    lm = { x: l[8].x, y: l[8].y };
+
+    let estado;
+    if (pinIndex) estado = "clique";
+    else if (pinMid) estado = "clique_dir";
+    else if (est[0] && est[1]) estado = "scroll";
+    else if (est[0]) estado = "move";
+    else if (n === 0) estado = "punho";
+    else if (n === 4) estado = "mao_aberta";
+    else estado = "move";
+
+    const novidade = estado !== estadoAnt;
+    estadoAnt = estado;
+
+    if (novidade) {
+      if (estado === "clique") {
+        const agora = Date.now();
+        if (agora - ultimoClique < 600) {
+          api({ tipo: "duplo", x: xNorm(), y: yNorm() });
+          setChip("chGest", "duplo clique", "on");
+          ultimoClique = 0;
+        } else {
+          api({ tipo: "clique", x: xNorm(), y: yNorm() });
+          setChip("chGest", "clique", "on");
+          ultimoClique = agora;
+        }
+      } else if (estado === "clique_dir") {
+        api({ tipo: "clique", x: xNorm(), y: yNorm(), botao: "right" });
+        setChip("chGest", "clique direito", "on");
+      } else if (estado === "punho") {
+        api({ tipo: "volume", acao: "down", valor: 3 });
+        setChip("chGest", "volume -", "on");
+      } else if (estado === "mao_aberta") {
+        api({ tipo: "volume", acao: "up", valor: 3 });
+        setChip("chGest", "volume +", "on");
+      }
+    }
+
+    // move contínuo
+    if (ativo && estado === "move") {
+      const agora = Date.now();
+      if (agora - ultimaMover > 120) {
+        ultimaMover = agora;
+        api({ tipo: "mover", x: xNorm(), y: yNorm() }).catch(() => {});
+        setChip("chGest", "move", "on");
+      }
+    } else if (ativo && estado === "scroll" && ultimaMao) {
+      const delta = (ultimaMao.y - l[12].y) * 900;
+      if (Math.abs(delta) > 6) api({ tipo: "scroll", delta: Math.round(delta) }).catch(() => {});
+      setChip("chGest", "scroll", "on");
+    }
+    ultimaMao = { y: l[12].y };
+  }
+
+  function xNorm() {
+    const ganho = parseFloat(ganhoInput.value) || 0.8;
+    const v = 0.5 + (1 - lm.x - centro.x) * ganho;
+    return Math.max(0, Math.min(1, v));
+  }
+  function yNorm() {
+    const ganho = parseFloat(ganhoInput.value) || 0.8;
+    const v = 0.5 + (lm.y - centro.y) * ganho;
+    return Math.max(0, Math.min(1, v));
+  }
+
+  // ---- loop ----
+  let raf = function tick() {
+    requestAnimationFrame(tick);
+    if (!cameraOn || !video.readyState || video.readyState < 2) return;
+    if (!landmarker) return;
+    const agora = performance.now();
+    const res = landmarker.detectForVideo(video, agora);
+    if (res.landmarks && res.landmarks.length > 0) {
+      const l = res.landmarks[0];
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      desenharMao(l);
+      if (ativo) detectarGestos(l);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      estadoAnt = "";
+      ultimaMao = null;
+    }
+  };
+
+  function desenharMao(l) {
+    ctx.save();
+    ctx.scale(-1, 1);
+    ctx.translate(-canvas.width, 0);
+    const sx = canvas.width, sy = canvas.height;
+    ctx.strokeStyle = "#22c55e";
+    ctx.lineWidth = 3;
+    const ligacoes = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+    ctx.beginPath();
+    for (const [a, b] of ligacoes) {
+      ctx.moveTo(l[a].x * sx, l[a].y * sy);
+      ctx.lineTo(l[b].x * sx, l[b].y * sy);
+    }
+    ctx.stroke();
+    ctx.fillStyle = "#22c55e";
+    for (const p of l) { ctx.beginPath(); ctx.arc(p.x * sx, p.y * sy, 5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  }
+
+  chaveInput.onchange = () => localStorage.setItem("neon_key", chaveInput.value);
+  setChip("chModel", "modelo: carregar ao ligar");
+})();
+</script>
+</body>
+</html>

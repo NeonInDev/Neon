@@ -35,7 +35,7 @@
     const novo = atual === "ultron" ? "jarvis" : "ultron";
     toast(novo === "ultron" ? "☠️ MODO ULTRON" : "🟦 MODO JARVIS");
     try {
-      const r = await fetch("/api/modo", {
+      const r = await api("/api/modo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ modo: novo }),
@@ -54,8 +54,6 @@
   let vozAtiva = true;
   let reconhecendo = false;
   let recognition = null;
-
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   function toast(msg) {
     const t = $("toast");
@@ -87,7 +85,7 @@
   async function falar(texto) {
     if (!vozAtiva || !texto) return;
     try {
-      const r = await fetch("/api/voz/audio", {
+      const r = await api("/api/voz/audio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ texto: texto.slice(0, 500) }),
@@ -107,7 +105,7 @@
     const typing = addMsg("neon", "processando...");
     typing.classList.add("typing");
     try {
-      const r = await fetch("/api/chat", {
+      const r = await api("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mensagem: t, usuario: "HUD", userId: "hud_web" }),
@@ -131,7 +129,7 @@
   // ============ STATUS AO VIVO ============
   async function atualizarStatus() {
     try {
-      const r = await fetch("/api/pc", { method: "GET" });
+      const r = await api("/api/pc", { method: "GET" });
       if (!r.ok) throw new Error("status");
       const { info, bateria } = await r.json();
       setStatus(true, "SISTEMA ONLINE");
@@ -181,46 +179,100 @@
   relogio();
 
   // ============ VOZ (PUSH TO TALK) ============
-  function iniciarReconhecimento() {
-    if (!SR) { toast("Seu navegador não suporta voz"); return; }
-    reconhecendo = true;
-    recognition = new SR();
-    recognition.lang = "pt-BR";
-    recognition.interimResults = true;
-    recognition.continuous = false;
+  let mediaRecorder = null;
+  let gravando = false;
+  const suportaWebSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
-    let final = "";
-    recognition.onresult = (e) => {
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) final += e.results[i][0].transcript;
-        else interim += e.results[i][0].transcript;
-      }
-      chatInput.value = (final + interim).trim();
-    };
-    recognition.onend = () => {
-      micBtn.classList.remove("listening");
-      micLabel.textContent = "PUSH TO TALK";
-      $("voiceBadge").style.display = "none";
-      if (reconhecendo && final.trim()) {
-        reconhecendo = false;
-        enviar(final);
-      } else if (reconhecendo && chatInput.value.trim()) {
-        reconhecendo = false;
-        enviar(chatInput.value);
-      }
-      reconhecendo = false;
-    };
-    recognition.onerror = () => { stopReconhecimento(); };
+  async function obterMicrofone() {
+    if (!navigator.mediaDevices?.getUserMedia) return null;
+    try { return await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { return null; }
+  }
 
-    micBtn.classList.add("listening");
-    micLabel.textContent = "OUVINDO...";
-    $("voiceBadge").style.display = "block";
-    recognition.start();
+  function setMic(ativo, label) {
+    micBtn.classList.toggle("listening", ativo);
+    micLabel.textContent = label;
+    $("voiceBadge").style.display = ativo ? "block" : "none";
+    $("voiceBadge").textContent = `● ${label}`;
+  }
+
+  function usarWebSpeech() {
+    if (!suportaWebSpeech) return false;
+    try {
+      reconhecendo = true;
+      recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = "pt-BR";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+
+      let final = "";
+      recognition.onresult = (e) => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) final += e.results[i][0].transcript;
+          else interim += e.results[i][0].transcript;
+        }
+        chatInput.value = (final + interim).trim();
+      };
+      recognition.onend = () => {
+        reconhecendo = false;
+        const t = (final || chatInput.value).trim();
+        if (t) { chatInput.value = ""; enviar(t); }
+        setMic(false, "PUSH TO TALK");
+      };
+      recognition.onerror = () => { try { recognition.stop(); } catch {} setMic(false, "PUSH TO TALK"); };
+
+      setMic(true, "OUVINDO...");
+      recognition.start();
+      return true;
+    } catch { return false; }
+  }
+
+  async function iniciarReconhecimento() {
+    if (gravando) return;
+    const stream = await obterMicrofone();
+    if (!stream) {
+      if (!usarWebSpeech()) toast("Sem acesso ao microfone");
+      return;
+    }
+
+    gravando = true;
+    setMic(true, "GRAVANDO...");
+
+    try { mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" }); }
+    catch { mediaRecorder = new MediaRecorder(stream); }
+
+    const chunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      await transcreverBlob(blob);
+    };
+    mediaRecorder.start();
   }
 
   function stopReconhecimento() {
-    if (recognition) { try { recognition.stop(); } catch {} }
+    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+  }
+
+  async function transcreverBlob(blob) {
+    setMic(true, "PROCESSANDO...");
+    try {
+      const r = await api("/api/voz/stt", { method: "POST", body: blob });
+      const data = await r.json();
+      const texto = (data.texto || "").trim();
+      if (texto) {
+        chatInput.value = "";
+        enviar(texto);
+      } else {
+        toast(data.erro || "Não entendi o áudio. Tenta de novo.");
+      }
+    } catch (err) {
+      toast("Falha na transcrição: " + err.message);
+    } finally {
+      setMic(false, "PUSH TO TALK");
+    }
   }
 
   micBtn.addEventListener("mousedown", iniciarReconhecimento);
@@ -242,7 +294,7 @@
     const nivel = parseInt(volRange.value, 10);
     volVal.textContent = `${nivel}%`;
     try {
-      await fetch("/api/pc/volume", {
+      await api("/api/pc/volume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nivel }),
@@ -253,7 +305,7 @@
   $("btnShot").addEventListener("click", async () => {
     toast("Capturando tela...");
     try {
-      const r = await fetch("/api/pc/screenshot", { method: "POST" });
+      const r = await api("/api/pc/screenshot", { method: "POST" });
       const data = await r.json();
       if (data.imagem) {
         $("shotImg").src = data.imagem;
@@ -271,7 +323,7 @@
     const mensagem = prompt("Mensagem:", "");
     if (mensagem === null) return;
     try {
-      const r = await fetch("/api/pc/notificar", {
+      const r = await api("/api/pc/notificar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ titulo, mensagem }),

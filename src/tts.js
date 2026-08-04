@@ -5,7 +5,7 @@ const fs = require("fs")
 const path = require("path")
 const execAsync = promisify(execCb)
 const TMP = process.env.TEMP || "C:\\Temp"
-const FFMPEG = "C:\\ffmpeg\\ffmpeg.exe"
+const FFMPEG = require("ffmpeg-static") || "ffmpeg"
 
 let edgeTts = null
 try { edgeTts = require("edge-tts-universal") } catch {}

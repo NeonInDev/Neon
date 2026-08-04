@@ -342,4 +342,4 @@ function status() {
   return guilds;
 }
 
-module.exports = { entrarVoz, sairVoz, falar, iniciarConversa, pararConversa, estaEmConversa, status };
+module.exports = { entrarVoz, sairVoz, falar, iniciarConversa, pararConversa, estaEmConversa, status, transcreverAudio, transcreverLocal };

@@ -8,6 +8,14 @@ const TMP = process.env.TEMP || "C:\\Temp";
 const SCRIPTS_DIR = path.join(__dirname, "scripts");
 if (!fs.existsSync(SCRIPTS_DIR)) fs.mkdirSync(SCRIPTS_DIR, { recursive: true });
 
+function psEsc(s) {
+  return String(s).replace(/['\r\n]/g, (c) => (c === "'" ? "''" : " "));
+}
+
+function cmdEsc(s) {
+  return String(s).replace(/['"`$&|<>;(){}\\]/g, " ").trim();
+}
+
 async function ps(script, label) {
   const tmpFile = path.join(TMP, `neon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.ps1`);
   fs.writeFileSync(tmpFile, script, "utf8");
@@ -59,18 +67,22 @@ try {
 // ===================== COMPUTER USE: MOUSE =====================
 
 async function moverMouse(x, y) {
+  const xi = Math.floor(Number(x)) || 0;
+  const yi = Math.floor(Number(y)) || 0;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($x, $y)
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${xi}, ${yi})
 Write-Output "ok"`;
-  return await ps(script.replace("$x", x).replace("$y", y), "moveMouse");
+  return await ps(script, "moveMouse");
 }
 
 async function clicarMouse(x, y, botao = "left") {
   const btn = botao === "right" ? "Right" : "Left";
+  const xi = Math.floor(Number(x)) || 0;
+  const yi = Math.floor(Number(y)) || 0;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x}, ${y})
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${xi}, ${yi})
 [System.Windows.Forms.SendKeys]::SendWait("{${btn}}")
 Start-Sleep -Milliseconds 100
 [System.Windows.Forms.SendKeys]::SendWait("{${btn}}")
@@ -80,9 +92,11 @@ Write-Output "ok"`;
 
 async function duploClique(x, y) {
   await moverMouse(x, y);
+  const xi = Math.floor(Number(x)) || 0;
+  const yi = Math.floor(Number(y)) || 0;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x}, ${y})
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${xi}, ${yi})
 [System.Windows.Forms.SendKeys]::SendWait("{Left}")
 Start-Sleep -Milliseconds 50
 [System.Windows.Forms.SendKeys]::SendWait("{Left}")
@@ -91,16 +105,47 @@ Write-Output "ok"`;
 }
 
 async function arrastar(x1, y1, x2, y2) {
+  const a = Math.floor(Number(x1)) || 0;
+  const b = Math.floor(Number(y1)) || 0;
+  const c = Math.floor(Number(x2)) || 0;
+  const d = Math.floor(Number(y2)) || 0;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing
-[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x1}, ${y1})
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${a}, ${b})
 Start-Sleep -Milliseconds 100
 [System.Windows.Forms.SendKeys]::SendWait("{Left}")
-$null = [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x2}, ${y2})
+$null = [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${c}, ${d})
 Start-Sleep -Milliseconds 100
 [System.Windows.Forms.SendKeys]::SendWait("{Left}")
 Write-Output "ok"`;
   return await ps(script, "drag");
+}
+
+async function tamanhoTela() {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+$b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+Write-Output "$($b.Width) $($b.Height)"`;
+  const saida = await ps(script, "telaTamanho");
+  const [w, h] = (saida || "").split(/\s+/).map(Number);
+  return { largura: w || 1920, altura: h || 1080 };
+}
+
+async function scroll(delta) {
+  const d = Math.floor(Number(delta)) || 0;
+  if (d === 0) return "ok";
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class NeonWheel {
+  [DllImport("user32.dll")]
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+}
+"@
+[NeonWheel]::mouse_event(0x0800, 0, 0, ${d}, [UIntPtr]::Zero)
+Write-Output "ok"`;
+  return await ps(script, "scrollWheel");
 }
 
 // ===================== COMPUTER USE: TECLADO =====================
@@ -109,7 +154,7 @@ async function digitarTexto(texto) {
   const safe = texto.replace(/[<>{}()&^%$#@!~`"'|\\\/;:.,?+\-*=\[\] ]/g, ' ').trim();
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.SendKeys]::SendWait("${texto.replace(/"/g, '""')}")
+[System.Windows.Forms.SendKeys]::SendWait('${psEsc(safe)}')
 Write-Output "ok"`;
   return await ps(script, "typeText");
 }
@@ -129,7 +174,7 @@ async function tecla(tecla) {
   const cmd = mapa[tecla.toLowerCase()] || tecla;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.SendKeys]::SendWait("${cmd}")
+[System.Windows.Forms.SendKeys]::SendWait('${psEsc(cmd)}')
 Write-Output "ok"`;
   return await ps(script, "keyPress");
 }
@@ -137,8 +182,9 @@ Write-Output "ok"`;
 // ===================== COMPUTER USE: JANELAS =====================
 
 async function acharJanela(titulo) {
+  const t = psEsc(titulo);
   const script = `
-$w = Get-Process | Where-Object { $_.MainWindowTitle -match "${titulo.replace(/"/g, '""')}" } | Select-Object -First 1
+$w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1
 if ($w) {
   Add-Type @"
     using System;
@@ -165,8 +211,9 @@ Format-Table -AutoSize -HideTableHeaders | Out-String | ForEach-Object { $_.Trim
 }
 
 async function minimizarJanela(titulo) {
+  const t = psEsc(titulo);
   const script = `
-$w = Get-Process | Where-Object { $_.MainWindowTitle -match "${titulo.replace(/"/g, '""')}" } | Select-Object -First 1
+$w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1
 if ($w) {
   Add-Type @"
     using System;
@@ -182,8 +229,9 @@ if ($w) {
 }
 
 async function maximizarJanela(titulo) {
+  const t = psEsc(titulo);
   const script = `
-$w = Get-Process | Where-Object { $_.MainWindowTitle -match "${titulo.replace(/"/g, '""')}" } | Select-Object -First 1
+$w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1
 if ($w) {
   Add-Type @"
     using System;
@@ -199,8 +247,9 @@ if ($w) {
 }
 
 async function fecharJanela(titulo) {
+  const t = psEsc(titulo);
   const script = `
-$w = Get-Process | Where-Object { $_.MainWindowTitle -match "${titulo.replace(/"/g, '""')}" } | Select-Object -First 1
+$w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1
 if ($w) {
   Add-Type @"
     using System;
@@ -389,7 +438,7 @@ async function volume(acao, valor) {
 
 async function clipboard(acao, texto) {
   if (acao === "copiar") {
-    await execAsync(`powershell -NoProfile -Command "Set-Clipboard -Value '${texto.replace(/'/g, "''")}'"`, { timeout: 5000 });
+    await execAsync(`powershell -NoProfile -Command "Set-Clipboard -Value '${cmdEsc(texto)}'"`, { timeout: 5000 });
     return `📋 Copiado: "${texto.slice(0, 100)}"`;
   }
   if (acao === "colar") {
@@ -406,7 +455,7 @@ async function tts(texto, voz = "auto") {
     const { falar } = require("./tts");
     await falar(texto, voz);
   } catch {
-    const safe = texto.replace(/'/g, "''").replace(/"/g, '""');
+    const safe = cmdEsc(texto);
     await execAsync(`powershell -NoProfile -Command "(New-Object -ComObject Sapi.SpVoice).Speak('${safe}')"`, { timeout: 15000 }).catch(() => {});
   }
   return `🗣️ Falei: "${texto.slice(0, 100)}"`;
@@ -420,7 +469,7 @@ async function listarProcessos() {
 }
 
 async function matarProcesso(nome) {
-  await ps(`Stop-Process -Name "${nome}" -Force -ErrorAction Stop; Write-Output "ok"`, "killProcess");
+  await ps(`Stop-Process -Name '${psEsc(nome)}' -Force -ErrorAction Stop; Write-Output "ok"`, "killProcess");
   return `✅ Processo "${nome}" finalizado.`;
 }
 
@@ -465,18 +514,20 @@ if ([int]$ps.BatteryChargeStatus -eq 128 -or $ps.BatteryLifePercent -lt 0) {
 }
 
 async function notificarToast(titulo, mensagem) {
+  const t = psEsc(titulo);
+  const m = psEsc(mensagem);
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
 $n = New-Object System.Windows.Forms.NotifyIcon
 $n.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon("$env:windir\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
-$n.BalloonTipTitle = "${titulo.replace(/"/g,'""')}"
-$n.BalloonTipText = "${mensagem.replace(/"/g,'""')}"
+$n.BalloonTipTitle = '${t}'
+$n.BalloonTipText = '${m}'
 $n.Visible = $true
 $n.ShowBalloonTip(5000)
 Start-Sleep -Seconds 6
 $n.Dispose()`;
   try { await ps(script, "toast"); } catch {
-    const fallback = `$popup = New-Object -ComObject wscript.shell; $popup.Popup("${mensagem.replace(/"/g,'""')}", 5, "${titulo.replace(/"/g,'""')}", 64) | Out-Null`;
+    const fallback = `$popup = New-Object -ComObject wscript.shell; $popup.Popup('${m}', 5, '${t}', 64) | Out-Null`;
     await ps(fallback, "notify").catch(() => {});
   }
   return `🔔 Notificação enviada: "${titulo}"`;
@@ -488,11 +539,11 @@ async function notificar(titulo, mensagem) {
 
 async function enviarEmail(para, assunto, corpo) {
   try {
-    await ps(`Send-MailMessage -To "${para}" -Subject "${assunto}" -Body "${corpo}" -SmtpServer "localhost" -From "neon@localhost" -ErrorAction Stop; Write-Output "ok"`, "email");
+    await ps(`Send-MailMessage -To '${psEsc(para)}' -Subject '${psEsc(assunto)}' -Body '${psEsc(corpo)}' -SmtpServer "localhost" -From "neon@localhost" -ErrorAction Stop; Write-Output "ok"`, "email");
     return `📧 Email enviado para ${para}.`;
   } catch {
     try {
-      const fallback = `powershell -NoProfile -Command "$o = New-Object -ComObject Outlook.Application; $m = $o.CreateItem(0); $m.To = '${para}'; $m.Subject = '${assunto}'; $m.Body = '${corpo}'; $m.Send()"`;
+      const fallback = `powershell -NoProfile -Command "$o = New-Object -ComObject Outlook.Application; $m = $o.CreateItem(0); $m.To = '${cmdEsc(para)}'; $m.Subject = '${cmdEsc(assunto)}'; $m.Body = '${cmdEsc(corpo)}'; $m.Send()"`;
       await execAsync(fallback, { timeout: 10000 });
       return `📧 Email enviado via Outlook para ${para}.`;
     } catch { throw new Error("Não foi possível enviar email. Configure um servidor SMTP ou Outlook."); }
@@ -504,5 +555,6 @@ module.exports = {
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
   moverMouse, clicarMouse, duploClique, arrastar, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
+  tamanhoTela, scroll,
   verTela, analisarImagem,
 };

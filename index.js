@@ -31,16 +31,14 @@ async function desligar(sinal) {
 }
 
 client.once("clientReady", async () => {
-  monitor.iniciar(client);
-  proativo.iniciar(client);
-  agendados.verificarCadaMinuto();
-  alarmes.iniciar();
-  opencode.iniciarServer().then(port => {
-    if (port) log("INFO", `[OPENCODE] Servidor rodando na porta ${port}`);
-    else log("INFO", "[OPENCODE] Servidor nao iniciado (opencode run continua disponivel)");
-  });
-  const apiPort = parseInt(process.env.API_PORT, 10) || 3000;
-  apiPublica.iniciar(apiPort);
+  try { monitor.iniciar(client); } catch (err) { log("ERROR", "[MONITOR] Falha ao iniciar", { erro: err.message }); }
+  try { proativo.iniciar(client).catch(err => log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message })); } catch (err) { log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message }); }
+  try { agendados.verificarCadaMinuto(); } catch (err) { log("ERROR", "[AGENDADOS] Falha ao iniciar", { erro: err.message }); }
+  try { alarmes.iniciar(); } catch (err) { log("ERROR", "[ALARME] Falha ao iniciar", { erro: err.message }); }
+  try {
+    const apiPort = parseInt(process.env.API_PORT, 10) || 3000;
+    apiPublica.iniciar(apiPort);
+  } catch (err) { log("ERROR", "[API] Falha ao iniciar", { erro: err.message }); }
 });
 
 process.on("SIGINT", () => desligar("SIGINT"));

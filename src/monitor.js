@@ -1,4 +1,5 @@
 const { OWNER } = require("./perm");
+const { log } = require("./logger");
 const pc = require("./pc");
 
 let intervals = [];
@@ -92,7 +93,7 @@ if ($evt) {
     const result = stdout?.trim();
     if (result && result !== "none") {
       const dataHora = result;
-      const ownerId = OWNER;
+      const user = await client.users.fetch(OWNER);
       await user.send(`⚠️ **Desligamento inesperado detectado!**\n📅 Data: ${dataHora}\n💡 Possível causa: Kernel-Power (Event ID 41)\nIsso pode indicar queda de energia, falha na fonte, superaquecimento ou travamento do sistema.\n\nVerifique se o PC está estável e com boa ventilação.`);
       log("INFO", "[MONITOR] Desligamento inesperado reportado", { dataHora });
     }
@@ -106,6 +107,7 @@ async function resumoDiario() {
   try {
     const info = await pc.pcInfo();
     const ownerId = OWNER;
+    const user = await client.users.fetch(OWNER);
     await user.send("☀️ **Bom dia!** Aqui está o resumo do seu PC:\n```\n" + info + "\n```");
     log("INFO", "[MONITOR] Resumo diario enviado");
   } catch (err) {
