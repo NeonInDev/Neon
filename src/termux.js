@@ -15,7 +15,7 @@ let config = {
 
 function carregarConfig() {
   try {
-    if (fs.existsSync(CONFIG_PATH)) config = { ...config, ...JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8")) };
+    if (fs.existsSync(CONFIG_PATH)) config = { ...config, ...JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8").replace(/^\uFEFF/, "")) };
   } catch {}
 }
 carregarConfig();

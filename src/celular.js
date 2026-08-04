@@ -15,7 +15,7 @@ let config = {
 
 function carregarConfig() {
   try {
-    if (fs.existsSync(CONFIG_PATH)) config = { ...config, ...JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8")) };
+    if (fs.existsSync(CONFIG_PATH)) config = { ...config, ...JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8").replace(/^\uFEFF/, "")) };
   } catch {}
 }
 carregarConfig();
@@ -54,6 +54,8 @@ function dispositivo() {
   return config.ip ? `${config.ip}:${config.porta}` : null;
 }
 
+let alvoSelecionado = null;
+
 async function rodar(args, timeout = 20000) {
   const adb = acharAdb();
   try {
@@ -69,14 +71,26 @@ async function status() {
   const lista = (r.stdout || "").split("\n").slice(1).map((l) => l.trim()).filter(Boolean);
   const disp = dispositivo();
   const conectado = lista.some((l) => l.startsWith(disp));
+  alvoSelecionado = conectado ? disp : (lista[0]?.split(/\s+/)[0] || null);
   return {
     ip: config.ip,
     porta: config.porta,
     dispositivo: disp,
     conectado,
-    device: conectado ? disp : (lista[0]?.split(/\s+/)[0] || null),
+    device: alvoSelecionado,
     saida: r.stdout,
   };
+}
+
+async function garantirAlvo() {
+  if (!alvoSelecionado) await status();
+  if (!alvoSelecionado) throw new Error("nenhum dispositivo adb conectado");
+  return alvoSelecionado;
+}
+
+async function rodarAlvo(args, timeout = 20000) {
+  const alvo = await garantirAlvo();
+  return rodar(`-s "${alvo}" ${args}`, timeout);
 }
 
 async function conectar() {
@@ -85,6 +99,7 @@ async function conectar() {
   const saida = r.stdout || r.stderr;
   if (saida.includes("connected")) {
     log("INFO", "[CELULAR] Conectado via adb", { alvo: `${config.ip}:${config.porta}` });
+    await status();
     return { ok: true, msg: `✅ Celular conectado (${config.ip}:${config.porta}).` };
   }
   return { ok: false, msg: `❌ Não conectou (${config.ip}:${config.porta}): ${saida}. Ative a depuração USB e aceite a permissão no celular.` };
@@ -109,11 +124,11 @@ function espelhar() {
 }
 
 async function abrirApp(pacote) {
-  const r = await rodar(`shell monkey -p ${pacote} -c android.intent.category.LAUNCHER 1`, 15000);
+  const r = await rodarAlvo(`shell monkey -p ${pacote} -c android.intent.category.LAUNCHER 1`, 15000);
   if (r.ok && !/error|exception|not\s+found/i.test(r.stdout + r.stderr)) {
     return { ok: true, msg: `📱 Abri o app (${pacote}).` };
   }
-  const r2 = await rodar(`shell am start -n ${pacote}`, 15000);
+  const r2 = await rodarAlvo(`shell am start -n ${pacote}`, 15000);
   if (r2.ok) return { ok: true, msg: `📱 Abri o app (${pacote}).` };
   return { ok: false, msg: `❌ Não abri o app: ${r2.stderr || r2.stdout}` };
 }
@@ -136,24 +151,24 @@ const mapaTeclas = {
 async function tecla(nome) {
   const key = mapaTeclas[String(nome || "").toLowerCase()];
   if (!key) return { ok: false, msg: `Tecla desconhecida: ${nome}. Tenta: home, voltar, apps, power, volume_up, silencia.` };
-  const r = await rodar(`shell input keyevent ${key}`, 10000);
+  const r = await rodarAlvo(`shell input keyevent ${key}`, 10000);
   return r.ok ? { ok: true, msg: `🔘 Apertei ${nome}.` } : { ok: false, msg: r.stderr };
 }
 
 async function toque(x, y) {
-  const r = await rodar(`shell input tap ${parseInt(x)} ${parseInt(y)}`, 10000);
+  const r = await rodarAlvo(`shell input tap ${parseInt(x)} ${parseInt(y)}`, 10000);
   return r.ok ? { ok: true, msg: `👆 Toquei em (${x}, ${y}).` } : { ok: false, msg: r.stderr };
 }
 
 async function deslizar(x1, y1, x2, y2, dur = 300) {
-  const r = await rodar(`shell input swipe ${parseInt(x1)} ${parseInt(y1)} ${parseInt(x2)} ${parseInt(y2)} ${parseInt(dur)}`, 10000);
+  const r = await rodarAlvo(`shell input swipe ${parseInt(x1)} ${parseInt(y1)} ${parseInt(x2)} ${parseInt(y2)} ${parseInt(dur)}`, 10000);
   return r.ok ? { ok: true, msg: "📲 Deslizei na tela." } : { ok: false, msg: r.stderr };
 }
 
 async function digitar(texto) {
   const limpo = String(texto || "").replace(/[ %&<>"\\']/g, " ").slice(0, 200);
   if (!limpo) return { ok: false, msg: "Nada pra digitar." };
-  const r = await rodar(`shell input text "${limpo}"`, 10000);
+  const r = await rodarAlvo(`shell input text "${limpo}"`, 10000);
   return r.ok ? { ok: true, msg: `⌨️ Digitei: ${limpo}` } : { ok: false, msg: r.stderr };
 }
 
@@ -161,7 +176,7 @@ async function printTela() {
   const nome = `celular_${Date.now()}.png`;
   const caminho = path.join(__dirname, "..", "temp", nome);
   fs.mkdirSync(path.join(__dirname, "..", "temp"), { recursive: true });
-  const r = await rodar(`exec-out screencap -p > "${caminho}"`, 20000);
+  const r = await rodarAlvo(`exec-out screencap -p > "${caminho}"`, 20000);
   if (r.ok && fs.existsSync(caminho) && fs.statSync(caminho).size > 0) {
     return { ok: true, msg: `📸 Print do celular salvo.`, caminho };
   }
