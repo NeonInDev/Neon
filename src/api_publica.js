@@ -30,8 +30,11 @@ let server = null;
 
 const ORIGENS_PERMITIDAS = [
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
+  /^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
   /^http:\/\/([0-9a-f:]{2,}(:\d+)?|\[[0-9a-f:]{2,}\]:\d+)$/,
+  /^https:\/\/([0-9a-f:]{2,}(:\d+)?|\[[0-9a-f:]{2,}\]:\d+)$/,
   /^http:\/\/100\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
+  /^https:\/\/100\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
 ];
 
 function temChave(req) {
