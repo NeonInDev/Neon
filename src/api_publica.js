@@ -24,6 +24,8 @@ const MIME = {
   ".wav": "audio/wav",
   ".json": "application/json",
   ".woff2": "font/woff2",
+  ".wasm": "application/wasm",
+  ".task": "application/octet-stream",
 };
 
 let server = null;

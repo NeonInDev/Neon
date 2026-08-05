@@ -1,8 +1,56 @@
-const { exec } = require("child_process");
+const { exec, spawn, execSync } = require("child_process");
 const { promisify } = require("util");
 const fs = require("fs");
 const path = require("path");
 const execAsync = promisify(exec);
+
+const POINTER_DIR = path.join(process.env.TEMP || "C:\\Temp", "neon_pointer");
+const POINTER_CS = path.join(POINTER_DIR, "NeonPointer.cs");
+const POINTER_EXE = path.join(POINTER_DIR, "NeonPointer.exe");
+const C_POINTER = `
+using System;
+using System.Globalization;
+using System.Runtime.InteropServices;
+public class NeonPointer {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
+  public static void Main() {
+    string line;
+    while ((line = Console.ReadLine()) != null) {
+      if (string.IsNullOrWhiteSpace(line)) continue;
+      string[] p = line.Trim().Split(' ');
+      int x, y;
+      if (p.Length >= 2 &&
+          int.TryParse(p[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out x) &&
+          int.TryParse(p[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out y))
+        SetCursorPos(x, y);
+    }
+  }
+}`;
+let pointerProc = null;
+
+function compilarPointer() {
+  if (fs.existsSync(POINTER_EXE)) return;
+  fs.mkdirSync(POINTER_DIR, { recursive: true });
+  fs.writeFileSync(POINTER_CS, C_POINTER, "utf8");
+  const cands = [
+    path.join(process.env.windir, "Microsoft.NET", "Framework64", "v4.0.30319", "csc.exe"),
+    path.join(process.env.windir, "Microsoft.NET", "Framework", "v4.0.30319", "csc.exe"),
+  ];
+  const csc = cands.find((c) => fs.existsSync(c));
+  if (!csc) throw new Error("csc.exe nao encontrado");
+  execSync(`"${csc}" /nologo /target:exe /out:"${POINTER_EXE}" "${POINTER_CS}"`, { timeout: 30000, windowsHide: true });
+}
+
+function garantirPointer() {
+  try {
+    compilarPointer();
+    if (!pointerProc || pointerProc.exitCode !== null) {
+      pointerProc = spawn(POINTER_EXE, [], { stdio: ["pipe", "ignore", "ignore"], windowsHide: true });
+    }
+  } catch (e) {
+    pointerProc = null;
+  }
+}
 
 const TMP = process.env.TEMP || "C:\\Temp";
 const SCRIPTS_DIR = path.join(__dirname, "scripts");
@@ -69,6 +117,13 @@ try {
 async function moverMouse(x, y) {
   const xi = Math.floor(Number(x)) || 0;
   const yi = Math.floor(Number(y)) || 0;
+  garantirPointer();
+  if (pointerProc && pointerProc.stdin && pointerProc.stdin.writable) {
+    try {
+      pointerProc.stdin.write(`${xi} ${yi}\n`);
+      return "ok";
+    } catch (e) {}
+  }
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
 [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${xi}, ${yi})

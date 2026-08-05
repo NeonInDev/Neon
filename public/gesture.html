@@ -62,7 +62,8 @@
   <div class="hint" id="hint"></div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.js"></script>
+<script src="/public/mediapipe/vision_bundle.js"></script>
+<script>const FilesetResolver = Vision.FilesetResolver; const HandLandmarker = Vision.HandLandmarker;</script>
 <script>
 (function () {
   const $ = (id) => document.getElementById(id);
@@ -119,9 +120,9 @@
   async function carregarModelo() {
     try {
       setChip("chModel", "modelo: carregando...");
-      const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm");
+      const vision = await FilesetResolver.forVisionTasks("/public/mediapipe/wasm");
       landmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task" },
+        baseOptions: { modelAssetPath: "/public/mediapipe/hand_landmarker.task" },
         runningMode: "VIDEO",
         numHands: 1,
       });
@@ -178,10 +179,10 @@
     let estado;
     if (pinIndex) estado = "clique";
     else if (pinMid) estado = "clique_dir";
+    else if (n === 4) estado = "mao_aberta";
+    else if (n === 0) estado = "punho";
     else if (est[0] && est[1]) estado = "scroll";
     else if (est[0]) estado = "move";
-    else if (n === 0) estado = "punho";
-    else if (n === 4) estado = "mao_aberta";
     else estado = "move";
 
     const novidade = estado !== estadoAnt;
@@ -214,7 +215,7 @@
     // move contínuo
     if (ativo && estado === "move") {
       const agora = Date.now();
-      if (agora - ultimaMover > 120) {
+      if (agora - ultimaMover > 60) {
         ultimaMover = agora;
         api({ tipo: "mover", x: xNorm(), y: yNorm() }).catch(() => {});
         setChip("chGest", "move", "on");
