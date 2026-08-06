@@ -263,9 +263,6 @@ async function transcreverLocal(wavPath) {
 async function transcreverAudio(wavPath) {
   const { GROQ_API_KEY, DEEPSEEK_API_KEY } = require("./config");
 
-  const local = await transcreverLocal(wavPath);
-  if (local) return local;
-
   if (GROQ_API_KEY) {
     try {
       const controller = new AbortController();
@@ -293,6 +290,9 @@ async function transcreverAudio(wavPath) {
       log("WARN", "[VOZ] Groq falhou", { erro: err.message?.slice(0, 100) });
     }
   }
+
+  const local = await transcreverLocal(wavPath);
+  if (local) return local;
 
   try {
     const axios = require("axios");
