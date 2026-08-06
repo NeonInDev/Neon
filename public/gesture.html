@@ -127,7 +127,7 @@
         numHands: 1,
       });
       setChip("chModel", "modelo: ok", "on");
-      $("hint").textContent = "Aponte a câmera pra sua mão. Indicador esticado = move o mouse. Pinça (dedão+indicador) = clique. Pinça (dedão+médio) = botão direito. Indicador+médio = rolar. Mão aberta = volume +. Punho = volume -.";
+      $("hint").textContent = "Aponte a câmera pra sua mão. Indicador esticado = move o mouse. Pinça (dedão+indicador) = clique. Pinça (dedão+médio) = botão direito. Indicador+médio = rolar. Mão aberta = volume +. Punho = volume -. Sinal de OK (dedão+indicador encostados) = segura o botão do meio: no Blender, mova a mão pra orbitar o modelo!";
     } catch (e) {
       setChip("chModel", "modelo: falhou", "err");
       $("hint").textContent = "Sem internet pro modelo do MediaPipe? " + e.message;
@@ -155,6 +155,7 @@
   let ultimoClique = 0;
   let ultimaMover = 0;
   let ultimaMao = null;
+  let arrastandoOk = false;
 
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
@@ -174,11 +175,13 @@
     const n = est.filter(Boolean).length;
     const pinIndex = dist(l[4], l[8]) < 0.06;
     const pinMid = dist(l[4], l[12]) < 0.06;
+    const pinOk = !pinIndex && !pinMid && est[0] && dist(l[4], l[6]) < 0.07;
     lm = { x: l[8].x, y: l[8].y };
 
     let estado;
     if (pinIndex) estado = "clique";
     else if (pinMid) estado = "clique_dir";
+    else if (pinOk) estado = "ok";
     else if (n === 4) estado = "mao_aberta";
     else if (n === 0) estado = "punho";
     else if (est[0] && est[1]) estado = "scroll";
@@ -189,6 +192,11 @@
     estadoAnt = estado;
 
     if (novidade) {
+      if (arrastandoOk && estado !== "ok") {
+        api({ tipo: "soltar_meio" });
+        arrastandoOk = false;
+        setChip("chGest", "soltou orbitar", "on");
+      }
       if (estado === "clique") {
         const agora = Date.now();
         if (agora - ultimoClique < 600) {
@@ -203,6 +211,10 @@
       } else if (estado === "clique_dir") {
         api({ tipo: "clique", x: xNorm(), y: yNorm(), botao: "right" });
         setChip("chGest", "clique direito", "on");
+      } else if (estado === "ok") {
+        api({ tipo: "arrastar_meio" });
+        arrastandoOk = true;
+        setChip("chGest", "orbitar (arraste a mão)", "on");
       } else if (estado === "punho") {
         api({ tipo: "volume", acao: "down", valor: 3 });
         setChip("chGest", "volume -", "on");
@@ -213,7 +225,7 @@
     }
 
     // move contínuo
-    if (ativo && estado === "move") {
+    if (ativo && (estado === "move" || estado === "ok")) {
       const agora = Date.now();
       if (agora - ultimaMover > 60) {
         ultimaMover = agora;

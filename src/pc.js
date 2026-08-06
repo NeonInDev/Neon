@@ -203,6 +203,36 @@ Write-Output "ok"`;
   return await ps(script, "scrollWheel");
 }
 
+async function arrastarMeio() {
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class NeonMid {
+  [DllImport("user32.dll")]
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+}
+"@
+[NeonMid]::mouse_event(0x20, 0, 0, 0, [UIntPtr]::Zero)
+Write-Output "ok"`;
+  return await ps(script, "midDown");
+}
+
+async function soltarMeio() {
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class NeonMid {
+  [DllImport("user32.dll")]
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+}
+"@
+[NeonMid]::mouse_event(0x40, 0, 0, 0, [UIntPtr]::Zero)
+Write-Output "ok"`;
+  return await ps(script, "midUp");
+}
+
 // ===================== COMPUTER USE: TECLADO =====================
 
 async function digitarTexto(texto) {
@@ -608,7 +638,7 @@ async function enviarEmail(para, assunto, corpo) {
 module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
-  moverMouse, clicarMouse, duploClique, arrastar, digitarTexto, tecla,
+  moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   tamanhoTela, scroll,
   verTela, analisarImagem,

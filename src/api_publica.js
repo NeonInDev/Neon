@@ -91,6 +91,7 @@ function servirArquivo(url, res) {
   let caminho;
   if (url === "/" || url === "/dashboard" || url === "/hud") caminho = path.join(PUBLIC_DIR, "hud", "index.html");
   else if (url === "/manifest.json") caminho = path.join(PUBLIC_DIR, "manifest.json");
+  else if (url === "/sw.js") caminho = path.join(PUBLIC_DIR, "sw.js");
   else if (url === "/gesture" || url === "/gesture.html") caminho = path.join(PUBLIC_DIR, "gesture.html");
   else if (url.startsWith("/public/")) caminho = path.join(PUBLIC_DIR, url.slice("/public/".length));
   else return false;
@@ -374,6 +375,16 @@ function iniciar(port = 3000) {
           }
           case "scroll": {
             await pc.scroll(Number(delta) || 0);
+            responder(res, 200, { ok: true });
+            return;
+          }
+          case "arrastar_meio": {
+            await pc.arrastarMeio();
+            responder(res, 200, { ok: true });
+            return;
+          }
+          case "soltar_meio": {
+            await pc.soltarMeio();
             responder(res, 200, { ok: true });
             return;
           }
