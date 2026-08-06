@@ -9,16 +9,19 @@ const { OWNER } = require("./perm");
 const { EdgeTTS } = require("edge-tts-universal");
 const { vozPorModo } = require("./modo");
 
+const EMOJIS = /[\p{Extended_Pictographic}\u200d\uFE0F]/gu;
 const ATIVACAO_RE = /^\s*(neon|néon)([,\s:!.\-–—]|$)/i;
-const INATIVIDADE_MS = 90_000;
 
 let connections = new Map();
 let players = new Map();
 let receivers = new Map();
 let conversasAtivas = new Map();
+let escutas = new Set();
+let entrando = new Set();
 
 async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
-  if (connections.has(guildId)) return true;
+  if (connections.has(guildId) || entrando.has(guildId)) return true;
+  entrando.add(guildId);
 
   const connection = joinVoiceChannel({
     channelId, guildId, adapterCreator: adapter,
@@ -54,6 +57,7 @@ async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
     log("INFO", "[VOZ] Conectado", { guildId });
 
     if (autoConversa) {
+      conversasAtivas.set(guildId, Date.now());
       iniciarEscuta(guildId, connection);
     }
 
@@ -63,6 +67,8 @@ async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
     connection.destroy();
     limpar(guildId);
     return false;
+  } finally {
+    entrando.delete(guildId);
   }
 }
 
@@ -71,6 +77,8 @@ function limpar(guildId) {
   players.delete(guildId);
   receivers.delete(guildId);
   conversasAtivas.delete(guildId);
+  escutas.delete(guildId);
+  entrando.delete(guildId);
 }
 
 async function sairVoz(guildId) {
@@ -88,7 +96,7 @@ async function falar(guildId, texto) {
   const player = players.get(guildId);
   if (!connection || !player) return false;
 
-  const limpo = texto.replace(/[*_`~|#\[\]]/g, "").slice(0, 500);
+  const limpo = texto.replace(/[*_`~|#\[\]]/g, "").replace(EMOJIS, "").slice(0, 500);
   if (!limpo) return false;
 
   const ts = Date.now();
@@ -138,9 +146,11 @@ async function falarSapi(connection, player, limpo) {
 }
 
 async function iniciarEscuta(guildId, connection) {
+  if (escutas.has(guildId)) return;
   const receiver = receivers.get(guildId);
   if (!receiver || !connections.has(guildId)) return;
 
+  escutas.add(guildId);
   log("INFO", "[VOZ] Ouvindo o dono (diga 'Neon' para ativar)", { guildId });
 
   try {
@@ -151,13 +161,8 @@ async function iniciarEscuta(guildId, connection) {
     const chunks = [];
     audioStream.on("data", (chunk) => chunks.push(chunk));
     audioStream.on("end", async () => {
-      const temConversa = conversasAtivas.has(guildId);
-
       if (chunks.length === 0) {
-        if (temConversa && Date.now() - conversasAtivas.get(guildId) > INATIVIDADE_MS) {
-          pararConversa(guildId);
-          log("INFO", "[VOZ] Conversa encerrada por inatividade", { guildId });
-        }
+        escutas.delete(guildId);
         setTimeout(() => iniciarEscuta(guildId, connection), 1000);
         return;
       }
@@ -186,15 +191,10 @@ async function iniciarEscuta(guildId, connection) {
           log("INFO", "[VOZ] Transcricao", { texto: texto.slice(0, 100) });
           let pergunta = texto;
           const ativou = ATIVACAO_RE.test(pergunta);
+          if (ativou) pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
 
-          if (ativou) {
-            pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
+          if (conversasAtivas.has(guildId) || ativou) {
             conversasAtivas.set(guildId, Date.now());
-          } else if (temConversa) {
-            conversasAtivas.set(guildId, Date.now());
-          }
-
-          if (conversasAtivas.has(guildId)) {
             const { askNeon } = require("./ai");
             const reply = await askNeon(OWNER, "dono", pergunta);
             if (reply) await falar(guildId, reply);
@@ -206,11 +206,13 @@ async function iniciarEscuta(guildId, connection) {
         try { fs.unlinkSync(wavFile); } catch {}
       }
 
+      escutas.delete(guildId);
       setTimeout(() => iniciarEscuta(guildId, connection), 1000);
     });
 
     audioStream.on("error", (err) => {
       log("WARN", "[VOZ] Erro no stream de audio", { erro: err.message });
+      escutas.delete(guildId);
       setTimeout(() => iniciarEscuta(guildId, connection), 2000);
     });
   } catch (err) {
@@ -242,9 +244,13 @@ let whisperPipeline = null;
 async function transcreverLocal(wavPath) {
   try {
     if (!whisperPipeline) {
-      log("INFO", "[VOZ] Carregando Whisper local");
-      const { pipeline } = require("@xenova/transformers");
+      const { pipeline, env } = require("@xenova/transformers");
       const modelo = process.env.WHISPER_MODEL || "Xenova/whisper-small";
+      if (!fs.existsSync(path.join(env.cacheDir, modelo, "onnx"))) {
+        log("WARN", "[VOZ] Whisper local nao baixado, pulando fallback", { modelo });
+        return null;
+      }
+      log("INFO", "[VOZ] Carregando Whisper local");
       whisperPipeline = await pipeline("automatic-speech-recognition", modelo, { quantized: true });
       log("INFO", "[VOZ] Whisper local pronto");
     }

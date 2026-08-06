@@ -37,8 +37,12 @@ let whisperPipeline = null
 
 async function getWhisper() {
   if (!whisperPipeline) {
+    const { pipeline, env } = require("@xenova/transformers")
+    if (!fs.existsSync(path.join(env.cacheDir, MODELO_WHISPER, "onnx"))) {
+      log("WARN", "[AUDIO] Whisper local nao baixado, pulando fallback", { modelo: MODELO_WHISPER })
+      return null
+    }
     log("INFO", "[AUDIO] Carregando Whisper", { modelo: MODELO_WHISPER })
-    const { pipeline } = require("@xenova/transformers")
     whisperPipeline = await pipeline("automatic-speech-recognition", MODELO_WHISPER, {
       quantized: true,
     })

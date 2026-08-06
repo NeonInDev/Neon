@@ -10,9 +10,15 @@ const FFMPEG = require("ffmpeg-static") || "ffmpeg"
 let edgeTts = null
 try { edgeTts = require("edge-tts-universal") } catch {}
 
+const EMOJIS = /[\p{Extended_Pictographic}\u200d\uFE0F]/gu
+
+function limparFala(texto) {
+  return (texto || "").replace(/[*_`~#|\[\]]/g, "").replace(EMOJIS, "").slice(0, 500)
+}
+
 async function gerarAudio(texto, voz = "auto") {
   if (!texto) return null;
-  const t = texto.slice(0, 500);
+  const t = limparFala(texto);
   if (!edgeTts) return null;
   const voice = voz === "auto" ? "pt-BR-FranciscaNeural" : voz;
   const tts = new edgeTts.UniversalEdgeTTS(t, voice);
@@ -22,7 +28,7 @@ async function gerarAudio(texto, voz = "auto") {
 
 async function falar(texto, voz = "auto") {
   if (!texto) return
-  const t = texto.slice(0, 500)
+  const t = limparFala(texto)
   if (edgeTts) {
     try {
       const mp3 = await gerarAudio(t, voz)
