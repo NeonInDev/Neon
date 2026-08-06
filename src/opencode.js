@@ -25,7 +25,9 @@ const CONFIG_DIR = path.join(__dirname, "..");
 
 function envSeguro() {
   const e = { ...process.env };
+  const allow = new Set(["OPENROUTER_API_KEY"]);
   for (const k of Object.keys(e)) {
+    if (allow.has(k)) continue;
     if (/KEY|TOKEN|SECRET|PASS(WORD)?|AUTH|API/i.test(k)) delete e[k];
   }
   e.XDG_DATA_HOME = path.join(os.tmpdir(), "neon-ocdata");
@@ -40,7 +42,7 @@ async function iniciarServer() {
   parar();
   return new Promise((resolve) => {
     try {
-      log("INFO", "[OPENCODE] Iniciando servidor...", { bin: OPENCODE_BIN, configDir: CONFIG_DIR });
+      log("INFO", "[OPENCODE] Iniciando servidor...", { bin: OPENCODE_BIN, configDir: CONFIG_DIR, xdg: path.join(os.tmpdir(), "neon-ocdata") });
 
       const proc = spawn(OPENCODE_BIN, ["serve", "--port", "0", "--hostname", "127.0.0.1", "--print-logs"], {
         cwd: CONFIG_DIR,
@@ -113,6 +115,7 @@ async function executar(tarefa) {
 
   try {
     const safe = tarefa.replace(/"/g, '\\"').replace(/\n/g, " ").slice(0, 2000);
+    log("INFO", "[OPENCODE] Fallback CLI run", { tamTarefa: safe.length });
     const { exec: execCb } = require("child_process");
     const { promisify } = require("util");
     const execAsync = promisify(execCb);

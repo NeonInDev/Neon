@@ -1,10 +1,10 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "groq/qwen-3-coder-480b",
-  "small_model": "groq/qwen-3-coder-480b",
+  "model": "openrouter/qwen/qwen3-coder:free",
+  "small_model": "openrouter/qwen/qwen3-coder:free",
   "default_agent": "neon",
   "provider": {
-    "groq": {}
+    "openrouter": {}
   },
   "agent": {
     "neon": {
@@ -18,12 +18,12 @@
     "filesystem": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
-      "enabled": true
+      "enabled": false
     },
     "browser": {
       "type": "local",
       "command": ["npx", "-y", "@playwright/mcp", "--headless", "--browser", "chrome"],
-      "enabled": true
+      "enabled": false
     },
     "pc": {
       "type": "local",
@@ -38,7 +38,7 @@
     "system": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-system"],
-      "enabled": true
+      "enabled": false
     },
     "voice": {
       "type": "local",
