@@ -68,7 +68,7 @@ async function ps(script, label) {
   const tmpFile = path.join(TMP, `neon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.ps1`);
   fs.writeFileSync(tmpFile, script, "utf8");
   try {
-    const { stdout, stderr } = await execAsync(`powershell -NoProfile -File "${tmpFile}"`, { timeout: 15000 });
+    const { stdout, stderr } = await execAsync(`powershell -NoProfile -File "${tmpFile}"`, { timeout: 15000, windowsHide: true });
     if (stderr && !stdout) throw new Error(stderr.trim());
     return stdout.trim() || stderr.trim();
   } finally {
@@ -523,11 +523,11 @@ async function volume(acao, valor) {
 
 async function clipboard(acao, texto) {
   if (acao === "copiar") {
-    await execAsync(`powershell -NoProfile -Command "Set-Clipboard -Value '${cmdEsc(texto)}'"`, { timeout: 5000 });
+    await execAsync(`powershell -NoProfile -Command "Set-Clipboard -Value '${cmdEsc(texto)}'"`, { timeout: 5000, windowsHide: true });
     return `📋 Copiado: "${texto.slice(0, 100)}"`;
   }
   if (acao === "colar") {
-    const { stdout } = await execAsync(`powershell -NoProfile -Command "Get-Clipboard"`, { timeout: 5000 });
+    const { stdout } = await execAsync(`powershell -NoProfile -Command "Get-Clipboard"`, { timeout: 5000, windowsHide: true });
     const conteudo = stdout.trim();
     if (conteudo) return `📋 Clipboard: "${conteudo.slice(0, 500)}"`;
     return "📋 Clipboard vazio.";
@@ -541,7 +541,7 @@ async function tts(texto, voz = "auto") {
     await falar(texto, voz);
   } catch {
     const safe = cmdEsc(texto);
-    await execAsync(`powershell -NoProfile -Command "(New-Object -ComObject Sapi.SpVoice).Speak('${safe}')"`, { timeout: 15000 }).catch(() => {});
+    await execAsync(`powershell -NoProfile -Command "(New-Object -ComObject Sapi.SpVoice).Speak('${safe}')"`, { timeout: 15000, windowsHide: true }).catch(() => {});
   }
   return `🗣️ Falei: "${texto.slice(0, 100)}"`;
 }
@@ -629,7 +629,7 @@ async function enviarEmail(para, assunto, corpo) {
   } catch {
     try {
       const fallback = `powershell -NoProfile -Command "$o = New-Object -ComObject Outlook.Application; $m = $o.CreateItem(0); $m.To = '${cmdEsc(para)}'; $m.Subject = '${cmdEsc(assunto)}'; $m.Body = '${cmdEsc(corpo)}'; $m.Send()"`;
-      await execAsync(fallback, { timeout: 10000 });
+      await execAsync(fallback, { timeout: 10000, windowsHide: true });
       return `📧 Email enviado via Outlook para ${para}.`;
     } catch { throw new Error("Não foi possível enviar email. Configure um servidor SMTP ou Outlook."); }
   }

@@ -72,7 +72,7 @@ async function disparar(alarme) {
   log("INFO", "[ALARME] Disparado!", { id: alarme.id, mensagem: alarme.mensagem?.slice(0, 50) })
   try {
     if (fs.existsSync(SOM_PADRAO)) {
-      await execAsync(`powershell -Command "(New-Object Media.SoundPlayer '${SOM_PADRAO}').PlaySync()"`, { timeout: 30000 })
+      await execAsync(`powershell -Command "(New-Object Media.SoundPlayer '${SOM_PADRAO}').PlaySync()"`, { timeout: 30000, windowsHide: true })
     } else {
       for (let i = 0; i < 3; i++) {
         process.stdout.write("\x07")

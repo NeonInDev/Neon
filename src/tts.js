@@ -48,7 +48,7 @@ async function falar(texto, voz = "auto") {
   }
   const safe = t.replace(/'/g, "''").replace(/"/g, '""')
   const fallback = `powershell -NoProfile -Command "(New-Object -ComObject Sapi.SpVoice).Speak('${safe}')"`
-  await execAsync(fallback, { timeout: 15000 }).catch(() => {})
+  await execAsync(fallback, { timeout: 15000, windowsHide: true }).catch(() => {})
 }
 
 async function testar() {

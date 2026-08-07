@@ -88,7 +88,7 @@ if ($evt) {
 }
 `;
     fs.writeFileSync(psScript, scriptContent.trim(), "utf8");
-    const { stdout } = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psScript}"`, { timeout: 10000 });
+    const { stdout } = await execAsync(`powershell -NoProfile -ExecutionPolicy Bypass -File "${psScript}"`, { timeout: 10000, windowsHide: true });
     fs.unlinkSync(psScript);
     const result = stdout?.trim();
     if (result && result !== "none") {

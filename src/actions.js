@@ -27,7 +27,7 @@ const { isOwner, OWNER } = require("./perm");
 async function tentar(comando) {
   log("INFO", "[ACTION] tentando comando", { comando });
   try {
-    const { stdout, stderr } = await exec(comando, { timeout: TIMEOUT });
+    const { stdout, stderr } = await exec(comando, { timeout: TIMEOUT, windowsHide: true });
     if (stdout) log("INFO", "[ACTION] stdout", { comando, stdout: stdout.trim() });
     if (stderr) log("WARN", "[ACTION] stderr", { comando, stderr: stderr.trim() });
     return { ok: true, stdout: stdout?.trim(), stderr: stderr?.trim() };

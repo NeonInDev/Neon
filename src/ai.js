@@ -98,7 +98,7 @@ Neon:`;
       reply = await opencode.executar(prompt);
     }
 
-    if (!reply || reply.length < 10) {
+    if (!reply || reply.length < 2) {
       return "❌ Não consegui processar agora. Tenta de novo?";
     }
 
