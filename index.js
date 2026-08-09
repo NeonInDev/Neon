@@ -30,11 +30,12 @@ async function desligar(sinal) {
   process.exit(0);
 }
 
-client.once("clientReady", async () => {
+client.once("ready", async () => {
   try { monitor.iniciar(client); } catch (err) { log("ERROR", "[MONITOR] Falha ao iniciar", { erro: err.message }); }
   try { proativo.iniciar(client).catch(err => log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message })); } catch (err) { log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message }); }
   try { agendados.verificarCadaMinuto(); } catch (err) { log("ERROR", "[AGENDADOS] Falha ao iniciar", { erro: err.message }); }
   try { alarmes.iniciar(); } catch (err) { log("ERROR", "[ALARME] Falha ao iniciar", { erro: err.message }); }
+  try { opencode.iniciarServer().then(port => port ? log("INFO", "[OPENCODE] Pronto", { port }) : log("WARN", "[OPENCODE] Servidor nao iniciou")); } catch (err) { log("ERROR", "[OPENCODE] Falha ao iniciar", { erro: err.message }); }
   try {
     const apiPort = parseInt(process.env.API_PORT, 10) || 3000;
     apiPublica.iniciar(apiPort);

@@ -109,6 +109,7 @@ Ao iniciar, o bot sobe um servidor HTTP com a documentação interativa dos coma
 |---|---|
 | `/neon <mensagem>` | Conversar com a Neon |
 | `/convidar` | Link para adicionar a Neon em servidores ou no perfil |
+| `/google` | Integração Google: calendário, tarefas, gmail e drive |
 
 ### Admin (requer chave mestra)
 
@@ -143,6 +144,35 @@ https://discord.com/oauth2/authorize?client_id=SEU_CLIENT_ID&integration_type=1&
 Após autorizar, o comando `/neon` aparece no menu de slash commands de **qualquer DM**.
 
 > **Nota:** Comandos admin (`/blacklist`, `/afinidade`, etc.) só funcionam no PV do bot e em servidores, não em DMs de outros usuários.
+
+## Integração Google
+
+A Neon conversa com Google Calendar, Tasks, Gmail e Drive — por slash command ou por linguagem natural no `/neon` (ex.: "quais emails não li", "adiciona tarefa comprar pão", "cria evento amanhã às 14h").
+
+### Setup (1 vez, na máquina da Neon)
+
+1. Crie as credenciais em [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → **Create OAuth client ID** → tipo **Desktop app** (ou Web com redirect `http://localhost:8787`). Baixe o JSON.
+2. Salve como `google_credentials.json` na raiz do projeto.
+3. Rode:
+   ```
+   node google_oauth_setup.js
+   ```
+   Abra a URL impressa, autorize e o token será salvo em `google_token.json` (não commite este arquivo).
+4. Reinicie a Neon e rode `/google status` para confirmar.
+
+> Escopos pedidos: `calendar`, `tasks`, `gmail.readonly`, `drive`. Variáveis de ambiente opcionais: `GOOGLE_CREDENTIALS_PATH`, `GOOGLE_TOKEN_PATH`, `GOOGLE_OAUTH_PORT`, `GOOGLE_REDIRECT_URI`.
+
+### Exemplos de uso
+
+| Frase | Efeito |
+|---|---|
+| "o que tem hoje na agenda?" | Eventos de hoje |
+| "próximos eventos" | Próximos 5 eventos |
+| "cria evento almoço amanhã às 12h" | Cria evento no Calendar |
+| "quais tarefas tenho pra fazer?" | Lista tarefas do Tasks |
+| "adiciona tarefa pagar o aluguel" | Cria tarefa |
+| "quais emails não li?" | Conta não lidos no Gmail |
+| "procura arquivo relatório no drive" | Busca no Drive |
 
 ## Arquitetura
 

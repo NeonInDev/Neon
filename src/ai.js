@@ -3,22 +3,21 @@ const { getOrCreateUser } = require("./user");
 const { detectarManipulacao } = require("./moderation");
 const { log } = require("./logger");
 const opencode = require("./opencode");
+const toolsMod = require("./tools");
 const axios = require("axios");
 const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL } = require("./config");
 const { getModo, personaDoModo } = require("./modo");
 
 const MAX_INPUT_LEN = 2000;
+const MAX_ITERACOES_FERRAMENTAS = 3;
 
-async function chamarCompletions(url, apiKey, model, prompt, timeoutMs) {
+async function chamarCompletions(url, apiKey, model, messages, timeoutMs) {
   const resp = await axios.post(
     url,
     {
       model,
       reasoning: { enabled: false },
-      messages: [
-        { role: "system", content: personaDoModo() },
-        { role: "user", content: prompt },
-      ],
+      messages,
       temperature: 0.7,
       max_tokens: 1000,
     },
@@ -28,6 +27,31 @@ async function chamarCompletions(url, apiKey, model, prompt, timeoutMs) {
     }
   );
   return resp?.data?.choices?.[0]?.message?.content?.trim() || null;
+}
+
+async function chamarLLM(sistema, userMsg) {
+  const messages = [
+    { role: "system", content: sistema },
+    { role: "user", content: userMsg },
+  ];
+
+  if (DEEPSEEK_API_KEY) {
+    try {
+      return await chamarCompletions("https://api.deepseek.com/chat/completions", DEEPSEEK_API_KEY, DEEPSEEK_MODEL, messages, 90000);
+    } catch (err) {
+      log("WARN", "DeepSeek falhou, tentando OpenRouter", { erro: err.message?.slice(0, 100) });
+    }
+  }
+
+  if (OPENROUTER_API_KEY) {
+    try {
+      return await chamarCompletions("https://openrouter.ai/api/v1/chat/completions", OPENROUTER_API_KEY, OPENROUTER_MODEL, messages, 45000);
+    } catch (err) {
+      log("WARN", "OpenRouter falhou, tentando opencode", { erro: err.message?.slice(0, 100) });
+    }
+  }
+
+  return await opencode.executar(userMsg);
 }
 
 async function askNeon(userId, username, userInput, imageUrl = null) {
@@ -50,65 +74,68 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
   const modo = getModo();
   const apelido = user.apelido ? ` O usuário pediu para ser chamado de "${user.apelido}".` : "";
 
-  const prompt = `${personaDoModo()}
+  const sistema = `${personaDoModo()}
 
 Modo atual: ${modo.toUpperCase()}${apelido}
 
 CAPACIDADES:
-- Usar navegador para pesquisar, abrir sites, tocar vídeos
-- Executar comandos no terminal
-- Criar, ler, editar arquivos
-- Pesquisar na web
-- Controlar o PC (volume, apps, etc)
+- Você TEM ACESSO a FERRAMENTAS que são executadas automaticamente. Se o pedido exigir AÇÃO — pesquisar, código, script, arquivo, automação, análise, informação externa, instalar, rodar comando, mexer no PC — responda com a linha:
+FERRAMENTA: codar | [descrição COMPLETA e detalhada do que precisa ser feito]
+- A ferramenta roda e o RESULTADO volta pra você. Depois você responde ao usuário em texto normal com o resultado.
+
+FERRAMENTAS DISPONÍVEIS:
+${toolsMod.descricaoFerramentas()}
 
 REGRAS:
-1. Quando o usuário pedir algo, FAÇA imediatamente. Não avise que vai fazer - faça e mostre o resultado.
-2. Se precisar pesquisar, pesquise. Se precisar abrir site, abra. Execute comandos.
-3. Responda de forma natural com o resultado depois de executar.
-4. Se algo falhar, tente de novo com abordagem diferente. Se falhar de novo, avise.
+1. Use FERRAMENTA: codar para QUALQUER tarefa que não seja conversa pura. Não responda de memória o que você não sabe — use a ferramenta.
+2. Não avise que vai fazer — use a ferramenta e mostre o resultado.
+3. Se a ferramenta falhar, tente de novo com outra abordagem. Se falhar de novo, avise.
+4. Responda em português brasileiro, de forma natural.`;
 
-${historico ? `Histórico recente:\n${historico}\n` : ""}
-
-Usuário: ${promptTruncado}
-Neon:`;
+  const historicoTxt = historico ? `Histórico recente:\n${historico}\n\n` : "";
 
   log("INFO", "Processando", { usuario: username, pergunta: promptTruncado.slice(0, 100) });
   const inicio = Date.now();
 
   try {
-    let reply = null;
+    let userMsg = `${historicoTxt}Usuário: ${promptTruncado}`;
+    let resposta = await chamarLLM(sistema, userMsg);
 
-    if (DEEPSEEK_API_KEY) {
-      try {
-        reply = await chamarCompletions("https://api.deepseek.com/chat/completions", DEEPSEEK_API_KEY, DEEPSEEK_MODEL, prompt, 90000);
-      } catch (err) {
-        log("WARN", "DeepSeek falhou, tentando OpenRouter", { erro: err.message?.slice(0, 100) });
+    for (let iter = 0; iter < MAX_ITERACOES_FERRAMENTAS; iter++) {
+      const ferramentas = toolsMod.extrairFerramentas(resposta || "");
+      if (!ferramentas.length) break;
+
+      const resultados = [];
+      for (const f of ferramentas) {
+        const res = await toolsMod.executarFerramenta(f);
+        resultados.push(`FERRAMENTA: ${f.nome}${f.args ? ` | ${f.args}` : ""}\nRESULTADO:\n${String(res).slice(0, 1500)}`);
       }
+
+      userMsg = `${historicoTxt}Usuário: ${promptTruncado}
+
+${resposta}
+
+--- Resultados das ferramentas ---
+${resultados.join("\n\n")}
+
+Agora responda ao usuário naturalmente com base nesses resultados. Se precisar de mais alguma ação, use FERRAMENTA: novamente. Se já resolveu, responda em texto normal, sem FERRAMENTA.`;
+
+      resposta = await chamarLLM(sistema, userMsg);
     }
 
-    if (!reply && OPENROUTER_API_KEY) {
-      try {
-        reply = await chamarCompletions("https://openrouter.ai/api/v1/chat/completions", OPENROUTER_API_KEY, OPENROUTER_MODEL, prompt, 45000);
-      } catch (err) {
-        log("WARN", "OpenRouter falhou, tentando opencode", { erro: err.message?.slice(0, 100) });
-      }
-    }
+    const final = (resposta || "").replace(/^FERRAMENTA:\s*\w+.*$/gm, "").replace(/^---.*$/gm, "").trim();
 
-    if (!reply) {
-      reply = await opencode.executar(prompt);
-    }
-
-    if (!reply || reply.length < 2) {
+    if (!final || final.length < 2) {
       return "❌ Não consegui processar agora. Tenta de novo?";
     }
 
-    user.historico.push({ user: userInput, bot: reply.slice(0, 500) });
+    user.historico.push({ user: userInput, bot: final.slice(0, 500) });
     if (user.historico.length > 200) user.historico.shift();
     if (userInput.length > 15 && user.afinidade < 1000) user.afinidade += 1;
     await db.write();
 
-    log("INFO", "Resposta", { usuario: username, tempo_ms: Date.now() - inicio, chars: reply.length });
-    return reply;
+    log("INFO", "Resposta", { usuario: username, tempo_ms: Date.now() - inicio, chars: final.length });
+    return final;
   } catch (err) {
     log("ERROR", "Falha", { erro: err.message });
     return "❌ Erro interno.";

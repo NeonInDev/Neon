@@ -18,3 +18,6 @@ memoria_global.json
 .env.example
 
 ssl/
+logs/tailscale_watch_state.json
+google_credentials.json
+google_token.json

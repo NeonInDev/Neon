@@ -36,6 +36,7 @@ async function processarResposta(texto, userId = null) {
 
 function iniciar() {
   log("INFO", "[TOOLS] Tudo delegado ao opencode serve");
+  opencode.iniciarServer().catch(() => {});
 }
 
 module.exports = { iniciar, executarFerramenta, processarResposta, descricaoFerramentas, extrairFerramentas };

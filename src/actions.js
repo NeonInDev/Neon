@@ -605,6 +605,35 @@ function encontrarCalendario(texto) {
   return false;
 }
 
+function encontrarTarefas(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:quais\s+(?:sao|são)|o\s+que|que|lista|listar|mostra|mostrar|exibe|exibir|veja|ver)\s+(?:eu\s+tenho\s+)?(?:pra|para)?\s*(?:fazer|minhas\s+tarefas|tarefas|todos|to-do|afazeres|pendencia|pendencias|pendências)/i.test(lower)) return { acao: "listar" };
+  const criarM = lower.match(/^(?:adiciona|adicionar|cria|criar|anota|anotar|marca|marcar|add)\s+(?:uma\s+|um\s+)?(?:tarefa|task|to-do|afazer|pendencia|pendencias?)\s+(?:de\s+|pra\s+|para\s+)?(.+)/i);
+  if (criarM) return { acao: "criar", titulo: criarM[1].trim() };
+  const concluirM = lower.match(/^(?:conclui|concluir|completa|completar|feito|encerra|encerrar|risca|riscar)\s+(?:a\s+|essa\s+)?(?:tarefa\s+)?(.+)/i);
+  if (concluirM) return { acao: "concluir", titulo: concluirM[1].trim() };
+  return null;
+}
+
+function encontrarGmail(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:manda|mandar|enviar|envia|envie)\s*(?:um\s+)?(?:email|e-mail|mail)\b/i.test(lower)) return null; // email de envio (SMTP) fica no "email"
+  if (/^(?:eu\s+tenho\s+|tem\s+)?(?:emails?|e-mails?|mensagens?)\s*(?:nao|lidos|lidas|recebidos?|novos?|novas?|caixa\s+de\s+entrada)/i.test(lower)) return { acao: "naoLidos" };
+  if (/^(?:quais\s+)?(?:sao|são|mostra|mostrar|lista|listar|veja|ver|exibe)\s+(?:meus\s+)?(?:ultimos|últimos|recentes|novos)\s*(?:emails?|e-mails?|mensagens?)/i.test(lower)) return { acao: "listar" };
+  if (/^(?:meus\s+)?(?:emails?|e-mails?)\s+(?:sobre|do|da|de|com|assunto)\s+(.+)/i.test(lower)) return { acao: "buscar", query: lower.replace(/^(?:meus\s+)?(?:emails?|e-mails?)\s+(?:sobre|do|da|de|com|assunto)\s+/i, "") };
+  if (/^(?:busca|buscar|procura|procurar|pesquisa|pesquisar)\s+(?:nos\s+|no\s+)?(?:emails?|gmail|e-mails?|caixa)\s+(?:sobre|por|de|do|da|com|que\s+tenha)\s+(.+)/i.test(lower)) return { acao: "buscar", query: lower.replace(/^(?:busca|buscar|procura|procurar|pesquisa|pesquisar)\s+(?:nos\s+|no\s+)?(?:emails?|gmail|e-mails?|caixa)\s+(?:sobre|por|de|do|da|com|que\s+tenha)\s+/i, "") };
+  return null;
+}
+
+function encontrarDrive(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:lista|listar|mostra|mostrar|exibe|exibir|quais|veja|ver)\s+(?:meus\s+)?(?:arquivos|documentos)\s*(?:do|no|da)\s*drive/i.test(lower)) return { acao: "listar" };
+  if (/^(?:meus\s+)?arquivos\s+(?:do\s+)?drive\s*(?:recentes|recentes|mais\s+recentes)?/i.test(lower)) return { acao: "listar" };
+  const buscaM = lower.match(/^(?:procura|procurar|busca|buscar|acha|achar|encontra|encontrar|pesquisa|pesquisar)\s+(?:um\s+|o\s+|a\s+|no\s+)?(?:arquivo|arquivos|documento|documentos|drive)?\s*(?:no\s+|do\s+|no\s+google\s+drive\s+|no\s+drive\s+)?(?:chamado\s+|de\s+|do\s+|da\s+|sobre\s+)?(.+)/i);
+  if (buscaM) return { acao: "buscar", query: buscaM[1].trim() };
+  return null;
+}
+
 function encontrarAudit(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:audit|auditoria|log|logs|historico|histórico)\s*(?:de\s+)?(?:comandos|auditoria)?/i.test(lower)) return true;
@@ -675,11 +704,41 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarWhatsApp(texto)) return "whatsapp";
   if (encontrarAlarme(texto)) return "alarme";
   if (encontrarCalendario(texto)) return "calendario";
+  if (encontrarTarefas(texto)) return "tarefas";
+  if (encontrarGmail(texto)) return "gmail";
+  if (encontrarDrive(texto)) return "drive";
   if (encontrarAudit(texto)) return "audit";
   if (encontrarMemoria(texto)) return "memoria";
   if (isWin() && encontrarObsIniciar(texto)) return "obs_iniciar";
   if (isWin() && encontrarObsParar(texto)) return "obs_parar";
   return null;
+}
+
+function parseDataHoraGoogle(str) {
+  const agora = new Date();
+  let d = null;
+  const horaM = str.match(/(?:às|as|aos)\s*(\d{1,2})(?:[h:.](\d{1,2}))?/i);
+  const h = { hora: horaM ? parseInt(horaM[1], 10) : 9, min: horaM && horaM[2] ? parseInt(horaM[2], 10) : 0 };
+  if (/\bamanh[aã]\b/.test(str)) {
+    d = new Date(agora);
+    d.setDate(d.getDate() + 1);
+  } else if (/\bhoje\b/.test(str)) {
+    d = new Date(agora);
+  } else {
+    const diaM = str.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+    if (diaM) {
+      const ano = diaM[3] ? (parseInt(diaM[3], 10) < 100 ? 2000 + parseInt(diaM[3], 10) : parseInt(diaM[3], 10)) : agora.getFullYear();
+      d = new Date(ano, parseInt(diaM[2], 10) - 1, parseInt(diaM[1], 10));
+    }
+  }
+  if (!d) {
+    d = new Date(agora);
+    d.setDate(d.getDate() + 1);
+  }
+  d.setHours(h.hora, h.min, 0, 0);
+  const fim = new Date(d);
+  fim.setHours(fim.getHours() + 1);
+  return { inicio: d, fim };
 }
 
 async function executarAcao(texto, usuarioMestre = false, userId = null, message = null) {
@@ -1714,22 +1773,132 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   // Calendario
   if (categoria === "calendario") {
     try {
-      const { eventosHoje, listarEventos, status } = require("./calendario");
+      const { calendar, status } = require("./google");
       const st = await status();
-      if (!st.autenticado) return "❌ Google Calendar nao configurado. Coloque google_credentials.json na pasta do Neon.";
+      if (!st.autenticado) return "❌ Google nao configurado. Rode `node google_oauth_setup.js` (veja README).";
       const lower = limparFiller(texto.toLowerCase().trim());
+
+      // Criar evento
+      if (/(?:cria|criar|adiciona|adicionar|marca|marcar|agenda|agendar)\s+(?:um\s+)?(?:evento|compromisso)\b/i.test(lower)) {
+        const tituloM = lower.match(/(?:cria|criar|adiciona|adicionar|marca|marcar|agenda|agendar)\s+(?:um\s+)?(?:evento|compromisso)\s+(?:de\s+|pra\s+|para\s+)?(.+)/i);
+        let titulo = tituloM ? tituloM[1].trim() : "";
+        titulo = titulo.replace(/\s+(?:às|as)\s+\d{1,2}(?:[h:]\d{1,2})?/i, "").replace(/\s+(?:dia)\s+\d{1,2}\/\d{1,2}/i, "").replace(/\b(?:amanh[aã]|hoje)\b/gi, "").replace(/\s+/g, " ").trim();
+        if (!titulo) return "Me diz o titulo do evento, tipo: _cria evento almoço com o chefe_.";
+        const { inicio, fim } = parseDataHoraGoogle(lower);
+        const r = await calendar.criarEvento(titulo, inicio, fim);
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `✅ Evento criado: **${titulo}**\n📅 ${inicio.toLocaleString("pt-BR", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })}`;
+      }
+
+      // Excluir evento
+      if (/(?:exclui|excluir|deleta|deletar|remove|remover|cancela|cancelar|apaga|apagar)\s+(?:o\s+)?(?:evento|compromisso)\b/i.test(lower)) {
+        const nomeM = lower.match(/(?:exclui|excluir|deleta|deletar|remove|remover|cancela|cancelar|apaga|apagar)\s+(?:o\s+)?(?:evento|compromisso)\s+(?:de\s+|chamado\s+|do\s+|da\s+)?(.+)/i);
+        const nome = nomeM ? nomeM[1].trim() : "";
+        const r = await calendar.excluirEvento(nome);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.excluido) return `Nao achei evento chamado "${nome}".`;
+        return `🗑️ Evento removido: **${r.titulo}**`;
+      }
+
+      // Próximos dias
+      if (/(?:semana|proximos\s+\d+\s+dia|proxima|próxima)/i.test(lower)) {
+        const r = await calendar.listarSemana();
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.eventos.length) return "Nenhum evento nos proximos 7 dias. 📅";
+        return "📅 **Proximos 7 dias:**\n" + r.eventos.map(e => `- **${e.titulo}** (${new Date(e.inicio).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })})`).join("\n");
+      }
+
       if (/(?:hoje|amanha|amanhã)/i.test(lower)) {
-        const r = await eventosHoje();
+        const r = await calendar.eventosHoje();
         if (!r.ok) return `❌ ${r.erro}`;
         if (!r.eventos.length) return "Nao tenho eventos pra hoje. 📅";
         return "📅 **Eventos de hoje:**\n" + r.eventos.map(e => `- **${e.titulo}** (${new Date(e.inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })})${e.local ? ` em ${e.local}` : ""}`).join("\n");
       }
-      const r = await listarEventos(5);
+      const r = await calendar.listarEventos(5);
       if (!r.ok) return `❌ ${r.erro}`;
       if (!r.eventos.length) return "Nao tenho eventos futuros. 📅";
       return "📅 **Proximos eventos:**\n" + r.eventos.map(e => `- **${e.titulo}** (${new Date(e.inicio).toLocaleString("pt-BR")})`).join("\n");
     } catch (err) {
       return `❌ Erro no calendario: ${err.message}`;
+    }
+  }
+
+  // Tarefas (Google Tasks)
+  if (categoria === "tarefas") {
+    try {
+      const { tasks, status } = require("./google");
+      const st = await status();
+      if (!st.autenticado) return "❌ Google nao configurado. Rode `node google_oauth_setup.js` (veja README).";
+      const info = encontrarTarefas(texto);
+      if (!info) return "Nao entendi o comando de tarefas. Tente: _adiciona tarefa X_ ou _quais tarefas tenho_.";
+      if (info.acao === "criar") {
+        const r = await tasks.criar(info.titulo);
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `✅ Tarefa adicionada: **${r.titulo}**`;
+      }
+      if (info.acao === "concluir") {
+        const r = await tasks.concluir(info.titulo);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.concluida) return `Nao achei tarefa pendente chamada "${info.titulo}".`;
+        return `✅ Tarefa concluida: **${r.titulo}** 🎉`;
+      }
+      const r = await tasks.listar();
+      if (!r.ok) return `❌ ${r.erro}`;
+      if (!r.tarefas.length) return "Nenhuma tarefa pendente. 🎉";
+      return "📋 **Tarefas pendentes:**\n" + r.tarefas.map((t, i) => `${i + 1}. **${t.titulo}**${t.vencimento ? ` (venc: ${t.vencimento.slice(0, 10)})` : ""}`).join("\n") + "\n\n_Dica: \"conclui tarefa [nome]\" marca como feita._";
+    } catch (err) {
+      return `❌ Erro nas tarefas: ${err.message}`;
+    }
+  }
+
+  // Gmail (ler caixa de entrada)
+  if (categoria === "gmail") {
+    try {
+      const { gmail, status } = require("./google");
+      const st = await status();
+      if (!st.autenticado) return "❌ Google nao configurado. Rode `node google_oauth_setup.js` (veja README).";
+      const info = encontrarGmail(texto);
+      if (!info) return "Nao entendi. Tente: _quais emails nao li_ ou _emails sobre X_.";
+      if (info.acao === "naoLidos") {
+        const r = await gmail.naoLidos();
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `📬 Voce tem **${r.total ?? 0} emails nao lidos**.`;
+      }
+      if (info.acao === "buscar") {
+        const r = await gmail.buscar(info.query);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.emails.length) return `Nenhum email sobre "${info.query}".`;
+        return `📧 **Emails sobre "${info.query}":**\n` + r.emails.map(e => `- **${e.assunto}** (de ${e.de})`).join("\n");
+      }
+      const r = await gmail.listar(5);
+      if (!r.ok) return `❌ ${r.erro}`;
+      if (!r.emails.length) return "Caixa de entrada vazia. 📭";
+      return "📥 **Emails recentes:**\n" + r.emails.map(e => `- **${e.assunto}** (de ${e.de})`).join("\n");
+    } catch (err) {
+      return `❌ Erro no gmail: ${err.message}`;
+    }
+  }
+
+  // Google Drive
+  if (categoria === "drive") {
+    try {
+      const { drive, status } = require("./google");
+      const st = await status();
+      if (!st.autenticado) return "❌ Google nao configurado. Rode `node google_oauth_setup.js` (veja README).";
+      const info = encontrarDrive(texto);
+      if (!info) return "Nao entendi. Tente: _meus arquivos do drive_ ou _procura arquivo X_.";
+      if (info.acao === "buscar") {
+        const r = await drive.buscar(info.query);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.arquivos.length) return `Nenhum arquivo chamado "${info.query}".`;
+        return `🔎 **Encontrado no Drive:**\n` + r.arquivos.map(f => `- **${f.nome}**${f.link ? ` — ${f.link}` : ""}`).join("\n");
+      }
+      const r = await drive.listar(8);
+      if (!r.ok) return `❌ ${r.erro}`;
+      if (!r.arquivos.length) return "Drive vazio. 📂";
+      return "📂 **Arquivos recentes do Drive:**\n" + r.arquivos.map(f => `- **${f.nome}**${f.tamanho ? ` (${f.tamanho})` : ""}${f.link ? ` — ${f.link}` : ""}`).join("\n");
+    } catch (err) {
+      return `❌ Erro no drive: ${err.message}`;
     }
   }
 

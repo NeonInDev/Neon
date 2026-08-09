@@ -1,16 +1,17 @@
+const fs = require("fs");
 const { spawn } = require("child_process");
 const { log } = require("./logger");
-const axios = require("axios");
+const http = require("http");
 const path = require("path");
 const os = require("os");
 
 function getBinPath() {
   const npmDir = path.join(process.env.APPDATA || "", "npm");
-  const candidates = [
-    path.join(npmDir, "node_modules", "opencode-ai", "bin", "opencode.exe"),
-    "opencode.cmd",
-    "opencode",
-  ];
+  const direto = path.join(npmDir, "node_modules", "opencode-ai", "bin", "opencode.exe");
+  try {
+    if (fs.existsSync(direto)) return direto;
+  } catch {}
+  const candidates = ["opencode.cmd", "opencode"];
   for (const c of candidates) {
     try {
       const r = require("child_process").execSync(`where "${c}" 2>nul`, { timeout: 2000, windowsHide: true, stdio: "pipe" }).toString().trim();
@@ -21,11 +22,12 @@ function getBinPath() {
 }
 
 const OPENCODE_BIN = getBinPath();
+const USAR_SHELL = !/\.exe$/i.test(OPENCODE_BIN);
 const CONFIG_DIR = path.join(__dirname, "..");
 
 function envSeguro() {
   const e = { ...process.env };
-  const allow = new Set(["OPENROUTER_API_KEY"]);
+  const allow = new Set(["OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "API_PORT"]);
   for (const k of Object.keys(e)) {
     if (allow.has(k)) continue;
     if (/KEY|TOKEN|SECRET|PASS(WORD)?|AUTH|API/i.test(k)) delete e[k];
@@ -36,25 +38,88 @@ function envSeguro() {
 
 let serverProcess = null;
 let serverPort = null;
+let desligando = false;
+let tentativasRestart = 0;
+let reiniciador = null;
 
-async function iniciarServer() {
-  if (serverProcess) return serverPort;
-  parar();
+function httpReq(method, port, pathname, body, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const data = body ? JSON.stringify(body) : null;
+    const r = http.request(
+      {
+        host: "127.0.0.1",
+        port,
+        path: pathname,
+        method,
+        timeout: timeoutMs,
+        headers: data ? { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(data) } : {},
+      },
+      (res) => {
+        let buf = "";
+        res.on("data", (c) => (buf += c));
+        res.on("end", () => {
+          try {
+            const j = JSON.parse(buf);
+            if (j && j.info && j.info.name && j.info.name !== "Text") resolve(j);
+            else resolve(j);
+          } catch {
+            resolve(buf);
+          }
+        });
+      }
+    );
+    r.on("timeout", () => {
+      r.destroy();
+      reject(new Error("timeout"));
+    });
+    r.on("error", reject);
+    if (data) r.write(data);
+    r.end();
+  });
+}
+
+async function esperarHealth(port, tempoMaxMs = 30000) {
+  const inicio = Date.now();
+  while (Date.now() - inicio < tempoMaxMs) {
+    try {
+      await httpReq("GET", port, "/global/health", null, 2000);
+      return true;
+    } catch {}
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return false;
+}
+
+function iniciarServer() {
+  if (serverProcess) return Promise.resolve(serverPort);
+  desligando = false;
+  clearTimeout(reiniciador);
+
   return new Promise((resolve) => {
     try {
-      log("INFO", "[OPENCODE] Iniciando servidor...", { bin: OPENCODE_BIN, configDir: CONFIG_DIR, xdg: path.join(os.tmpdir(), "neon-ocdata") });
+      log("INFO", "[OPENCODE] Iniciando servidor...", { bin: OPENCODE_BIN });
 
       const proc = spawn(OPENCODE_BIN, ["serve", "--port", "0", "--hostname", "127.0.0.1", "--print-logs"], {
         cwd: CONFIG_DIR,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
-        shell: true,
+        shell: USAR_SHELL,
         env: envSeguro(),
       });
 
       let output = "";
       let settled = false;
-      const finish = (port) => { if (!settled) { settled = true; serverPort = port; if (port) log("INFO", "[OPENCODE] Servidor OK", { port }); else { log("WARN", "[OPENCODE] Servidor nao iniciou"); if (output) log("WARN", "[OPENCODE] Logs do servidor", { output: output.slice(-500) }); } resolve(port); } };
+      const finish = (port) => {
+        if (settled) return;
+        settled = true;
+        serverPort = port;
+        if (port) {
+          log("INFO", "[OPENCODE] Servidor OK", { port });
+        } else {
+          log("WARN", "[OPENCODE] Servidor nao iniciou", { output: output.slice(-400) });
+        }
+        resolve(port);
+      };
 
       proc.stdout.on("data", (data) => {
         const text = data.toString();
@@ -76,12 +141,22 @@ async function iniciarServer() {
       });
 
       proc.on("exit", (code) => {
+        const foiServer = serverProcess === proc;
         serverProcess = null;
         serverPort = null;
-        log("INFO", "[OPENCODE] Servidor encerrou", { code, output: output.slice(-300) });
+        log("INFO", "[OPENCODE] Servidor encerrou", { code });
+        if (foiServer && !desligando && tentativasRestart < 10) {
+          tentativasRestart += 1;
+          log("INFO", `[OPENCODE] Reiniciando em 3s (tentativa ${tentativasRestart})...`);
+          reiniciador = setTimeout(() => iniciarServer(), 3000);
+        } else if (!desligando) {
+          log("WARN", "[OPENCODE] Desistindo de reiniciar (muitas falhas).");
+        }
       });
 
-      setTimeout(() => finish(null), 20000);
+      proc.on("spawn", () => {});
+
+      setTimeout(() => finish(null), 30000);
       serverProcess = proc;
     } catch (err) {
       log("WARN", "[OPENCODE] Erro ao iniciar servidor", { erro: err.message });
@@ -91,25 +166,51 @@ async function iniciarServer() {
 }
 
 async function executar(tarefa) {
-  const maxAttempts = serverPort ? 1 : 0;
+  if (!tarefa || !String(tarefa).trim()) return null;
+  const maxAttempts = 2;
+  let tentativa = 0;
 
-  if (!serverPort) {
-    try {
-      await iniciarServer();
-    } catch {}
-  }
+  while (tentativa < maxAttempts) {
+    tentativa += 1;
 
-  if (serverPort) {
-    try {
-      const res = await axios.post(`http://127.0.0.1:${serverPort}/chat`, { message: tarefa }, {
-        timeout: 180000,
-        responseType: "text",
-        headers: { "Content-Type": "application/json", "Accept": "text/plain" },
-      });
-      const data = typeof res.data === "string" ? res.data : JSON.stringify(res.data);
-      if (data && !data.startsWith("<!doctype") && !data.startsWith("<html")) return data.slice(0, 4000);
-    } catch (err) {
-      log("WARN", "[OPENCODE] HTTP falhou", { erro: err.message?.slice(0, 100) });
+    if (!serverPort) {
+      try {
+        await iniciarServer();
+      } catch {}
+    }
+
+    if (serverPort) {
+      try {
+        const port = serverPort;
+        const sessao = await httpReq("POST", port, "/session", { title: "neon-codar" }, 20000);
+        const sessaoId = sessao?.id;
+        if (!sessaoId) throw new Error("sem id de sessao");
+
+        const msg = await httpReq(
+          "POST",
+          port,
+          `/session/${sessaoId}/message`,
+          { agent: "neon", parts: [{ type: "text", text: tarefa }] },
+          240000
+        );
+
+        if (msg && msg.info && msg.info.name && msg.info.name !== "Text") {
+          throw new Error(`opencode: ${msg.info.data?.message || msg.info.name}`);
+        }
+
+        const partes = msg?.parts || [];
+        const texto = partes.filter((p) => p.type === "text").map((p) => p.text).join("\n").trim();
+        if (texto && texto.length > 2) return texto.slice(0, 4000);
+        throw new Error("resposta vazia do opencode serve");
+      } catch (err) {
+        log("WARN", `[OPENCODE] HTTP falhou (tentativa ${tentativa})`, { erro: err.message?.slice(0, 120) });
+        if (tentativa < maxAttempts) {
+          parar();
+          await new Promise((r) => setTimeout(r, 2500));
+        }
+      }
+    } else if (tentativa >= maxAttempts) {
+      break;
     }
   }
 
@@ -121,7 +222,7 @@ async function executar(tarefa) {
     const execAsync = promisify(execCb);
     const { stdout } = await execAsync(`opencode run "${safe}"`, {
       cwd: CONFIG_DIR,
-      timeout: 180000,
+      timeout: 240000,
       windowsHide: true,
       maxBuffer: 10 * 1024 * 1024,
       env: envSeguro(),
@@ -135,8 +236,12 @@ async function executar(tarefa) {
 }
 
 function parar() {
+  desligando = true;
+  clearTimeout(reiniciador);
   if (serverProcess) {
-    serverProcess.kill();
+    try {
+      serverProcess.kill();
+    } catch {}
     serverProcess = null;
     serverPort = null;
   }

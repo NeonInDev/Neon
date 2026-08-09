@@ -242,10 +242,10 @@ async function abrirUrlNoOpera(url) {
   const operaPath = process.env.LOCALAPPDATA + "\\Programs\\Opera GX\\opera.exe";
   if (fs.existsSync(operaPath)) {
     log("INFO", "[BROWSER] Abrindo no Opera GX", { url: url.slice(0, 60) });
-    await execAsync(`"${operaPath}" "${url}"`);
+    await execAsync(`"${operaPath}" "${url}"`, { windowsHide: true });
   } else {
     log("WARN", "[BROWSER] Opera GX nao encontrado, fallback start", { path: operaPath });
-    await execAsync(`start "" "${url}"`);
+    await execAsync(`start "" "${url}"`, { windowsHide: true });
   }
 }
 

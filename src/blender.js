@@ -37,7 +37,7 @@ async function abrir(arquivo) {
   if (!blender) return { ok: false, msg: "Blender não encontrado. Instale pelo Instalador_Neon." };
   const args = arquivo ? ` "${arquivo}"` : "";
   try {
-    await execAsync(`start "" "${blender}"${args}`, { timeout: 5000 });
+    await execAsync(`start "" "${blender}"${args}`, { timeout: 5000, windowsHide: true });
     return { ok: true, msg: `Blender aberto${arquivo ? ` com: ${path.basename(arquivo)}` : ""}.` };
   } catch (err) {
     return { ok: false, msg: `Erro ao abrir Blender: ${err.message}` };
