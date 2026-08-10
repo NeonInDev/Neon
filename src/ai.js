@@ -7,6 +7,7 @@ const toolsMod = require("./tools");
 const axios = require("axios");
 const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL } = require("./config");
 const { getModo, personaDoModo } = require("./modo");
+const { isOwner } = require("./perm"); // @chefe
 
 const MAX_INPUT_LEN = 2000;
 const MAX_ITERACOES_FERRAMENTAS = 3;
@@ -74,6 +75,10 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
   const modo = getModo();
   const apelido = user.apelido ? ` O usuário pediu para ser chamado de "${user.apelido}".` : "";
 
+const tratamentoChefe = isOwner(userId)
+  ? `\n\nREGRAS DE TRATAMENTO:\n- O usuário com quem você fala é o seu DONO (o chefe). SEMPRE que for se dirigir a ele, chame-o de "chefe" (ex.: "Claro, chefe", "Feito, chefe", "Sim, chefe"). Nunca use "dono", "você" ou outro tratamento. Nunca o chame pelo nome de usuário.\n\n` // @chefe
+  : "";
+
   const sistema = `${personaDoModo()}
 
 Modo atual: ${modo.toUpperCase()}${apelido}
@@ -90,7 +95,7 @@ REGRAS:
 1. Use FERRAMENTA: codar para QUALQUER tarefa que não seja conversa pura. Não responda de memória o que você não sabe — use a ferramenta.
 2. Não avise que vai fazer — use a ferramenta e mostre o resultado.
 3. Se a ferramenta falhar, tente de novo com outra abordagem. Se falhar de novo, avise.
-4. Responda em português brasileiro, de forma natural.`;
+4. Responda em português brasileiro, de forma natural. ${tratamentoChefe}`;
 
   const historicoTxt = historico ? `Histórico recente:\n${historico}\n\n` : "";
 

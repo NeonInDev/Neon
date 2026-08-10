@@ -147,6 +147,13 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url === "/api/shutdown" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      responder(res, 200, { ok: true, mensagem: "Desligando Neon suavemente..." });
+      setTimeout(() => process.emit("SIGTERM"), 300);
+      return;
+    }
+
     if (req.url === "/api/modo" && req.method === "GET") {
       const { getModo } = require("./modo");
       responder(res, 200, { modo: getModo() });

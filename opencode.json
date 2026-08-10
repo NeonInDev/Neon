@@ -28,12 +28,12 @@
     "pc": {
       "type": "local",
       "command": ["node", "src/pc.js"],
-      "enabled": true
+      "enabled": false
     },
     "celular": {
       "type": "local",
       "command": ["node", "src/mcp-celular.js"],
-      "enabled": true
+      "enabled": false
     },
     "system": {
       "type": "local",
@@ -43,7 +43,7 @@
     "voice": {
       "type": "local",
       "command": ["node", "src/mcp-voz.js"],
-      "enabled": true
+      "enabled": false
     }
   }
 }
