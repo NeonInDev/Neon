@@ -2,7 +2,7 @@ require("dotenv").config();
 
 const { client } = require("./src/client");
 const { db } = require("./src/db");
-const { TOKEN } = require("./src/config");
+const { TOKEN, PROATIVO } = require("./src/config");
 const { log, fechar: fecharLogger } = require("./src/logger");
 const { fechar: fecharBrowser } = require("./src/browser");
 const opencode = require("./src/opencode");
@@ -32,7 +32,11 @@ async function desligar(sinal) {
 
 client.once("ready", async () => {
   try { monitor.iniciar(client); } catch (err) { log("ERROR", "[MONITOR] Falha ao iniciar", { erro: err.message }); }
-  try { proativo.iniciar(client).catch(err => log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message })); } catch (err) { log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message }); }
+  if (PROATIVO) {
+    try { proativo.iniciar(client).catch(err => log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message })); } catch (err) { log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message }); }
+  } else {
+    log("INFO", "[PROATIVO] Modo autonomo desativado (PROATIVO=0)");
+  }
   try { agendados.verificarCadaMinuto(); } catch (err) { log("ERROR", "[AGENDADOS] Falha ao iniciar", { erro: err.message }); }
   try { alarmes.iniciar(); } catch (err) { log("ERROR", "[ALARME] Falha ao iniciar", { erro: err.message }); }
   try { opencode.iniciarServer().then(port => port ? log("INFO", "[OPENCODE] Pronto", { port }) : log("WARN", "[OPENCODE] Servidor nao iniciou")); } catch (err) { log("ERROR", "[OPENCODE] Falha ao iniciar", { erro: err.message }); }

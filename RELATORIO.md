@@ -1,5 +1,15 @@
 # Relatório — Manutenção da Neon
 
+## Atualização 10/08/2026
+
+- **Modo proativo (Jarvis) com flag `PROATIVO`:** `index.js` agora só chama `proativo.iniciar()` se `PROATIVO != 0`. Com `PROATIVO=0` a Neon não age mais sozinha (não responde sem request) — log de confirmação no boot.
+- **`.env`:** `PROATIVO=0` (autonomia desligada) e `OPENROUTER_MODEL=openrouter/openai/gpt-4o-mini` (modelo mais rápido e barato que o nemotron-free).
+- **Dashboard Next.js (`next-dashboard/`):** frontend em React/TS com chat com a Neon, painel do PC (CPU/RAM/disco, screenshot, volume, notificações), terminal remoto e explorador de arquivos. Acessa a API da Neon por proxy `/api/neon/*` — a `MASTER_KEY` fica no `.env.local` do dashboard (nunca sai pro navegador). Rodar com `npm run dev` na porta 3001.
+
+---
+
+## Relatório 04/08/2026
+
 Data: 04/08/2026
 
 ## 1. Bugs críticos corrigidos
