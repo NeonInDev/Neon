@@ -18,5 +18,6 @@ module.exports = {
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-nano-30b-a3b:free",
   VOZ_NEON: process.env.VOZ_NEON || "pt-BR-FranciscaNeural",
+  PROATIVO: process.env.PROATIVO !== "0",
   DOCS_PORT: parseInt(process.env.DOCS_PORT, 10) || 3000,
 };
