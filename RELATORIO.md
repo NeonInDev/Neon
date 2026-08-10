@@ -5,6 +5,8 @@
 - **Modo proativo (Jarvis) com flag `PROATIVO`:** `index.js` agora só chama `proativo.iniciar()` se `PROATIVO != 0`. Com `PROATIVO=0` a Neon não age mais sozinha (não responde sem request) — log de confirmação no boot.
 - **`.env`:** `PROATIVO=0` (autonomia desligada) e `OPENROUTER_MODEL=openrouter/openai/gpt-4o-mini` (modelo mais rápido e barato que o nemotron-free).
 - **Dashboard Next.js (`next-dashboard/`):** frontend em React/TS com chat com a Neon, painel do PC (CPU/RAM/disco, screenshot, volume, notificações), terminal remoto e explorador de arquivos. Acessa a API da Neon por proxy `/api/neon/*` — a `MASTER_KEY` fica no `.env.local` do dashboard (nunca sai pro navegador). Rodar com `npm run dev` na porta 3001.
+- **Braço robótico (projeto `neon-braco`):** repo dedicado em `github.com/NeonInDev/neon-braco` com firmware ESP32 (5 servos) + módulo da Neon. A Neon ganhou `src/braco.js` e rotas `/api/braco/status`, `/api/braco/pose`, `/api/braco/servo`, `/api/braco/grip` (auth `x-hud-key`). Hardware ainda não comprado; ver `ANOTACOES.md` no repo do braço.
+- **Modelo OpenRouter:** voltou pra um modelo free — `google/gemma-4-31b-it:free` (o alias `openrouter/free` e o `gpt-4o-mini` pago falharam com 400/402).
 
 ---
 

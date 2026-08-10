@@ -350,6 +350,48 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url === "/api/braco/status" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const braco = require("./braco");
+        responder(res, 200, await braco.status());
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/braco/pose" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const braco = require("./braco");
+        const { pose, servos } = await lerBody(req);
+        if (pose) { responder(res, 200, await braco.pose(pose)); return; }
+        if (Array.isArray(servos)) { responder(res, 200, await braco.enviar("/pose", { servos })); return; }
+        responder(res, 400, { erro: "envie { pose } ou { servos }" });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/braco/servo" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const braco = require("./braco");
+        const { n, ang } = await lerBody(req);
+        if (n == null || ang == null) { responder(res, 400, { erro: "n e ang sao obrigatorios" }); return; }
+        responder(res, 200, await braco.servo(n, ang));
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/braco/grip" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const braco = require("./braco");
+        const { aberto } = await lerBody(req);
+        responder(res, 200, await braco.grip(aberto));
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url === "/api/gesture" && req.method === "POST") {
       if (!exigeChave(req, res)) return;
       try {
