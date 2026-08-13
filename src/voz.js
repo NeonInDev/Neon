@@ -16,11 +16,53 @@ function normalizar(t) {
   return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
 }
 
+function wavValido(caminho) {
+  try {
+    const buf = Buffer.alloc(12);
+    const fd = fs.openSync(caminho, "r");
+    fs.readSync(fd, buf, 0, 12, 0);
+    fs.closeSync(fd);
+    return buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WAVE" && fs.statSync(caminho).size > 44;
+  } catch {
+    return false;
+  }
+}
+
 function ehEco(texto) {
-  if (Date.now() < mudoAte) return true;
   const a = normalizar(texto);
   const b = normalizar(ultimaFala.texto);
   return !!(a && b && a.length > 2 && (a.includes(b) || b.includes(a)));
+}
+
+function somenteEco(texto) {
+  const a = normalizar(texto);
+  const b = normalizar(ultimaFala.texto);
+  if (!b || a.length < 3) return false;
+  if (b.includes(a) || a === b) return true;
+  const semEco = a.split(b).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  return semEco.length < 3;
+}
+
+function limparEco(texto) {
+  const b = normalizar(ultimaFala.texto);
+  if (!b) return texto;
+  const a = normalizar(texto);
+  const resto = a.split(b).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  return resto.length >= 3 ? resto : a;
+}
+
+async function processarVoz(guildId, texto) {
+  log("INFO", "[VOZ] Transcricao", { texto: texto.slice(0, 100) });
+  let pergunta = texto;
+  const ativou = ATIVACAO_RE.test(pergunta);
+  if (ativou) pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
+
+  if (conversasAtivas.has(guildId) || ativou) {
+    conversasAtivas.set(guildId, Date.now());
+    const { askNeon } = require("./ai");
+    const reply = await askNeon(OWNER, "dono", pergunta);
+    if (reply) await falar(guildId, reply);
+  }
 }
 
 let connections = new Map();
@@ -129,9 +171,11 @@ async function falar(guildId, texto) {
     const resource = createAudioResource(arquivo, { inlineVolume: true, inputType: StreamType.Arbitrary });
     resource.volume?.setVolume(1);
     player.play(resource);
-    mudoAte = Date.now() + Math.min(15000, limpo.length * 90 + 2500);
     ultimaFala = { texto: limpo, quando: Date.now() };
-    player.once(AudioPlayerStatus.Idle, () => { try { fs.unlinkSync(arquivo); } catch {} });
+    player.once(AudioPlayerStatus.Idle, () => {
+      mudoAte = Date.now() + 1200;
+      try { fs.unlinkSync(arquivo); } catch {}
+    });
     return true;
   } catch (err) {
     log("WARN", "[VOZ] TTS edge falhou, fallback SAPI", { erro: err.message });
@@ -171,7 +215,7 @@ async function iniciarEscuta(guildId, connection) {
 
   try {
     const audioStream = receiver.subscribe(OWNER, {
-      end: { behavior: EndBehaviorType.AfterSilence, duration: 1500 },
+      end: { behavior: EndBehaviorType.AfterSilence, duration: 1100 },
     });
 
     const chunks = [];
@@ -195,28 +239,27 @@ async function iniciarEscuta(guildId, connection) {
         const ffmpegPath = require("ffmpeg-static");
         await execAsync(`"${ffmpegPath}" -f s16le -ar 48000 -ac 2 -i "${pcmFile}" -ar 16000 -ac 1 "${wavFile}" -y`, { timeout: 10000, windowsHide: true });
 
-        if (!fs.existsSync(wavFile)) {
-          fs.renameSync(pcmFile, wavFile);
-        }
+        if (!wavValido(wavFile)) {
+          log("WARN", "[VOZ] Audio invalido ignorado", { kb: (fs.existsSync(wavFile) ? Math.round(fs.statSync(wavFile).size / 1024) : 0) });
+        } else {
+          const texto = await transcreverAudio(wavFile);
+          try { fs.unlinkSync(pcmFile); } catch {}
+          try { fs.unlinkSync(wavFile); } catch {}
 
-        const texto = await transcreverAudio(wavFile);
-        try { fs.unlinkSync(pcmFile); } catch {}
-        try { fs.unlinkSync(wavFile); } catch {}
+          if (texto && texto.length > 1) {
+            const player = players.get(guildId);
+            const falando = player?.state?.status === AudioPlayerStatus.Playing;
 
-        if (texto && texto.length > 1) {
-          if (ehEco(texto)) {
-            log("INFO", "[VOZ] Eco ignorado", { texto: texto.slice(0, 80) });
-          } else {
-            log("INFO", "[VOZ] Transcricao", { texto: texto.slice(0, 100) });
-            let pergunta = texto;
-            const ativou = ATIVACAO_RE.test(pergunta);
-            if (ativou) pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
-
-            if (conversasAtivas.has(guildId) || ativou) {
-              conversasAtivas.set(guildId, Date.now());
-              const { askNeon } = require("./ai");
-              const reply = await askNeon(OWNER, "dono", pergunta);
-              if (reply) await falar(guildId, reply);
+            if (falando && !somenteEco(texto)) {
+              player.stop();
+              log("INFO", "[VOZ] Dono falou, interrompido", { texto: texto.slice(0, 80) });
+              await processarVoz(guildId, limparEco(texto));
+            } else if (ehEco(texto) || somenteEco(texto)) {
+              log("INFO", "[VOZ] Eco ignorado", { texto: texto.slice(0, 80) });
+            } else if (Date.now() < mudoAte) {
+              log("INFO", "[VOZ] Eco pos-fala ignorado", { texto: texto.slice(0, 80) });
+            } else {
+              await processarVoz(guildId, texto);
             }
           }
         }
@@ -290,30 +333,36 @@ async function transcreverAudio(wavPath) {
   const { GROQ_API_KEY, DEEPSEEK_API_KEY } = require("./config");
 
   if (GROQ_API_KEY) {
-    try {
+    for (let tent = 0; tent < 2; tent++) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000);
-      const blob = new Blob([fs.readFileSync(wavPath)], { type: "audio/wav" });
-      const form = new FormData();
-      form.append("file", blob, "audio.wav");
-      form.append("model", "whisper-large-v3-turbo");
-      form.append("language", "pt");
-      form.append("response_format", "json");
-      const resp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
-        body: form,
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (resp.ok) {
-        const data = await resp.json();
-        const texto = data?.text?.trim();
-        if (texto) return texto;
+      try {
+        const wavBuf = fs.readFileSync(wavPath);
+        if (wavBuf.length < 44) throw new Error("wav pequeno demais");
+        const blob = new Blob([wavBuf], { type: "audio/wav" });
+        const form = new FormData();
+        form.append("file", blob, "audio.wav");
+        form.append("model", "whisper-large-v3-turbo");
+        form.append("language", "pt");
+        form.append("response_format", "json");
+        const resp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+          body: form,
+          signal: controller.signal,
+        });
+        clearTimeout(timeout);
+        if (resp.ok) {
+          const data = await resp.json();
+          const texto = data?.text?.trim();
+          if (texto) return texto;
+        }
+        log("WARN", "[VOZ] Groq HTTP", { status: resp.status, tentativa: tent + 1, bytes: wavBuf.length });
+      } catch (err) {
+        clearTimeout(timeout);
+        log("WARN", "[VOZ] Groq falhou", { erro: err.message?.slice(0, 100), tentativa: tent + 1 });
       }
-      log("WARN", "[VOZ] Groq HTTP", { status: resp.status });
-    } catch (err) {
-      log("WARN", "[VOZ] Groq falhou", { erro: err.message?.slice(0, 100) });
+      if (tent === 0) await new Promise((r) => setTimeout(r, 700));
     }
   }
 

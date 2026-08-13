@@ -109,8 +109,8 @@ const tratamentoChefe = isOwner(userId)
 Modo atual: ${modo.toUpperCase()}${apelido}
 
 CAPACIDADES:
-- Você TEM ACESSO a FERRAMENTAS que são executadas automaticamente. Se o pedido exigir AÇÃO — pesquisar, código, script, arquivo, automação, análise, informação externa, instalar, rodar comando, mexer no PC — responda com a linha:
-FERRAMENTA: codar | [descrição COMPLETA e detalhada do que precisa ser feito]
+- Você TEM ACESSO a FERRAMENTAS que são executadas automaticamente. Use FERRAMENTA: codar SOMENTE quando o usuário pedir uma AÇÃO EXPLÍCITA — ex.: "pesquisa X", "abre o navegador", "roda esse comando", "instala X", "cria/edita um arquivo", "mexe no PC", "automação".
+- Cumprimentos, perguntas simples, conversa casual e respostas de conhecimento ("oi", "e aí", "tudo bem?", "quem é você?", "conta uma história", "explica X") NUNCA usam ferramenta — responda diretamente em texto.
 - A ferramenta roda e o RESULTADO volta pra você. Depois você responde ao usuário em texto normal com o resultado.
 
 FERRAMENTAS DISPONÍVEIS:

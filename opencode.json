@@ -1,10 +1,20 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "openrouter/openai/gpt-oss-20b:free",
-  "small_model": "openrouter/openai/gpt-oss-20b:free",
+  "model": "openrouter/google/gemma-4-26b-a4b-it:free",
+  "small_model": "openrouter/google/gemma-4-26b-a4b-it:free",
   "default_agent": "neon",
   "provider": {
-    "openrouter": {}
+    "openrouter": {
+      "models": {
+        "google/gemma-4-26b-a4b-it:free": {
+          "name": "Gemma 4 26B A4B (Free)",
+          "tool_call": true,
+          "limit": { "context": 131072, "output": 32768 },
+          "cost": { "input": 0, "output": 0 }
+        }
+      }
+    },
+    "groq": {}
   },
   "agent": {
     "neon": {
@@ -28,12 +38,12 @@
     "pc": {
       "type": "local",
       "command": ["node", "src/pc.js"],
-      "enabled": true
+      "enabled": false
     },
     "celular": {
       "type": "local",
       "command": ["node", "src/mcp-celular.js"],
-      "enabled": true
+      "enabled": false
     },
     "system": {
       "type": "local",
@@ -43,7 +53,7 @@
     "voice": {
       "type": "local",
       "command": ["node", "src/mcp-voz.js"],
-      "enabled": true
+      "enabled": false
     }
   }
 }

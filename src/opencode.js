@@ -27,7 +27,7 @@ const CONFIG_DIR = path.join(__dirname, "..");
 
 function envSeguro() {
   const e = { ...process.env };
-  const allow = new Set(["OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "API_PORT"]);
+  const allow = new Set(["OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "GROQ_API_KEY", "API_PORT"]);
   for (const k of Object.keys(e)) {
     if (allow.has(k)) continue;
     if (/KEY|TOKEN|SECRET|PASS(WORD)?|AUTH|API/i.test(k)) delete e[k];
@@ -145,7 +145,7 @@ function iniciarServer() {
         serverProcess = null;
         serverPort = null;
         log("INFO", "[OPENCODE] Servidor encerrou", { code });
-        if (foiServer && !desligando && tentativasRestart < 10) {
+        if (foiServer && !desligando && tentativasRestart < 2) {
           tentativasRestart += 1;
           log("INFO", `[OPENCODE] Reiniciando em 3s (tentativa ${tentativasRestart})...`);
           reiniciador = setTimeout(() => iniciarServer(), 3000);
@@ -169,6 +169,7 @@ async function executar(tarefa) {
   if (!tarefa || !String(tarefa).trim()) return null;
   const maxAttempts = 2;
   let tentativa = 0;
+  let fallbackPermitido = true;
 
   while (tentativa < maxAttempts) {
     tentativa += 1;
@@ -191,7 +192,7 @@ async function executar(tarefa) {
           port,
           `/session/${sessaoId}/message`,
           { agent: "neon", parts: [{ type: "text", text: tarefa }] },
-          240000
+          60000
         );
 
         if (msg && msg.info && msg.info.name && msg.info.name !== "Text") {
@@ -204,14 +205,21 @@ async function executar(tarefa) {
         throw new Error("resposta vazia do opencode serve");
       } catch (err) {
         log("WARN", `[OPENCODE] HTTP falhou (tentativa ${tentativa})`, { erro: err.message?.slice(0, 120) });
-        if (tentativa < maxAttempts) {
+        if (tentativa >= maxAttempts) fallbackPermitido = false;
+        else {
           parar();
           await new Promise((r) => setTimeout(r, 2500));
         }
       }
     } else if (tentativa >= maxAttempts) {
+      fallbackPermitido = false;
       break;
     }
+  }
+
+  if (!fallbackPermitido) {
+    log("WARN", "[OPENCODE] Servidor falhou; pulando fallback CLI para nao abrir outro opencode");
+    return null;
   }
 
   try {
@@ -222,7 +230,7 @@ async function executar(tarefa) {
     const execAsync = promisify(execCb);
     const { stdout } = await execAsync(`opencode run "${safe}"`, {
       cwd: CONFIG_DIR,
-      timeout: 240000,
+      timeout: 90000,
       windowsHide: true,
       maxBuffer: 10 * 1024 * 1024,
       env: envSeguro(),
