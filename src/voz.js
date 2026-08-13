@@ -12,12 +12,26 @@ const { vozPorModo } = require("./modo");
 const EMOJIS = /[\p{Extended_Pictographic}\u200d\uFE0F]/gu;
 const ATIVACAO_RE = /^\s*(neon|néon)([,\s:!.\-–—]|$)/i;
 
+function normalizar(t) {
+  return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+}
+
+function ehEco(texto) {
+  if (Date.now() < mudoAte) return true;
+  const a = normalizar(texto);
+  const b = normalizar(ultimaFala.texto);
+  return !!(a && b && a.length > 2 && (a.includes(b) || b.includes(a)));
+}
+
 let connections = new Map();
 let players = new Map();
 let receivers = new Map();
 let conversasAtivas = new Map();
 let escutas = new Set();
 let entrando = new Set();
+
+let ultimaFala = { texto: "", quando: 0 };
+let mudoAte = 0;
 
 async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
   if (connections.has(guildId) || entrando.has(guildId)) return true;
@@ -115,6 +129,8 @@ async function falar(guildId, texto) {
     const resource = createAudioResource(arquivo, { inlineVolume: true, inputType: StreamType.Arbitrary });
     resource.volume?.setVolume(1);
     player.play(resource);
+    mudoAte = Date.now() + Math.min(15000, limpo.length * 90 + 2500);
+    ultimaFala = { texto: limpo, quando: Date.now() };
     player.once(AudioPlayerStatus.Idle, () => { try { fs.unlinkSync(arquivo); } catch {} });
     return true;
   } catch (err) {
@@ -188,16 +204,20 @@ async function iniciarEscuta(guildId, connection) {
         try { fs.unlinkSync(wavFile); } catch {}
 
         if (texto && texto.length > 1) {
-          log("INFO", "[VOZ] Transcricao", { texto: texto.slice(0, 100) });
-          let pergunta = texto;
-          const ativou = ATIVACAO_RE.test(pergunta);
-          if (ativou) pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
+          if (ehEco(texto)) {
+            log("INFO", "[VOZ] Eco ignorado", { texto: texto.slice(0, 80) });
+          } else {
+            log("INFO", "[VOZ] Transcricao", { texto: texto.slice(0, 100) });
+            let pergunta = texto;
+            const ativou = ATIVACAO_RE.test(pergunta);
+            if (ativou) pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
 
-          if (conversasAtivas.has(guildId) || ativou) {
-            conversasAtivas.set(guildId, Date.now());
-            const { askNeon } = require("./ai");
-            const reply = await askNeon(OWNER, "dono", pergunta);
-            if (reply) await falar(guildId, reply);
+            if (conversasAtivas.has(guildId) || ativou) {
+              conversasAtivas.set(guildId, Date.now());
+              const { askNeon } = require("./ai");
+              const reply = await askNeon(OWNER, "dono", pergunta);
+              if (reply) await falar(guildId, reply);
+            }
           }
         }
       } catch (err) {

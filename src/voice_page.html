@@ -3,59 +3,141 @@
 <head><meta charset="utf-8"></head>
 <body>
 <script>
-let recognition = null;
-let restartTimer = null;
+const TARGET_RATE = 16000;
+const SILENCE_MS = 1700;
+const VAD_RMS = 0.012;
+const MAX_DURATION_MS = 90000;
 
-function iniciar() {
-  console.log('VOICE_PAGE: iniciando webkitSpeechRecognition...');
-  if (!('webkitSpeechRecognition' in window)) {
-    console.error('VOICE_PAGE: webkitSpeechRecognition nao disponivel');
-    __neonSpeechReady2(false, 'webkitSpeechRecognition nao disponivel');
+let context = null;
+let muted = false;
+let pcm = [];
+let sentCount = 0;
+let speaking = false;
+let silenceTimer = null;
+let lastSpeech = 0;
+let startTime = 0;
+
+function mutedNow() {
+  return window.__neonMuted === true;
+}
+
+function resample(input) {
+  const ratio = context.sampleRate / TARGET_RATE;
+  const outLen = Math.max(1, Math.round(input.length / ratio));
+  const out = new Float32Array(outLen);
+  for (let i = 0; i < outLen; i++) {
+    const pos = i * ratio;
+    const i0 = Math.floor(pos);
+    const i1 = Math.min(i0 + 1, input.length - 1);
+    const frac = pos - i0;
+    out[i] = input[i0] * (1 - frac) + input[i1] * frac;
+  }
+  return out;
+}
+
+function flushSinceSent() {
+  const count = pcm.length - sentCount;
+  if (count <= 0) return;
+  const int16 = new Int16Array(pcm.slice(sentCount));
+  sentCount = pcm.length;
+  if (!mutedNow()) {
+    __neonAudioChunk(new Uint8Array(int16.buffer));
+  }
+}
+
+function flushAll() {
+  flushSinceSent();
+  if (speaking || pcm.length > 0) {
+    __neonAudioEnd();
+  }
+  pcm = [];
+  sentCount = 0;
+  speaking = false;
+  clearTimeout(silenceTimer);
+}
+
+function onAudio(evt) {
+  const input = evt.inputBuffer.getChannelData(0);
+  if (mutedNow()) return;
+
+  const resampled = resample(input);
+  let sum = 0;
+  const int16 = new Int16Array(resampled.length);
+  for (let i = 0; i < resampled.length; i++) {
+    const v = resampled[i];
+    int16[i] = Math.max(-32768, Math.min(32767, v * 32768));
+    sum += v * v;
+  }
+  pcm.push(...int16);
+
+  const rms = Math.sqrt(sum / resampled.length);
+
+  if (rms > VAD_RMS) {
+    speaking = true;
+    lastSpeech = Date.now();
+    clearTimeout(silenceTimer);
+  } else if (speaking) {
+    clearTimeout(silenceTimer);
+    silenceTimer = setTimeout(() => {
+      if (Date.now() - lastSpeech >= SILENCE_MS) {
+        flushAll();
+      }
+    }, SILENCE_MS);
+  }
+
+  if (pcm.length > (TARGET_RATE * MAX_DURATION_MS) / 1000) {
+    flushAll();
     return;
   }
 
-  recognition = new webkitSpeechRecognition();
-  recognition.continuous = true;
-  recognition.interimResults = true;
-  recognition.lang = 'pt-BR';
-
-  recognition.onstart = () => {
-    console.log('VOICE_PAGE: recognition started');
-    __neonSpeechReady2(true, 'ok');
-  };
-
-  recognition.onerror = (e) => {
-    console.warn('VOICE_PAGE: recognition error', e.error);
-    if (e.error === 'aborted') return;
-    if (e.error === 'no-speech') return;
-    __neonSpeechReady2(false, e.error);
-    agendarRestart();
-  };
-
-  recognition.onend = () => {
-    console.log('VOICE_PAGE: recognition ended, restarting...');
-    agendarRestart();
-  };
-
-  recognition.onresult = (e) => {
-    console.log('VOICE_PAGE: result received', e.resultIndex, e.results.length);
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      const texto = e.results[i][0].transcript.trim();
-      console.log('VOICE_PAGE: transcript', texto);
-      if (texto) __neonSpeechCmd(texto);
-    }
-  };
-
-  recognition.start();
-  console.log('VOICE_PAGE: recognition.start() called');
+  flushSinceSent();
 }
 
-function agendarRestart() {
-  if (restartTimer) clearTimeout(restartTimer);
-  restartTimer = setTimeout(() => {
-    console.log('VOICE_PAGE: attempting restart...');
-    try { recognition?.start(); } catch(e) { console.error('VOICE_PAGE: restart failed', e); }
+function falhou(msg) {
+  console.error('VOICE_PAGE: ' + msg);
+  __neonSpeechReady2(false, msg);
+}
+
+async function iniciar() {
+  console.log('VOICE_PAGE: iniciando captura de audio...');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+  } catch (e) {
+    falhou('microfone negado/indisponivel: ' + (e && e.message));
+    return;
+  }
+
+  try {
+    context = new AudioContext({ sampleRate: TARGET_RATE });
+  } catch (e) {
+    falhou('AudioContext indisponivel');
+    return;
+  }
+
+  const source = context.createMediaStreamSource(stream);
+  const processor = context.createScriptProcessor(4096, 1, 1);
+  processor.onaudioprocess = onAudio;
+  source.connect(processor);
+  processor.connect(context.destination);
+
+  startTime = Date.now();
+  window.__neonMuted = false;
+  window.__neonListening = true;
+  setInterval(() => {
+    if (mutedNow()) {
+      if (speaking || pcm.length > 0) {
+        clearTimeout(silenceTimer);
+        pcm = [];
+        sentCount = 0;
+        speaking = false;
+        __neonAudioReset();
+      }
+    }
   }, 1000);
+
+  console.log('VOICE_PAGE: microfone ativo a ' + context.sampleRate + 'Hz');
+  __neonSpeechReady2(true, 'ok');
 }
 
 window.__neonListening = true;

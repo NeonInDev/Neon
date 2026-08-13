@@ -5,7 +5,7 @@ const { log } = require("./logger");
 const opencode = require("./opencode");
 const toolsMod = require("./tools");
 const axios = require("axios");
-const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL } = require("./config");
+const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, GROQ_API_KEY, GROQ_MODEL } = require("./config");
 const { getModo, personaDoModo } = require("./modo");
 const { isOwner } = require("./perm"); // @chefe
 
@@ -30,6 +30,23 @@ async function chamarCompletions(url, apiKey, model, messages, timeoutMs) {
   return resp?.data?.choices?.[0]?.message?.content?.trim() || null;
 }
 
+async function chamarGroq(messages) {
+  const resp = await axios.post(
+    "https://api.groq.com/openai/v1/chat/completions",
+    {
+      model: GROQ_MODEL,
+      messages,
+      temperature: 0.7,
+      max_tokens: 1000,
+    },
+    {
+      headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+      timeout: 45000,
+    }
+  );
+  return resp?.data?.choices?.[0]?.message?.content?.trim() || null;
+}
+
 async function chamarLLM(sistema, userMsg) {
   const messages = [
     { role: "system", content: sistema },
@@ -41,6 +58,14 @@ async function chamarLLM(sistema, userMsg) {
       return await chamarCompletions("https://api.deepseek.com/chat/completions", DEEPSEEK_API_KEY, DEEPSEEK_MODEL, messages, 90000);
     } catch (err) {
       log("WARN", "DeepSeek falhou, tentando OpenRouter", { erro: err.message?.slice(0, 100) });
+    }
+  }
+
+  if (GROQ_API_KEY) {
+    try {
+      return await chamarGroq(messages);
+    } catch (err) {
+      log("WARN", "Groq falhou, tentando OpenRouter", { erro: err.message?.slice(0, 100) });
     }
   }
 
