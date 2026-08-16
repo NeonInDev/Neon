@@ -218,8 +218,16 @@ async function iniciarEscuta(guildId, connection) {
       end: { behavior: EndBehaviorType.AfterSilence, duration: 1100 },
     });
 
+    const OpusScript = require("opusscript");
+    const decoder = new OpusScript(48000, 2, OpusScript.Application.AUDIO);
+
     const chunks = [];
-    audioStream.on("data", (chunk) => chunks.push(chunk));
+    audioStream.on("data", (chunk) => {
+      try {
+        const pcm = decoder.decode(chunk);
+        chunks.push(pcm);
+      } catch {}
+    });
     audioStream.on("end", async () => {
       if (chunks.length === 0) {
         escutas.delete(guildId);
