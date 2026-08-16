@@ -64,13 +64,22 @@ async function processarVoz(guildId, texto) {
   if (conversasAtivas.has(guildId) || ativou) {
     conversasAtivas.set(guildId, Date.now());
 
+    const { executarAcao } = require("./actions");
+    const { askNeon } = require("./ai");
+
+    // Tenta ação direta primeiro (abrir apps, comandos PC, etc)
+    const resultadoAcao = await executarAcao(pergunta, true, OWNER, null);
+    if (resultadoAcao && !resultadoAcao.startsWith("❌")) {
+      await falar(guildId, resultadoAcao.replace(/[*_`~|#\[\]]/g, "").replace(EMOJIS, "").slice(0, 200));
+      return;
+    }
+
     // Envia "Pensando..." por DM
     try {
       const user = await client.users.fetch(OWNER);
       if (user) await user.send("🤔 Processando...");
     } catch {}
 
-    const { askNeon } = require("./ai");
     const reply = await askNeon(OWNER, "dono", pergunta);
     if (!reply) return;
 
