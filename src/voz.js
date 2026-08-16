@@ -61,7 +61,18 @@ async function processarVoz(guildId, texto) {
     conversasAtivas.set(guildId, Date.now());
     const { askNeon } = require("./ai");
     const reply = await askNeon(OWNER, "dono", pergunta);
-    if (reply) await falar(guildId, reply);
+    if (!reply) return;
+
+    // Respostas de ação (comando executado) → só confirmação curta por voz
+    const acoesSilenciosas = /^[\s]*(❌|✅|🖥️|📁|📎|🔧|⚙️|🌐|📂|🗑️|🔒|🔊|🔇|🎨|🔍|📊|⚡|🛑|💀|🎵|🎤|📸|✉️|🚀|⏰|🔔|🎮|💡)/;
+    const ehAcao = acoesSilenciosas.test(reply) && reply.length > 100;
+
+    if (ehAcao) {
+      // Só fala uma confirmação curta
+      await falar(guildId, "Feito, chefe!");
+    } else {
+      await falar(guildId, reply);
+    }
   }
 }
 
@@ -152,8 +163,15 @@ async function falar(guildId, texto) {
   const player = players.get(guildId);
   if (!connection || !player) return false;
 
-  const limpo = texto.replace(/[*_`~|#\[\]]/g, "").replace(EMOJIS, "").slice(0, 500);
-  if (!limpo) return false;
+  const limpo = texto.replace(/[*_`~|#\[\]]/g, "").replace(EMOJIS, "");
+  // Corta em limite maior, mas respeitando pontuação
+  const MAX_FALA = 1500;
+  let textoFinal = limpo;
+  if (limpo.length > MAX_FALA) {
+    const corte = limpo.lastIndexOf(".", MAX_FALA);
+    textoFinal = corte > 200 ? limpo.slice(0, corte + 1) : limpo.slice(0, MAX_FALA);
+  }
+  if (!textoFinal) return false;
 
   const ts = Date.now();
   const tmp = process.env.TEMP || "C:\\Temp";
