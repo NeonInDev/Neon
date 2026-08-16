@@ -124,6 +124,8 @@ function algumaAtiva(mensagens, message) {
   for (const m of mensagens) {
     const lower = m.content.toLowerCase();
     if (/^\/neon\b/.test(lower)) return true;
+    // Ativa quando fala "neon" no início ou no final da mensagem
+    if (/^\s*neon[\s,!.\-:;]*\s*/i.test(lower) || /[\s,!.\-:;]*\s*neon\s*$/i.test(lower)) return true;
   }
   if (message.reference) return true;
   if (message.channel.type === ChannelType.DM) return true;
@@ -139,6 +141,12 @@ async function processarLote(userId, lote) {
   if (!algumaAtiva(lote.mensagens, message)) return;
   if (checkCooldown(userId)) return;
 
+  // Remove "neon" do início/fim pra não poluir o contexto
+  const textoLimpo = combinedInput
+    .replace(/^\s*neon[\s,!.\-:;]+\s*/i, "")
+    .replace(/[\s,!.\-:;]*\s*neon\s*$/i, "")
+    .trim() || combinedInput;
+
   enfileirar(userId, async () => {
     processando.delete(message.id);
     try {
@@ -146,23 +154,23 @@ async function processarLote(userId, lote) {
       const username = message.author.username;
 
       await message.channel.sendTyping();
-      const resultadoAcao = await executarAcao(combinedInput, mestre, userId, message);
+      const resultadoAcao = await executarAcao(textoLimpo, mestre, userId, message);
       if (resultadoAcao === "__PRIVADO__") {
         // Resposta já enviada via DM, não fazer nada
         return;
       }
       if (resultadoAcao && !resultadoAcao.startsWith("❌")) {
-        addContexto(userId, username, combinedInput, resultadoAcao);
-        auditar(userId, username, combinedInput, resultadoAcao.slice(0, 100));
+        addContexto(userId, username, textoLimpo, resultadoAcao);
+        auditar(userId, username, textoLimpo, resultadoAcao.slice(0, 100));
         await enviarResposta(message, resultadoAcao);
         return;
       }
 
       const imageUrl = message.attachments.first()?.url || null;
-      const reply = await askNeon(userId, username, combinedInput, imageUrl);
+      const reply = await askNeon(userId, username, textoLimpo, imageUrl);
       if (!message.replied) {
-        addContexto(userId, username, combinedInput, reply);
-        auditar(userId, username, combinedInput, reply?.slice(0, 100));
+        addContexto(userId, username, textoLimpo, reply);
+        auditar(userId, username, textoLimpo, reply?.slice(0, 100));
         await enviarResposta(message, reply);
       }
     } catch (err) {
