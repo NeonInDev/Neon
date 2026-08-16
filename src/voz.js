@@ -63,30 +63,44 @@ async function processarVoz(guildId, texto) {
 
   if (conversasAtivas.has(guildId) || ativou) {
     conversasAtivas.set(guildId, Date.now());
+
+    // Envia "Pensando..." por DM
+    try {
+      const user = await client.users.fetch(OWNER);
+      if (user) await user.send("🤔 Processando...");
+    } catch {}
+
     const { askNeon } = require("./ai");
     const reply = await askNeon(OWNER, "dono", pergunta);
     if (!reply) return;
 
-    // Comando de escrita/criação → texto no chat + confirmação por voz
+    // Comando de escrita/criação → envia tudo por DM
     if (COMANDOS_TEXTO.test(pergunta)) {
-      // Envia resposta completa como texto no canal de texto do servidor
       try {
-        const guild = client.guilds.cache.get(guildId);
-        if (guild) {
-          const textChannel = guild.channels.cache.find(c => c.isTextBased() && c.viewable);
-          if (textChannel) {
-            const MAX = 2000;
-            if (reply.length > MAX) {
-              await textChannel.send(reply.slice(0, MAX));
-            } else {
-              await textChannel.send(reply);
+        const user = await client.users.fetch(OWNER);
+        if (user) {
+          const MAX = 2000;
+          if (reply.length > MAX) {
+            const partes = [];
+            let restante = reply;
+            while (restante.length > MAX) {
+              let corte = restante.lastIndexOf("\n", MAX);
+              if (corte <= 0) corte = MAX;
+              partes.push(restante.slice(0, corte));
+              restante = restante.slice(corte);
             }
+            partes.push(restante);
+            for (const parte of partes) {
+              await user.send(parte);
+            }
+          } else {
+            await user.send(reply);
           }
         }
       } catch (err) {
-        log("WARN", "[VOZ] Falha ao enviar texto no chat", { erro: err.message });
+        log("WARN", "[VOZ] Falha ao enviar DM", { erro: err.message });
       }
-      await falar(guildId, "Arquivo criado, chefe! Confere o chat.");
+      await falar(guildId, "Arquivo criado, chefe! Te mandei na DM.");
       return;
     }
 
@@ -148,6 +162,12 @@ async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
     receivers.set(guildId, receiver);
 
     log("INFO", "[VOZ] Conectado", { guildId });
+
+    // DM automática quando entra no canal de voz
+    try {
+      const user = await client.users.fetch(OWNER);
+      if (user) await user.send("🔌 Conectada no canal de voz! Pode falar, chefe.");
+    } catch {}
 
     if (autoConversa) {
       conversasAtivas.set(guildId, Date.now());
