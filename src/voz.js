@@ -8,6 +8,10 @@ const execAsync = promisify(execCb);
 const { OWNER } = require("./perm");
 const { EdgeTTS } = require("edge-tts-universal");
 const { vozPorModo } = require("./modo");
+const { client } = require("./client");
+
+// Comandos que devem responder em TEXTO no chat, não por voz
+const COMANDOS_TEXTO = /(?:escreve|escrever|cria|criar|gera|gerar|faz|monta|faz pra mim|pega)\s+(?:um\s+)?(?:arquivo|texto|script|codigo|receita|lista|nota|documento|relatorio|trabalho|projeto|descricao|resumo|paragrafo|parágrafo)/i;
 
 const EMOJIS = /[\p{Extended_Pictographic}\u200d\uFE0F]/gu;
 const ATIVACAO_RE = /^\s*(neon|néon)([,\s:!.\-–—]|$)/i;
@@ -63,12 +67,34 @@ async function processarVoz(guildId, texto) {
     const reply = await askNeon(OWNER, "dono", pergunta);
     if (!reply) return;
 
+    // Comando de escrita/criação → texto no chat + confirmação por voz
+    if (COMANDOS_TEXTO.test(pergunta)) {
+      // Envia resposta completa como texto no canal de texto do servidor
+      try {
+        const guild = client.guilds.cache.get(guildId);
+        if (guild) {
+          const textChannel = guild.channels.cache.find(c => c.isTextBased() && c.viewable);
+          if (textChannel) {
+            const MAX = 2000;
+            if (reply.length > MAX) {
+              await textChannel.send(reply.slice(0, MAX));
+            } else {
+              await textChannel.send(reply);
+            }
+          }
+        }
+      } catch (err) {
+        log("WARN", "[VOZ] Falha ao enviar texto no chat", { erro: err.message });
+      }
+      await falar(guildId, "Arquivo criado, chefe! Confere o chat.");
+      return;
+    }
+
     // Respostas de ação (comando executado) → só confirmação curta por voz
     const acoesSilenciosas = /^[\s]*(❌|✅|🖥️|📁|📎|🔧|⚙️|🌐|📂|🗑️|🔒|🔊|🔇|🎨|🔍|📊|⚡|🛑|💀|🎵|🎤|📸|✉️|🚀|⏰|🔔|🎮|💡)/;
     const ehAcao = acoesSilenciosas.test(reply) && reply.length > 100;
 
     if (ehAcao) {
-      // Só fala uma confirmação curta
       await falar(guildId, "Feito, chefe!");
     } else {
       await falar(guildId, reply);
