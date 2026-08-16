@@ -56,7 +56,7 @@ async function geminiTTS(texto, voz = "auto", idioma = "pt-BR") {
   const speakingStyle = "Diga de forma natural, calorosa e com entonação humana. Fale como se estivesse conversando com um amigo, com ritmo variado e pausas leves. Use sotaque brasileiro natural.";
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent`;
 
     const payload = {
       contents: [{
@@ -78,7 +78,7 @@ async function geminiTTS(texto, voz = "auto", idioma = "pt-BR") {
 
     const resp = await axios.post(url, payload, {
       timeout: 30000,
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY }
     });
 
     const audioData = resp.data?.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
@@ -148,7 +148,7 @@ async function geminiSTT(audioPath) {
     else if (ext === ".webm") mimeType = "audio/webm";
     else if (ext === ".flac") mimeType = "audio/flac";
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent`;
 
     const payload = {
       contents: [{
@@ -172,7 +172,7 @@ async function geminiSTT(audioPath) {
 
     const resp = await axios.post(url, payload, {
       timeout: 30000,
-      headers: { "Content-Type": "application/json" }
+      headers: { "Content-Type": "application/json", "x-goog-api-key": GEMINI_API_KEY }
     });
 
     const texto = resp.data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
