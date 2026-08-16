@@ -11,7 +11,7 @@ const { vozPorModo } = require("./modo");
 const { client } = require("./client");
 
 // Comandos que devem responder em TEXTO no chat, não por voz
-const COMANDOS_TEXTO = /(?:escreve|escrever|cria|criar|gera|gerar|faz|monta|faz pra mim|pega)\s+(?:um\s+)?(?:arquivo|texto|script|codigo|receita|lista|nota|documento|relatorio|trabalho|projeto|descricao|resumo|paragrafo|parágrafo)/i;
+const COMANDOS_TEXTO = /(?:escreve|escrever|cria|criar|gera|gerar|faz|monta|faz pra mim|pega|transcreve|transcrever|resume|resumir|traduz|traduzir)\s+(?:um\s+)?(?:arquivo|texto|script|codigo|receita|lista|nota|documento|relatorio|trabalho|projeto|descricao|resumo|paragrafo|parágrafo)?/i;
 
 const EMOJIS = /[\p{Extended_Pictographic}\u200d\uFE0F]/gu;
 const ATIVACAO_RE = /^\s*(neon|néon)([,\s:!.\-–—]|$)/i;
