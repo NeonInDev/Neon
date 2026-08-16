@@ -309,8 +309,17 @@ function encontrarCEP(texto) {
 
 function encontrarDefinicao(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
-  if (/^(?:o que|oque|que|qual|quem)\s+(?:é|e|significa)\s+(.+)$/i.test(lower) && lower.split(/\s+/).length <= 8) return true;
-  if(/^(?:definição|definicao|significado)\s+(?:de\s+)?(.+)$/i.test(lower) && lower.split(/\s+/).length <= 6) return true;
+  // Perguntas de definição - variedade total
+  if (/^(?:o\s*que|oque|que|qual|quem|como|onde|quando|por\s*que|por\s*qual)\s+(?:é|e|significa|significa|representa|quer\s+dizer|diz\s+respeito|faz\s+parte|tem\s+a\s+ver|tem\s+haver)\s+(.+)$/i.test(lower) && lower.split(/\s+/).length <= 10) return true;
+  if (/^(?:definição|definicao|significado|conceito|noção|nocao|explicação|explicacao|tradução|traducao)\s+(?:de\s+|do\s+|da\s+|dos\s+|das\s+)?(.+)$/i.test(lower) && lower.split(/\s+/).length <= 8) return true;
+  // Variações coloquiais
+  if (/^(?:me\s+explica|explica|conta|fala|diz|cuenta)\s+(?:o\s*que|que|como|por\s*que)\s+(?:é|e|significa|funciona|acontece|se\s*passa)\s+(.+)$/i.test(lower)) return true;
+  if (/^(?:sobre\s+o\s+que|o\s+que\s+(?:é|e)\s+(?:o\s+|a\s+|os\s+|as\s+))(.+)$/i.test(lower)) return true;
+  if (/^(?:me\s+conta\s+sobre|conta\s+sobre|fala\s+sobre|me\s+fala\s+sobre|me\s+explica\s+sobre)\s+(.+)$/i.test(lower)) return true;
+  if (/^(?:por\s+que|por\s*que|pq|pq|por\s+qual\s+motivo)\s+(.+)$/i.test(lower)) return true;
+  if (/^(?:como\s+(?:funciona|é\s+feito|se\s+faz|acontece| opera))\s+(.+)$/i.test(lower)) return true;
+  if (/^(?:onde\s+(?:é|fica|se\s+encontra|se\s+acha))\s+(.+)$/i.test(lower)) return true;
+  if (/^(?:quando\s+(?:é|foi|aconteceu|surgiu|nasceu|começou))\s+(.+)$/i.test(lower)) return true;
   return false;
 }
 
