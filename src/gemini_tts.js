@@ -52,12 +52,15 @@ async function geminiTTS(texto, voz = "auto", idioma = "pt-BR") {
 
   const voiceName = voz === "auto" ? VOZ_DEFAULT : (VOZES[voz.toLowerCase()] || voz);
 
+  // Instruções de fala natural (Gemini TTS é prompt-controllable)
+  const speakingStyle = "Diga de forma natural, calorosa e com entonação humana. Fale como se estivesse conversando com um amigo, com ritmo variado e pausas leves. Use sotaque brasileiro natural.";
+
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${GEMINI_API_KEY}`;
 
     const payload = {
       contents: [{
-        parts: [{ text: texto }]
+        parts: [{ text: `${speakingStyle}\n\n${texto}` }]
       }],
       generationConfig: {
         responseModalities: ["AUDIO"],

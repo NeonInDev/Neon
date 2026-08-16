@@ -309,7 +309,7 @@ function encontrarCEP(texto) {
 
 function encontrarDefinicao(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
-  if (/^(?:o que|oque|que|qual)\s+(?:é|e|significa)\s+(.+)$/i.test(lower) && lower.split(/\s+/).length <= 8) return true;
+  if (/^(?:o que|oque|que|qual|quem)\s+(?:é|e|significa)\s+(.+)$/i.test(lower) && lower.split(/\s+/).length <= 8) return true;
   if(/^(?:definição|definicao|significado)\s+(?:de\s+)?(.+)$/i.test(lower) && lower.split(/\s+/).length <= 6) return true;
   return false;
 }
@@ -754,6 +754,7 @@ function detectarCategoria(texto) {
   if (encontrarMemoria(texto)) return "memoria";
   if (isWin() && encontrarObsIniciar(texto)) return "obs_iniciar";
   if (isWin() && encontrarObsParar(texto)) return "obs_parar";
+  if (encontrarDefinicao(texto)) return "definicao";
   return null;
 }
 
