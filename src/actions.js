@@ -159,7 +159,13 @@ function encontrarApp(texto) {
     if (app.so === "win32" && !isWin()) return false;
     return app.nomes.some((n) => nomeBuscado.includes(n));
   });
-  return candidato || null;
+
+  // Se não achou na lista, retorna genérico (tenta abrir pelo nome)
+  if (!candidato) {
+    const nomeGenerico = match[1].trim();
+    return { nomes: [nomeGenerico], comando: `start "${nomeGenerico}"`, url: null, generico: true };
+  }
+  return candidato;
 }
 
 function encontrarPcCommand(texto) {
@@ -1139,12 +1145,12 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     log("INFO", "[ACTION] app detectado", { label, texto, url: app.url, comando: app.comando });
 
     // Tenta abrir o app desktop primeiro (start <nome>)
-    const desktopCmd = `start ${label}`;
+    const desktopCmd = `start "${label}"`;
     let desktop = await tentar(desktopCmd);
     if (desktop.ok) return `✅ Abrindo ${label}.`;
 
     // Tenta comando personalizado (URI scheme)
-    if (app.comando) {
+    if (app.comando && app.comando !== desktopCmd) {
       let via = await abrirComando(app.comando, label);
       if (via === "direto") return `✅ Abrindo ${label}.`;
       if (via === "notificacao") return `📲 Toque na notificação para abrir ${label}.`;
@@ -1158,7 +1164,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return `❌ Não consegui abrir ${label}.`;
     }
 
-    return `❌ Não consegui abrir ${label}.`;
+    return `❌ Não consegui abrir ${label}. Verifica se o app tá instalado.`;
   }
 
   // PC commands (desligar, etc.)

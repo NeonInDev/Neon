@@ -80,7 +80,7 @@ async function chamarLLM(sistema, userMsg) {
   return await opencode.executar(userMsg);
 }
 
-async function askNeon(userId, username, userInput, imageUrl = null) {
+async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false) {
   if (!db.data.users) db.data.users = {};
   if (!db.data.blacklist) db.data.blacklist = [];
 
@@ -92,7 +92,8 @@ async function askNeon(userId, username, userInput, imageUrl = null) {
 
   const promptTruncado = userInput.slice(0, MAX_INPUT_LEN);
 
-  const historico = user.historico.slice(-4).flatMap((m) => [
+  // Se resetHistorico, não envia histórico anterior
+  const historico = resetHistorico ? "" : user.historico.slice(-4).flatMap((m) => [
     `Usuário: ${String(m.user).slice(0, 200)}`,
     `Neon: ${String(m.bot).slice(0, 200)}`,
   ]).join("\n");

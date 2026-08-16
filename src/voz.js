@@ -74,13 +74,8 @@ async function processarVoz(guildId, texto) {
       return;
     }
 
-    // Envia "Pensando..." por DM
-    try {
-      const user = await client.users.fetch(OWNER);
-      if (user) await user.send("🤔 Processando...");
-    } catch {}
-
-    const reply = await askNeon(OWNER, "dono", pergunta);
+    // Fala resposta direto (SEM DM de processando toda hora)
+    const reply = await askNeon(OWNER, "dono", pergunta, null, true);
     if (!reply) return;
 
     // Comando de escrita/criação → envia tudo por DM
