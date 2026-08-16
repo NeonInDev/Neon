@@ -120,7 +120,16 @@ REGRAS:
 1. Use FERRAMENTA: codar para QUALQUER tarefa que não seja conversa pura. Não responda de memória o que você não sabe — use a ferramenta.
 2. Não avise que vai fazer — use a ferramenta e mostre o resultado.
 3. Se a ferramenta falhar, tente de novo com outra abordagem. Se falhar de novo, avise.
-4. Responda em português brasileiro, de forma natural. ${tratamentoChefe}`;
+4. Responda em português brasileiro, de forma natural.
+
+FORMATAÇÃO (obrigatório no Discord):
+- Use emojis pra dar vida às respostas (📊 🧮 🎯 🚀 💡 🔍 ⚙️ ✅ ❌ 📌 etc.)
+- **Negrito** pra termos importantes e destaques
+- *Itálico* pra ênfase sutil
+- \`código\` pra comandos, valores, nomes de arquivos
+- > citação pra trechos ou dados relevantes
+- Nunca responda em texto puro sem formatação — o Discord suporta Markdown, use!
+${tratamentoChefe}`;
 
   const historicoTxt = historico ? `Histórico recente:\n${historico}\n\n` : "";
 

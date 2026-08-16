@@ -37,6 +37,39 @@ async function tentar(comando) {
   }
 }
 
+// Envia mensagem de continuação (quando a resposta não cabe em 1 msg)
+async function continuar(message, texto) {
+  if (!message || !texto) return;
+  try {
+    await message.channel.send(`__CONTINUA__${texto}`);
+  } catch (err) {
+    log("WARN", "[ACTION] Falha ao enviar continuação", { erro: err.message });
+  }
+}
+
+// Envia múltiplas partes automaticamente (quebra em 2000 chars)
+async function enviarMultiPartes(message, texto) {
+  if (!message || !texto) return;
+  const MAX = 1900;
+  if (texto.length <= MAX) {
+    await message.reply(texto);
+    return;
+  }
+  const partes = [];
+  let restante = texto;
+  while (restante.length > MAX) {
+    let corte = restante.lastIndexOf("\n", MAX);
+    if (corte <= 0) corte = MAX;
+    partes.push(restante.slice(0, corte));
+    restante = restante.slice(corte);
+  }
+  partes.push(restante);
+  await message.reply(partes[0]);
+  for (let i = 1; i < partes.length; i++) {
+    await message.channel.send(partes[i]);
+  }
+}
+
 async function abrirUrl(url) {
   if (process.platform === "win32") {
     const r = await tentar(`start "" "${url}"`);
@@ -283,7 +316,7 @@ function encontrarDefinicao(texto) {
 
 function encontrarIP(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
-  if (/(?:meu\s+)?(?:ip|endereço\s*ip|endereco\s*ip)/i.test(lower)) return true;
+  if (/qual\s+(?:o\s+)?meu\s+ip\s+dessa\s+maquina/i.test(lower)) return true;
   return false;
 }
 
@@ -651,6 +684,15 @@ function encontrarMemoria(texto) {
   return null;
 }
 
+function encontrarNeoZero(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:status|como\s+ta|como\s+est[aá])\s+(?:a|o)\s+(?:manopla|neo\s+zero|neo\s+zero\s+arquimedes|arquimedes)|(?:manopla|neo\s+zero).*status/i.test(lower)) return "status";
+  if (/^(?:abre|abrir|ativa|ativar|libera|liberar)\s+(?:as\s+|a\s+)?(?:placas|placas\s+da\s+manopla|manopla)|(?:modo\s+batalha|ativar\s+armadura)/i.test(lower)) return "placas_abrir";
+  if (/^(?:fecha|fechar|recolhe|recolher|desativa|desativar)\s+(?:as\s+|a\s+)?(?:placas|placas\s+da\s+manopla|manopla)/i.test(lower)) return "placas_fechar";
+  if (/^(?:dispara|disparar|atira|atirar|fogo|fire|pow)\s*(?:com\s+(?:a\s+|o\s+)?(?:manopla|canh[aã]o|neo\s+zero|arquimedes))?/i.test(lower)) return "disparar";
+  return null;
+}
+
 function permitido(userId) {
   return isOwner(userId);
 }
@@ -665,6 +707,7 @@ function detectarCategoria(texto) {
   if (encontrarModoJarvis(texto)) return "modo_jarvis";
   if (encontrarCelular(texto)) return "celular";
   if (encontrarApp(texto)) return "app";
+  if (encontrarNeoZero(texto)) return "neozero";
   if (isWin()) {
     const jogo = encontrarJogo(texto);
     if (jogo && jogo.id !== null && jogo.id !== undefined) return "jogo";
@@ -769,6 +812,39 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
   }
 
+  // ─── Ajuda / Comandos ───
+  if (/^(?:ajuda|help|comandos|lista\s+de\s+comandos|o\s+que\s+você\s+(?:faz|sabe|pode))/i.test(lower)) {
+    return [
+      "```",
+      "╔══════════════════════════════════╗",
+      "║        📋 COMANDOS DA NEON       ║",
+      "╚══════════════════════════════════╝",
+      "",
+      "🏠 CASA & APPS:",
+      "  daddy is home    → Abre Spotify + Steam",
+      "  bom dia          → Liga apps + clima",
+      "  boa noite        → Desliga o PC (confirma)",
+      "",
+      "🔒 PRIVACIDADE:",
+      "  só eu: [msg]     → Resposta só no seu PV",
+      "  qual o meu ip    → IP enviado no PV",
+      "",
+      "🎯 UTILIDADE:",
+      "  protocolo emergência → Fecha tudo",
+      "  modo foco        → Fecha distrações, abre VS Code",
+      "  lembra [texto]   → Anota lembrete",
+      "  motivação        → Frase motivacional",
+      "  status           → Info do sistema",
+      "",
+      "🎮 EX-TERMINATOR:",
+      "  ex-terminator    → Sequência dramática",
+      "  protocolo ultron → Modo destruição",
+      "",
+      "💡 DICA: Comece com 'Neon,' no canal!",
+      "```",
+    ].join("\n");
+  }
+
   // ─── Daddy is home ───
   if (lower === "daddy is home" || lower === "daddy's home") {
     if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
@@ -838,6 +914,160 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       "Quer desligar o PC? (sim/nao)",
       "```",
     ].filter(Boolean).join("\n");
+  }
+
+  // ─── Bom Dia ───
+  if (/^(?:bom\s*dia|bomdia|good\s*morning|morning|dia)[\s\.,!]*(?:neon)?[\s\.,!]*$/i.test(lower)) {
+    if (!podePC) return "Bom dia! ☀️";
+    const agora = new Date();
+    const horaStr = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const hora = agora.getHours();
+
+    if (hora >= 18 || hora < 5) {
+      return `⚠️ São ${horaStr}... isso é madrugada/noite, não manhã! 🌙`;
+    }
+
+    const erros = [];
+    const apps = [
+      { nome: "Spotify", cmd: "start spotify:" },
+      { nome: "Opera GX", cmd: "start opera:" },
+      { nome: "VS Code", cmd: "start code" },
+    ];
+    for (const app of apps) {
+      const r = await tentar(app.cmd);
+      if (!r.ok) erros.push(app.nome);
+    }
+
+    let climaStr = "";
+    try {
+      const c = await clima("São Paulo");
+      climaStr = `${c.condicao}, ${c.temperatura}`;
+    } catch {}
+
+    const dica = [
+      "Lembre-se de beber água! 💧",
+      "Hoje é um bom dia pra codar! 💻",
+      "Não esqueça do cafézinho! ☕",
+      "Que tal uma pausa pra esticar? 🧘",
+      "Você é incrível, lembra disso! ⭐",
+    ][Math.floor(Math.random() * 5)];
+
+    return [
+      "```",
+      "╔══════════════════════════════════╗",
+      "║           BOM DIA! ☀️            ║",
+      "╚══════════════════════════════════╝",
+      "",
+      `🕐 ${horaStr}`,
+      climaStr ? `🌤 ${climaStr}` : "",
+      "",
+      ">> Spotify:   " + (erros.includes("Spotify") ? "❌" : "✅"),
+      ">> Opera GX:  " + (erros.includes("Opera GX") ? "❌" : "✅"),
+      ">> VS Code:   " + (erros.includes("VS Code") ? "❌" : "✅"),
+      "",
+      `💡 ${dica}`,
+      "```",
+    ].filter(Boolean).join("\n");
+  }
+
+  // ─── Resposta Privada (só EU vejo) ───
+  if (/^(?:só\s+eu|so\s+eu|privado|pv|minha\s+pvt|somente\s+eu)\s*[:,]?\s*(.+)/i.test(lower)) {
+    const m = lower.match(/^(?:só\s+eu|so\s+eu|privado|pv|minha\s+pvt|somente\s+eu)\s*[:,]?\s*(.+)/i);
+    const textoPrivado = m?.[1]?.trim();
+    if (!textoPrivado) return "❌ O que você quer que eu responda só pra você?";
+    if (!message) return "❌ Preciso de uma mensagem pra processar.";
+    try {
+      const dm = await message.author.createDM();
+      const resultado = await executarAcao(textoPrivado, usuarioMestre, userId, message);
+      if (resultado && !resultado.startsWith("❌")) {
+        await dm.send(`🔒 **Resposta privada:**\n${resultado}`);
+        await message.reply("📩 Enviei no seu PV! 📩");
+        return "__PRIVADO__";
+      }
+      const reply = await require("./ai").askNeon(userId, message.author.username, textoPrivado);
+      await dm.send(`🔒 **Resposta privada:**\n${reply}`);
+      await message.reply("📩 Enviei no seu PV! 📩");
+      return "__PRIVADO__";
+    } catch (err) {
+      return "❌ Não consegui abrir seu PV. Desbloqueie as DMs do Discord.";
+    }
+  }
+
+  // ─── Protocolo de Emergência ───
+  if (/^protocolo\s+(?:emergencia|emergência|vermelho|112|911)/i.test(lower)) {
+    if (!podePC) return "❌ Acesso negado.";
+    const r1 = await tentar("taskkill /F /IM chrome.exe 2>nul");
+    const r2 = await tentar("taskkill /F /IM opera.exe 2>nul");
+    const r3 = await tentar("taskkill /F /IM spotify.exe 2>nul");
+    return [
+      "```",
+      "🔴 PROTOCOLO DE EMERGÊNCIA ATIVADO",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      "✅ Processos pesados finalizados",
+      "✅ Memória liberada",
+      "✅ Sistema estável",
+      "```",
+    ].join("\n");
+  }
+
+  // ─── Foco / Modo Foco ───
+  if (/^(?:modo\s+foco|foco|focar|concentrar|estudar)/i.test(lower)) {
+    if (!podePC) return "❌ Acesso negado.";
+    await tentar("taskkill /F /IM spotify.exe 2>nul");
+    await tentar("taskkill /F /IM opera.exe 2>nul");
+    const r1 = await tentar("start code");
+    return [
+      "```",
+      "🎯 MODO FOCO ATIVADO",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      "✅ Distrações fechadas",
+      "✅ VS Code aberto",
+      "",
+      "\"Foco é dizer não pra mil boas ideias\"",
+      "```",
+    ].join("\n");
+  }
+
+  // ─── Lembrete Rápido ───
+  if (/^(?:lembra|lembrete|avisa|aviso)\s+(?:me\s+)?(.+)/i.test(lower)) {
+    const m = lower.match(/^(?:lembra|lembrete|avisa|aviso)\s+(?:me\s+)?(.+)/i);
+    const texto = m?.[1]?.trim();
+    if (!texto) return "❌ O que eu devo te lembrar?";
+    return `✅ Anotado! Vou te lembrar: **${texto}**\n_(Usa /lembrete pra definir horário)_`;
+  }
+
+  // ─── Motivação ───
+  if (/^(?:me\s+)?(?:motiva|motiva[çc][aã]o|inspira|empurra|forca|força)/i.test(lower)) {
+    const frases = [
+      "💡 *\"O sucesso é a soma de pequenos esforços repetidos dia após dia.\"*",
+      "🔥 *\"Não é sobre ter tempo, é sobre criar tempo.\"*",
+      "🚀 *\"O único modo de fazer um trabalho excelente é amar o que você faz.\"*",
+      "⭐ *\"A persistência é o caminho do êxito.\"*",
+      "💪 *\"Quando quiser desistir, lembre-se por que começou.\"*",
+      "🎯 *\"Foco no que importa, delete o resto.\"*",
+      "🧠 *\"Seu cérebro é um músculo — quanto mais treina, mais forte fica.\"*",
+      "🌟 *\"Você não nasceu pra ser medíocre.\"*",
+    ];
+    return frases[Math.floor(Math.random() * frases.length)];
+  }
+
+  // ─── Sistema (status rápido) ───
+  if (/^(?:status|sistema|como\s+(?:ta|está|esta)\s+(?:o\s+)?sistema)/i.test(lower)) {
+    if (!podePC) return "❌ Acesso negado.";
+    const uptime = process.uptime();
+    const horas = Math.floor(uptime / 3600);
+    const mins = Math.floor((uptime % 3600) / 60);
+    return [
+      "```",
+      "📊 STATUS DO SISTEMA",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      `⏱️ Uptime: ${horas}h ${mins}m`,
+      `🧠 RAM: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+      `🔌 Portas: 3000 (API) | 4096 (opencode)`,
+      "```",
+    ].join("\n");
   }
 
   // ─── Quem é o Neon original? ───
@@ -1279,11 +1509,22 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
   }
 
-  // Meu IP
+  // Meu IP (envia via PV)
   if (categoria === "ip") {
     try {
       const info = await meuIP();
-      return `🌐 **Seu IP público:** ${info.ip}\n📍 ${info.cidade}, ${info.pais}\n🏢 ${info.provedor}`;
+      const resposta = `🌐 **Seu IP público:** ${info.ip}\n📍 ${info.cidade}, ${info.pais}\n🏢 ${info.provedor}`;
+      if (message) {
+        try {
+          const dm = await message.author.createDM();
+          await dm.send(`🔒 **Seu IP (só você vê):**\n${resposta}`);
+          await message.reply("📩 IP enviado no seu PV! 📩");
+          return "__PRIVADO__";
+        } catch {
+          return resposta;
+        }
+      }
+      return resposta;
     } catch (err) {
       return `❌ Não consegui descobrir seu IP: ${err.message}`;
     }
@@ -1328,7 +1569,9 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     const acao = encontrarVoiceToggle(texto);
     if (acao === "ativar") {
       const r = await voice.iniciar(userId, null);
-      return r ? "🎤 Microfone ativado!" : "🎤 Microfone já está ativo.";
+      if (r) return "🎤 Microfone ativado!";
+      const st = voice.status();
+      return st.ativo ? "🎤 Microfone já está ativo." : "❌ Falha ao ativar o microfone. Confere o log da Neon.";
     }
     if (acao === "desativar") {
       const r = await voice.parar();
@@ -1678,6 +1921,35 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     } catch (err) {
       return `❌ Erro: ${err.message}`;
     }
+  }
+
+  // Neo Zero Arquimedes (manopla + canhão de ar)
+  if (categoria === "neozero") {
+    if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
+    const acao = encontrarNeoZero(texto);
+    const neozero = require("./neozero");
+    try {
+      if (acao === "status") {
+        const st = await neozero.status();
+        if (!st.online) return "❌ Manopla Neo Zero offline. Simulador/firmware não está rodando (NEOZERO_URL).";
+        return `🔫 **Neo Zero Arquimedes**\n\`\`\`\nPlacas: ${st.placas}\nÚltimo disparo: ${st.ultimo_disparo_ms ? `${st.ultimo_disparo_ms}ms (após boot)` : "nunca"}\nUptime: ${st.uptime_s}s\`\`\``;
+      }
+      if (acao === "placas_abrir") {
+        const r = await neozero.placas(true);
+        return `✅ Placas ${r.placas}. 💥 Modo batalha ativado!`;
+      }
+      if (acao === "placas_fechar") {
+        const r = await neozero.placas(false);
+        return `✅ Placas ${r.placas}. 🛡️ Placas recolhidas.`;
+      }
+      if (acao === "disparar") {
+        const r = await neozero.disparar();
+        return r.ok ? "💥 **POW!** Disparo realizado! 🍬" : `❌ ${r.erro || "falhou"}`;
+      }
+    } catch (err) {
+      return `❌ Erro na manopla: ${err.message}`;
+    }
+    return "Comando da manopla não reconhecido.";
   }
 
   // Modo Ultron / Jarvis
@@ -2109,4 +2381,4 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   return null;
 }
 
-module.exports = { executarAcao, steamGames };
+module.exports = { executarAcao, steamGames, continuar, enviarMultiPartes };

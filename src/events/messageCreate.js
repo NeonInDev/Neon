@@ -46,6 +46,13 @@ function checkCooldown(userId) {
 async function enviarResposta(message, texto) {
   if (!texto) { await message.reply("❌ erro interno"); return; }
 
+  // Suporte a respostas continuadas (__CONTINUA__ no início = mensagem adicional)
+  if (texto.startsWith("__CONTINUA__")) {
+    const conteudo = texto.replace("__CONTINUA__", "").trim();
+    if (conteudo) await message.channel.send(conteudo);
+    return;
+  }
+
   const fileMatch = texto.match(/__FILE__:(.+)/);
   if (fileMatch) {
     try {
@@ -140,6 +147,10 @@ async function processarLote(userId, lote) {
 
       await message.channel.sendTyping();
       const resultadoAcao = await executarAcao(combinedInput, mestre, userId, message);
+      if (resultadoAcao === "__PRIVADO__") {
+        // Resposta já enviada via DM, não fazer nada
+        return;
+      }
       if (resultadoAcao && !resultadoAcao.startsWith("❌")) {
         addContexto(userId, username, combinedInput, resultadoAcao);
         auditar(userId, username, combinedInput, resultadoAcao.slice(0, 100));

@@ -331,7 +331,19 @@ async function transcreverLocal(wavPath) {
 
 async function transcreverAudio(wavPath) {
   const { GROQ_API_KEY, DEEPSEEK_API_KEY } = require("./config");
+  const { geminiSTT, temApiKey: temGeminiKey } = require("./gemini_tts");
 
+  // Tenta Gemini STT primeiro (qualidade superior)
+  if (temGeminiKey()) {
+    try {
+      const texto = await geminiSTT(wavPath);
+      if (texto) return texto;
+    } catch (err) {
+      log("WARN", "[VOZ] Gemini STT falhou, tentando Groq", { erro: err.message?.slice(0, 100) });
+    }
+  }
+
+  // Fallback: Groq Whisper
   if (GROQ_API_KEY) {
     for (let tent = 0; tent < 2; tent++) {
       const controller = new AbortController();
