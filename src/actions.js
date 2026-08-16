@@ -307,21 +307,7 @@ function encontrarCEP(texto) {
   return false;
 }
 
-function encontrarDefinicao(texto) {
-  const lower = limparFiller(texto.toLowerCase().trim());
-  // Perguntas de definição - variedade total
-  if (/^(?:o\s*que|oque|que|qual|quem|como|onde|quando|por\s*que|por\s*qual)\s+(?:é|e|significa|significa|representa|quer\s+dizer|diz\s+respeito|faz\s+parte|tem\s+a\s+ver|tem\s+haver)\s+(.+)$/i.test(lower) && lower.split(/\s+/).length <= 10) return true;
-  if (/^(?:definição|definicao|significado|conceito|noção|nocao|explicação|explicacao|tradução|traducao)\s+(?:de\s+|do\s+|da\s+|dos\s+|das\s+)?(.+)$/i.test(lower) && lower.split(/\s+/).length <= 8) return true;
-  // Variações coloquiais
-  if (/^(?:me\s+explica|explica|conta|fala|diz|cuenta)\s+(?:o\s*que|que|como|por\s*que)\s+(?:é|e|significa|funciona|acontece|se\s*passa)\s+(.+)$/i.test(lower)) return true;
-  if (/^(?:sobre\s+o\s+que|o\s+que\s+(?:é|e)\s+(?:o\s+|a\s+|os\s+|as\s+))(.+)$/i.test(lower)) return true;
-  if (/^(?:me\s+conta\s+sobre|conta\s+sobre|fala\s+sobre|me\s+fala\s+sobre|me\s+explica\s+sobre)\s+(.+)$/i.test(lower)) return true;
-  if (/^(?:por\s+que|por\s*que|pq|pq|por\s+qual\s+motivo)\s+(.+)$/i.test(lower)) return true;
-  if (/^(?:como\s+(?:funciona|é\s+feito|se\s+faz|acontece| opera))\s+(.+)$/i.test(lower)) return true;
-  if (/^(?:onde\s+(?:é|fica|se\s+encontra|se\s+acha))\s+(.+)$/i.test(lower)) return true;
-  if (/^(?:quando\s+(?:é|foi|aconteceu|surgiu|nasceu|começou))\s+(.+)$/i.test(lower)) return true;
-  return false;
-}
+
 
 function encontrarIP(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
@@ -763,7 +749,6 @@ function detectarCategoria(texto) {
   if (encontrarMemoria(texto)) return "memoria";
   if (isWin() && encontrarObsIniciar(texto)) return "obs_iniciar";
   if (isWin() && encontrarObsParar(texto)) return "obs_parar";
-  if (encontrarDefinicao(texto)) return "definicao";
   return null;
 }
 
@@ -1498,24 +1483,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return `📍 **CEP ${info.cep}** — ${info.logradouro}, ${info.bairro}, ${info.cidade}/${info.estado}`;
     } catch (err) {
       return `❌ CEP não encontrado: ${err.message}`;
-    }
-  }
-
-  // Definição
-  if (categoria === "definicao") {
-    try {
-      const lower = limparFiller(texto.toLowerCase().trim());
-      const m = lower.match(/(?:o que|oque|que|qual)\s+(?:é|e|significa)\s+(.+)$/i) || lower.match(/^(?:definição|definicao|significado)\s+(?:de\s+)?(.+)$/i);
-      if (!m) return "❌ Não entendi qual palavra procurar.";
-      const palavra = m[1].trim();
-      const d = await definicao(palavra);
-      const defs = d.definicoes.slice(0, 3).map((def, i) =>
-        `${i + 1}. _(${def.classe})_ ${def.definicao}${def.exemplo ? `\n   > "${def.exemplo}"` : ""}`
-      ).join("\n");
-      return `📖 **${d.palavra}**${d.fonetica ? ` (${d.fonetica})` : ""}\n${defs || "Nenhuma definição encontrada."}`;
-    } catch (err) {
-      // Se a API de dicionário falhar, deixa o AI responder
-      return null;
     }
   }
 
