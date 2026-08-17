@@ -16,8 +16,11 @@ if ! command -v opencode >/dev/null 2>&1; then
   sudo npm install -g opencode-ai >/dev/null 2>&1 || echo "   (aviso: instale opencode manualmente)"
 fi
 
-echo "[2/4] Habilitando SSH com senha..."
-sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+echo "[2/4] SSH somente por chave (sem senha, sem root)..."
+sudo sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
+sudo sed -i 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication no/' /etc/ssh/sshd_config
+sudo sed -i 's/^#\?ChallengeResponseAuthentication.*/ChallengeResponseAuthentication no/' /etc/ssh/sshd_config
+sudo sed -i 's/^#\?PubkeyAuthentication.*/PubkeyAuthentication yes/' /etc/ssh/sshd_config
 sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
 if command -v systemctl >/dev/null 2>&1; then
   sudo systemctl enable ssh >/dev/null 2>&1 || true
