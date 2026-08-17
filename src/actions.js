@@ -3,6 +3,7 @@ const { promisify } = require("util");
 const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
+const opencode = require("./opencode");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
 const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao } = require("./api");
 const pc = require("./pc");
@@ -166,6 +167,16 @@ function encontrarApp(texto) {
     return { nomes: [nomeGenerico], comando: `start "${nomeGenerico}"`, url: null, generico: true };
   }
   return candidato;
+}
+
+function encontrarCodarApp(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const match = lower.match(/^(?:abrir|abra|abre|open)\s+(.+)/i);
+  if (!match) return null;
+  const nome = match[1].trim().replace(/\s*neon$/i, "");
+  if (!nome) return null;
+  if (/(?:arquivo|pasta|site|url|link|página|pagina|video|vídeo|música|musica|jogo|configur|ajust|menu)/i.test(nome)) return null;
+  return nome;
 }
 
 function encontrarPcCommand(texto) {
@@ -707,6 +718,7 @@ function detectarCategoria(texto) {
   if (encontrarModoUltron(texto)) return "modo_ultron";
   if (encontrarModoJarvis(texto)) return "modo_jarvis";
   if (encontrarCelular(texto)) return "celular";
+  if (encontrarCodarApp(texto)) return "codar_app";
   if (encontrarApp(texto)) return "app";
   if (encontrarNeoZero(texto)) return "neozero";
   if (isWin()) {
@@ -1135,6 +1147,15 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
 
   if (categoria && !podePC) {
     return "❌ Acesso negado. Você não é o dono do PC.";
+  }
+
+  // Abrir app via codar (opencode) — resolve qualquer app sem lista fixa
+  if (categoria === "codar_app") {
+    const nome = encontrarCodarApp(texto);
+    log("INFO", "[ACTION] abrindo app via codar", { nome, texto });
+    const resultado = await opencode.executar(`Abra o app "${nome}" no Windows usando Start-Process ou 'start "" "<nome>"' para abrir como interface grafica (GUI), nunca no terminal. Responda apenas com o resultado (ex.: "Abrindo ${nome}.").`);
+    if (resultado) return resultado.slice(0, 1500);
+    return `✅ Tentando abrir ${nome}.`;
   }
 
   // Apps
