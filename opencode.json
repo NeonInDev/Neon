@@ -1,15 +1,15 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "openrouter/google/gemma-4-26b-a4b-it:free",
-  "small_model": "openrouter/google/gemma-4-26b-a4b-it:free",
+  "model": "openrouter/google/gemma-4-31b-it:free",
+  "small_model": "openrouter/google/gemma-4-31b-it:free",
   "default_agent": "neon",
   "provider": {
     "openrouter": {
       "models": {
-        "google/gemma-4-26b-a4b-it:free": {
-          "name": "Gemma 4 26B A4B (Free)",
+        "google/gemma-4-31b-it:free": {
+          "name": "Gemma 4 31B IT (Free)",
           "tool_call": true,
-          "limit": { "context": 131072, "output": 32768 },
+          "limit": { "context": 262144, "output": 32768 },
           "cost": { "input": 0, "output": 0 }
         }
       }
