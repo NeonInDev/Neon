@@ -1,5 +1,6 @@
 const http = require("http");
 const https = require("https");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
@@ -8,8 +9,9 @@ const { MASTER_KEY } = require("./config");
 
 const SSL_DIR = path.join(__dirname, "..", "ssl");
 const SSL_PFX = path.join(SSL_DIR, "neon.pfx");
-const SSL_PASS = process.env.SSL_PASS || "neonssl2026";
+const SSL_PASS = process.env.SSL_PASS;
 const SSL_PORT = parseInt(process.env.SSL_PORT, 10) || 3443;
+const API_HOST = process.env.API_HOST || "127.0.0.1";
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const MIME = {
@@ -40,7 +42,12 @@ const ORIGENS_PERMITIDAS = [
 ];
 
 function temChave(req) {
-  return req.headers["x-hud-key"] === MASTER_KEY;
+  const chave = req.headers["x-hud-key"];
+  if (typeof chave !== "string") return false;
+
+  const recebida = Buffer.from(chave);
+  const esperada = Buffer.from(MASTER_KEY);
+  return recebida.length === esperada.length && crypto.timingSafeEqual(recebida, esperada);
 }
 
 function exigeChave(req, res) {
@@ -496,22 +503,24 @@ function iniciar(port = 3000) {
 
   server = http.createServer(handler);
 
-  server.listen(port, "0.0.0.0", () => {
-    log("INFO", `[API] Pública rodando em http://0.0.0.0:${port}`);
+  server.listen(port, API_HOST, () => {
+    log("INFO", `[API] Rodando em http://${API_HOST}:${port}`);
   });
 
-  if (fs.existsSync(SSL_PFX)) {
+  if (fs.existsSync(SSL_PFX) && SSL_PASS) {
     try {
       const ssl = https.createServer(
         { pfx: fs.readFileSync(SSL_PFX), passphrase: SSL_PASS },
         handler
       );
-      ssl.listen(SSL_PORT, "0.0.0.0", () => {
-        log("INFO", `[API] Segura rodando em https://0.0.0.0:${SSL_PORT}`);
+      ssl.listen(SSL_PORT, API_HOST, () => {
+        log("INFO", `[API] Segura rodando em https://${API_HOST}:${SSL_PORT}`);
       });
     } catch (err) {
       log("WARN", "[API] Não consegui subir HTTPS", { erro: err.message });
     }
+  } else if (fs.existsSync(SSL_PFX)) {
+    log("WARN", "[API] HTTPS desativado: defina SSL_PASS no .env");
   }
 
   return server;
