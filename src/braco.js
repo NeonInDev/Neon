@@ -1,4 +1,4 @@
-const { log } = require("../logger");
+const { log } = require("./logger");
 
 const URL_BASE = process.env.BRACO_URL || "http://localhost:8899";
 
