@@ -5,7 +5,7 @@ const { log } = require("./logger");
 const opencode = require("./opencode");
 const toolsMod = require("./tools");
 const axios = require("axios");
-const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, GROQ_API_KEY, GROQ_MODEL } = require("./config");
+const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, GROQ_API_KEY, GROQ_MODEL, OMNIROUTE_API_KEY, OMNIROUTE_BASE_URL, OMNIROUTE_MODEL } = require("./config");
 const { getModo, personaDoModo } = require("./modo");
 const { isOwner } = require("./perm"); // @chefe
 
@@ -65,7 +65,15 @@ async function chamarLLM(sistema, userMsg) {
     try {
       return await chamarGroq(messages);
     } catch (err) {
-      log("WARN", "Groq falhou, tentando OpenRouter", { erro: err.message?.slice(0, 100) });
+      log("WARN", "Groq falhou, tentando OmniRoute", { erro: err.message?.slice(0, 100) });
+    }
+  }
+
+  if (OMNIROUTE_API_KEY) {
+    try {
+      return await chamarCompletions(OMNIROUTE_BASE_URL + "/chat/completions", OMNIROUTE_API_KEY, OMNIROUTE_MODEL, messages, 60000);
+    } catch (err) {
+      log("WARN", "OmniRoute falhou, tentando OpenRouter", { erro: err.message?.slice(0, 100) });
     }
   }
 
