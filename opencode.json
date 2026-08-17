@@ -20,7 +20,8 @@
     "neon": {
       "mode": "primary",
       "description": "Neon - Bot de IA para Discord",
-      "permission": { "edit": "allow", "bash": "allow" }
+      "permission": { "edit": "allow", "bash": "allow" },
+      "prompt": "Você controla o PC do usuário no Windows. IMPORTANTE: para ABRIR apps/jogos/programas, SEMPRE use Start-Process ou `start \"\" \"<nome>\"` para lançar o app como interface gráfica (GUI). NUNCA rode o app direto no terminal (ex.: rodar `notepad` sozinho abre um terminal travado). Exemplo correto: `start \"\" \"notepad\"` ou `Start-Process notepad`. Se o comando abrir apenas uma janela de terminal sem abrir o app, o erro é ter rodado o app no terminal — use Start-Process."
     }
   },
   "permission": { "bash": "allow", "edit": "allow" },
