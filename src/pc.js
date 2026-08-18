@@ -635,9 +635,48 @@ async function enviarEmail(para, assunto, corpo) {
   }
 }
 
+// ===================== CONTROLES RÁPIDOS =====================
+
+async function dormir() {
+  try {
+    await execAsync(`powershell -NoProfile -Command "(Add-Type -AssemblyName System.Windows.Forms -PassThru).Wait()"`, { timeout: 5000, windowsHide: true });
+  } catch {}
+  await execAsync(`rundll32.exe powrprof.dll,SetSuspendState 0,1,0`, { timeout: 5000, windowsHide: true }).catch(() => {});
+  return "💤 Coloquei o PC pra dormir.";
+}
+
+async function bloquear() {
+  try {
+    await execAsync(`powershell -NoProfile -Command "(New-Object -ComObject Shell.Application).Windows() | Out-Null"`, { timeout: 5000, windowsHide: true });
+  } catch {}
+  await execAsync(`rundll32.exe user32.dll,LockWorkStation`, { timeout: 5000, windowsHide: true }).catch(() => {});
+  return "🔒 PC bloqueado.";
+}
+
+async function desligar() {
+  await execAsync(`shutdown /s /t 5 /c "Neon desligou o PC"`, { timeout: 5000, windowsHide: true }).catch(() => {});
+  return "🔌 Desligando o PC em 5 segundos...";
+}
+
+async function cancelarDesligar() {
+  await execAsync(`shutdown /a`, { timeout: 5000, windowsHide: true }).catch(() => {});
+  return "✅ Desligamento cancelado.";
+}
+
+async function abrirAppPorNome(nome) {
+  const safe = cmdEsc(nome);
+  const { spawn } = require("child_process");
+  return new Promise((resolve) => {
+    const child = spawn("cmd.exe", ["/c", "start", "", `"${safe}"`], { windowsHide: true, shell: false });
+    child.on("error", () => resolve({ ok: false, erro: `Não consegui abrir ${nome}` }));
+    child.on("exit", () => resolve({ ok: true, mensagem: `Abrindo ${nome}.` }));
+  });
+}
+
 module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
+  dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome,
   moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   tamanhoTela, scroll,

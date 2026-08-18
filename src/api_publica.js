@@ -6,6 +6,7 @@ const path = require("path");
 const { log } = require("./logger");
 const { askNeon } = require("./ai");
 const { MASTER_KEY } = require("./config");
+const { db } = require("./db");
 
 const SSL_DIR = path.join(__dirname, "..", "ssl");
 const SSL_PFX = path.join(SSL_DIR, "neon.pfx");
@@ -353,6 +354,79 @@ function iniciar(port = 3000) {
         if (!caminho) { responder(res, 400, { erro: "caminho é obrigatório" }); return; }
         const r = await remoto.abrirArquivo(caminho);
         responder(res, 200, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/pc/acao" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const pc = require("./pc");
+        const { acao, nome } = await lerBody(req);
+        let resultado;
+        switch (acao) {
+          case "dormir": resultado = await pc.dormir(); break;
+          case "bloquear": resultado = await pc.bloquear(); break;
+          case "desligar": resultado = await pc.desligar(); break;
+          case "cancelar_desligar": resultado = await pc.cancelarDesligar(); break;
+          case "abrir_app": {
+            if (!nome) { responder(res, 400, { erro: "nome é obrigatório" }); return; }
+            resultado = await pc.abrirAppPorNome(nome);
+            break;
+          }
+          default: responder(res, 400, { erro: "acao desconhecida" }); return;
+        }
+        responder(res, 200, { ok: true, resultado });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/pc/tela" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const pc = require("./pc");
+        const b64 = await pc.screenshotBase64();
+        responder(res, 200, { ok: true, imagem: `data:image/png;base64,${b64}` });
+      } catch (err) { responder(res, 500, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/historico" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const usuario = new URL(req.url, "http://x").searchParams.get("usuario") || "HUD";
+        const hist = (db.data.historico && db.data.historico[usuario]) || [];
+        responder(res, 200, { historico: hist });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/historico" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { usuario, mensagem, resposta } = await lerBody(req);
+        if (!usuario) { responder(res, 400, { erro: "usuario é obrigatório" }); return; }
+        if (!db.data.historico) db.data.historico = {};
+        if (!db.data.historico[usuario]) db.data.historico[usuario] = [];
+        db.data.historico[usuario].push({
+          t: Date.now(),
+          m: String(mensagem || "").slice(0, 2000),
+          r: String(resposta || "").slice(0, 4000),
+        });
+        if (db.data.historico[usuario].length > 200) db.data.historico[usuario] = db.data.historico[usuario].slice(-200);
+        await db.write();
+        responder(res, 200, { ok: true });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/historico" && req.method === "DELETE") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const usuario = new URL(req.url, "http://x").searchParams.get("usuario") || "HUD";
+        if (db.data.historico) db.data.historico[usuario] = [];
+        await db.write();
+        responder(res, 200, { ok: true });
       } catch (err) { responder(res, 400, { erro: err.message }); }
       return;
     }

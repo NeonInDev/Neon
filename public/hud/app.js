@@ -115,9 +115,20 @@
       const reply = data.resposta || data.erro || "Sem resposta.";
       addMsg("neon", reply);
       falar(reply);
+      if (data.resposta) {
+        try {
+          await api("/api/historico", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ usuario: "HUD", mensagem: t, resposta: data.resposta }),
+          });
+        } catch {}
+      }
+      return reply;
     } catch (err) {
       typing.remove();
       addMsg("neon", `Erro de conexão: ${err.message}`);
+      return `Erro de conexão: ${err.message}`;
     }
   }
 
@@ -356,7 +367,7 @@
 
   // ============ ABAS ============
   const tabs = document.querySelectorAll(".tab");
-  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos") };
+  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela") };
 
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -502,4 +513,119 @@
       toast(data.ok ? "Arquivo salvo" : data.erro);
     } catch (err) { toast(err.message); }
   });
+
+  // ============ CONTROLES RÁPIDOS ============
+  document.querySelectorAll(".qb-chip").forEach((chip) => {
+    chip.addEventListener("click", async () => {
+      const acao = chip.dataset.quick.toLowerCase();
+      let tipo, nome;
+      if (acao.includes("dormir")) tipo = "dormir";
+      else if (acao.includes("bloquear")) tipo = "bloquear";
+      else if (acao.includes("desligar")) tipo = "desligar";
+      else if (acao.includes("vscode")) { tipo = "abrir_app"; nome = "code"; }
+      if (!tipo) return;
+      toast("Executando...");
+      try {
+        const r = await api("/api/pc/acao", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ acao: tipo, nome }),
+        });
+        const data = await r.json();
+        toast(data.resultado || data.erro || "ok");
+      } catch (err) { toast(err.message); }
+    });
+  });
+
+  // ============ HISTÓRICO ============
+  const histList = $("histList");
+  const HIST_USUARIO = "HUD";
+
+  function histItem(h) {
+    const el = document.createElement("div");
+    el.className = "hist-item";
+    const d = new Date(h.t).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    el.innerHTML = `<div class="hist-q">${escapeHtml(h.m)}</div><div class="hist-a">${escapeHtml(h.r)}</div><div class="hist-t">${d}</div>`;
+    el.addEventListener("click", () => {
+      chatInput.value = h.m;
+      enviar(h.m);
+    });
+    return el;
+  }
+
+  async function carregarHistorico() {
+    histList.innerHTML = '<div class="hist-empty">carregando...</div>';
+    try {
+      const r = await api(`/api/historico?usuario=${encodeURIComponent(HIST_USUARIO)}`);
+      const data = await r.json();
+      const hist = data.historico || [];
+      histList.innerHTML = "";
+      if (!hist.length) {
+        histList.innerHTML = '<div class="hist-empty">Sem histórico ainda. Fale com a Neon no chat!</div>';
+        return;
+      }
+      hist.slice().reverse().forEach((h) => histList.appendChild(histItem(h)));
+    } catch (err) {
+      histList.innerHTML = `<div class="hist-empty">${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  $("btnHistAtualizar").addEventListener("click", carregarHistorico);
+  $("btnHistLimpar").addEventListener("click", async () => {
+    if (!confirm("Apagar todo o histórico de conversa?")) return;
+    try {
+      await api(`/api/historico?usuario=${encodeURIComponent(HIST_USUARIO)}`, { method: "DELETE" });
+      carregarHistorico();
+      toast("Histórico apagado");
+    } catch (err) { toast(err.message); }
+  });
+
+  // ============ TELA AO VIVO ============
+  const screenImg = $("screenImg");
+  let telaTimer = null;
+  const TELA_MS = 2000;
+
+  async function frameTela() {
+    try {
+      const r = await api("/api/pc/tela");
+      const data = await r.json();
+      if (data.imagem) screenImg.src = data.imagem;
+    } catch {}
+  }
+
+  function telaParar() {
+    clearInterval(telaTimer);
+    telaTimer = null;
+    screenImg.classList.remove("on");
+  }
+
+  $("btnTelaPlay").addEventListener("click", async () => {
+    if (telaTimer) telaParar();
+    toast("Transmitindo tela...");
+    screenImg.classList.remove("on");
+    await frameTela();
+    screenImg.classList.add("on");
+    telaTimer = setInterval(frameTela, TELA_MS);
+  });
+
+  $("btnTelaStop").addEventListener("click", () => {
+    telaParar();
+    toast("Transmissão parada");
+  });
+
+  // ============ NAV MOBILE + TAB TOPS ============
+  const botoes = document.querySelectorAll(".bn-item");
+  botoes.forEach((b) => {
+    b.addEventListener("click", () => {
+      const v = b.dataset.view;
+      tabs.forEach((x) => x.classList.toggle("active", x.dataset.view === v));
+      botoes.forEach((x) => x.classList.toggle("active", x === b));
+      Object.entries(views).forEach(([k, el]) => el.classList.toggle("active", k === v));
+      if (v === "arquivos" && !fileList.dataset.carregado) carregarArquivos();
+      if (v === "historico") carregarHistorico();
+      if (v === "tela") $("viewTela").classList.add("active");
+    });
+  });
+
+  // registra histórico de cada troca de chat
 })();

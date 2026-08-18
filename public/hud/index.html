@@ -31,18 +31,20 @@
   </header>
 
   <main class="layout">
-    <!-- ESQUERDA: ABAS -->
+    <!-- ESQUERDA: CONTEÚDO -->
     <section class="panel chat-panel">
-      <div class="panel-title">INTERFACE NEURAL <span class="accent">v2.0</span></div>
-      <nav class="tabs">
-        <button class="tab active" data-view="chat">CHAT</button>
-        <button class="tab" data-view="terminal">TERMINAL</button>
-        <button class="tab" data-view="arquivos">ARQUIVOS</button>
-      </nav>
+      <div class="panel-title">INTERFACE NEURAL <span class="accent">v3.0</span></div>
 
       <!-- CHAT -->
       <div id="viewChat" class="view active">
         <div id="chat" class="chat"></div>
+        <div class="quickbar" id="quickbar">
+          <span class="qb-label">RÁPIDO:</span>
+          <button class="qb-chip" data-quick="💤 Dormir">💤</button>
+          <button class="qb-chip" data-quick="🔒 Bloquear">🔒</button>
+          <button class="qb-chip" data-quick="🔌 Desligar">🔌</button>
+          <button class="qb-chip" data-quick="🔧 Abrir VSCode">🧰</button>
+        </div>
         <form id="chatForm" class="chat-form" autocomplete="off">
           <input id="chatInput" type="text" placeholder="Fale com a Neon..." maxlength="1000" />
           <button type="submit" id="sendBtn" title="Enviar">▲</button>
@@ -76,6 +78,29 @@
             </div>
           </div>
           <textarea id="fileEditText" spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <!-- HISTÓRICO -->
+      <div id="viewHistorico" class="view">
+        <div class="filebar">
+          <span class="file-path">HISTÓRICO DE CONVERSA</span>
+          <button id="btnHistLimpar" class="btn small" title="Limpar histórico">🗑</button>
+          <button id="btnHistAtualizar" class="btn small" title="Atualizar">⟳</button>
+        </div>
+        <div id="histList" class="file-list"></div>
+      </div>
+
+      <!-- TELA AO VIVO -->
+      <div id="viewTela" class="view">
+        <div class="filebar">
+          <span class="file-path">TELA DO PC AO VIVO</span>
+          <button id="btnTelaPlay" class="btn small">▶</button>
+          <button id="btnTelaStop" class="btn small">■</button>
+        </div>
+        <div class="screen-wrap">
+          <img id="screenImg" alt="Tela do PC" />
+          <div class="screen-empty" id="screenEmpty">Toque em ▶ para ver a tela</div>
         </div>
       </div>
     </section>
@@ -127,6 +152,15 @@
       </div>
     </section>
   </main>
+
+  <!-- NAV MOBILE -->
+  <nav class="bottomnav" id="bottomnav">
+    <button class="bn-item active" data-view="chat"><span>💬</span><span>Chat</span></button>
+    <button class="bn-item" data-view="terminal"><span>⌨</span><span>Terminal</span></button>
+    <button class="bn-item" data-view="arquivos"><span>📁</span><span>Arquivos</span></button>
+    <button class="bn-item" data-view="historico"><span>🕓</span><span>Histórico</span></button>
+    <button class="bn-item" data-view="tela"><span>🖥</span><span>Tela</span></button>
+  </nav>
 
   <div id="shotModal" class="modal hidden">
     <div class="modal-box">
