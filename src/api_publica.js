@@ -311,7 +311,7 @@ function iniciar(port = 3000) {
       return;
     }
 
-    if (req.url === "/api/arquivos" && req.method === "GET") {
+    if (req.url.split("?")[0] === "/api/arquivos" && req.method === "GET") {
       if (!temChave(req)) { responder(res, 401, { erro: "chave inválida" }); return; }
       try {
         const remoto = require("./remoto");
@@ -322,7 +322,7 @@ function iniciar(port = 3000) {
       return;
     }
 
-    if (req.url === "/api/arquivos/conteudo" && req.method === "GET") {
+    if (req.url.split("?")[0] === "/api/arquivos/conteudo" && req.method === "GET") {
       if (!temChave(req)) { responder(res, 401, { erro: "chave inválida" }); return; }
       try {
         const remoto = require("./remoto");
@@ -540,6 +540,12 @@ function iniciar(port = 3000) {
             return;
         }
       } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/ambiente" && req.method === "GET") {
+      const ambiente = process.env.RENDER ? "render" : "pc";
+      responder(res, 200, { ambiente, render: !!process.env.RENDER });
       return;
     }
 

@@ -1,6 +1,15 @@
 (() => {
   const $ = (id) => document.getElementById(id);
 
+  const AMBIENTE_RENDER = window.location.hostname.endsWith("onrender.com");
+  if (AMBIENTE_RENDER) {
+    ["terminal", "arquivos", "historico", "tela"].forEach((v) => {
+      const view = $(`view${v[0].toUpperCase()}${v.slice(1)}`);
+      if (view) view.classList.add("hidden");
+      document.querySelectorAll(`[data-view="${v}"]`).forEach((b) => (b.style.display = "none"));
+    });
+  }
+
   const chat = $("chat");
   const chatForm = $("chatForm");
   const chatInput = $("chatInput");
