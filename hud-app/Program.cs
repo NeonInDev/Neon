@@ -10,7 +10,7 @@ namespace NeonHud
 {
     public class Config
     {
-        public string url = "";
+        public string url = "https://neon-world.tail7b15b0.ts.net:3443/hud";
         public string chave = "";
 
         public static Config FromJson(string json)
@@ -49,6 +49,11 @@ namespace NeonHud
             if (File.Exists(configPath))
             {
                 try { cfg = Config.FromJson(File.ReadAllText(configPath, Encoding.UTF8)); } catch { }
+                // Se a URL salva ainda for HTTP antigo, atualiza para o HTTPS confiavel
+                if (cfg.url.StartsWith("http://") || string.IsNullOrEmpty(cfg.url))
+                {
+                    cfg.url = "https://neon-world.tail7b15b0.ts.net:3443/hud";
+                }
             }
 
             using (MainForm form = new MainForm(cfg, configPath))
