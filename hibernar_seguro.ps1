@@ -40,6 +40,8 @@ while ($true) {
 }
 
 Write-Host "[HIBERNAR] Nenhuma tarefa critica em andamento. Hibernando..."
-powercfg /hibernate on 2>$null
-rundll32.exe powrprof.dll,SetSuspendState 0,1,0
+try { powercfg /hibernate on 2>$null } catch {}
+try { shutdown /h /f } catch {
+  rundll32.exe powrprof.dll,SetSuspendState 1,1,0
+}
 Write-Host "[OK] Comando de hibernacao enviado."
