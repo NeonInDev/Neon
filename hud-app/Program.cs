@@ -72,8 +72,10 @@ namespace NeonHud
             this.cfg = cfg;
             this.configPath = configPath;
             Text = "NEON · HUD Desktop";
-            Width = 1280;
-            Height = 800;
+            Width = 1380;
+            Height = 900;
+            MinimumSize = new Size(1000, 650);
+            WindowState = FormWindowState.Normal;
             StartPosition = FormStartPosition.CenterScreen;
             BackColor = Color.FromArgb(8, 12, 22);
             Icon = null;
@@ -169,6 +171,8 @@ namespace NeonHud
                 web.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 web.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = true;
                 web.CoreWebView2.Settings.UserAgent = web.CoreWebView2.Settings.UserAgent.Replace("Edg/", "Chrome/");
+                // Zoom inicial (110%) para o HUD preencher melhor a janela no desktop
+                try { web.ZoomFactor = 1.1; } catch { }
                 await web.CoreWebView2.ExecuteScriptAsync("localStorage.setItem('hud_key', '" + chave.Replace("'", "\\'") + "');");
                 web.Source = new Uri(url);
             }
