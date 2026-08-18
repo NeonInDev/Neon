@@ -175,6 +175,7 @@ body {
 .msg.user .who { color: var(--acc); text-align: right; }
 .msg.neon .who { color: var(--orange); }
 .msg.typing { color: var(--dim); font-style: italic; }
+.msg.oc-busy { color: var(--dim); font-style: italic; animation: blink 1.2s infinite; }
 
 .chat-form { display: flex; gap: 10px; margin-top: 14px; }
 .chat-form input {

@@ -367,7 +367,7 @@
 
   // ============ ABAS ============
   const tabs = document.querySelectorAll(".tab");
-  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela") };
+  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), opencode: $("viewOpencode") };
 
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -625,6 +625,42 @@
       if (v === "historico") carregarHistorico();
       if (v === "tela") $("viewTela").classList.add("active");
     });
+  });
+
+  // ============ OPENCODE (comunicar com o opencode da Neon) ============
+  const ocChat = $("ocChat");
+  const ocForm = $("ocForm");
+  const ocInput = $("ocInput");
+
+  function ocMsg(texto, cls) {
+    const d = document.createElement("div");
+    d.className = "msg " + cls;
+    d.textContent = texto;
+    ocChat.appendChild(d);
+    ocChat.scrollTop = ocChat.scrollHeight;
+  }
+
+  ocForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const tarefa = ocInput.value.trim();
+    if (!tarefa) return;
+    ocInput.value = "";
+    ocMsg(tarefa, "user");
+    ocMsg("pensando...", "neon oc-busy");
+    try {
+      const r = await api("/api/opencode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tarefa }),
+      });
+      const data = await r.json();
+      ocChat.querySelector(".oc-busy")?.remove();
+      if (data.ok && data.resultado) ocMsg(data.resultado, "neon");
+      else ocMsg(data.erro || "sem resposta", "neon");
+    } catch (err) {
+      ocChat.querySelector(".oc-busy")?.remove();
+      ocMsg("Falha: " + err.message, "neon");
+    }
   });
 
   // registra histórico de cada troca de chat
