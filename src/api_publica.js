@@ -12,7 +12,7 @@ const SSL_DIR = path.join(__dirname, "..", "ssl");
 const SSL_PFX = path.join(SSL_DIR, "neon.pfx");
 const SSL_PASS = process.env.SSL_PASS;
 const SSL_PORT = parseInt(process.env.SSL_PORT, 10) || 3443;
-const API_HOST = process.env.API_HOST || "127.0.0.1";
+const API_HOST = process.env.API_HOST || (process.env.RENDER ? "0.0.0.0" : "127.0.0.1");
 
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const MIME = {

@@ -41,7 +41,7 @@ client.once("ready", async () => {
   try { alarmes.iniciar(); } catch (err) { log("ERROR", "[ALARME] Falha ao iniciar", { erro: err.message }); }
   try { opencode.iniciarServer().then(port => port ? log("INFO", "[OPENCODE] Pronto", { port }) : log("WARN", "[OPENCODE] Servidor nao iniciou")); } catch (err) { log("ERROR", "[OPENCODE] Falha ao iniciar", { erro: err.message }); }
   try {
-    const apiPort = parseInt(process.env.API_PORT, 10) || 3000;
+    const apiPort = parseInt(process.env.PORT || process.env.API_PORT, 10) || 3000;
     apiPublica.iniciar(apiPort);
   } catch (err) { log("ERROR", "[API] Falha ao iniciar", { erro: err.message }); }
 });

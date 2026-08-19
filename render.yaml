@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: neon
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: TOKEN
+        sync: false
+      - key: MASTER_KEY
+        sync: false
+      - key: CLIENT_ID
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: RENDER
+        value: "true"
+      - key: PROATIVO
+        value: "0"
+      - key: OPENCODE_SERVER_USERNAME
+        value: "opencode"
+      - key: OPENCODE_SERVER_PASSWORD
+        sync: false
