@@ -42,6 +42,9 @@ const ORIGENS_PERMITIDAS = [
   /^https:\/\/100\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?$/,
 ];
 
+const OPENCODE_USER = process.env.OPENCODE_SERVER_USERNAME || "opencode";
+const OPENCODE_PASS = process.env.OPENCODE_SERVER_PASSWORD || SSL_PASS || "";
+
 function temChave(req) {
   const chave = req.headers["x-hud-key"];
   if (typeof chave !== "string") return false;
@@ -51,8 +54,30 @@ function temChave(req) {
   return recebida.length === esperada.length && crypto.timingSafeEqual(recebida, esperada);
 }
 
+function temBasicAuth(req) {
+  const auth = req.headers.authorization;
+  if (typeof auth !== "string" || !auth.startsWith("Basic ")) return false;
+  let decoded;
+  try {
+    decoded = Buffer.from(auth.slice(6), "base64").toString("utf8");
+  } catch {
+    return false;
+  }
+  const sep = decoded.indexOf(":");
+  if (sep < 0) return false;
+  const user = decoded.slice(0, sep);
+  const pass = decoded.slice(sep + 1);
+  const u = Buffer.from(user);
+  const p = Buffer.from(pass);
+  const ue = Buffer.from(OPENCODE_USER);
+  const pe = Buffer.from(OPENCODE_PASS);
+  if (u.length !== ue.length || p.length !== pe.length) return false;
+  return crypto.timingSafeEqual(u, ue) && crypto.timingSafeEqual(p, pe);
+}
+
 function exigeChave(req, res) {
-  if (!temChave(req)) {
+  if (!temChave(req) && !temBasicAuth(req)) {
+    res.setHeader("WWW-Authenticate", 'Basic realm="Neon"');
     responder(res, 401, { erro: "chave inválida" });
     return false;
   }
@@ -136,6 +161,73 @@ function iniciar(port = 3000) {
     }
 
     if (req.method === "GET" && servirArquivo(req.url, res)) return;
+
+    if (req.url === "/health" && req.method === "GET") {
+      responder(res, 200, { healthy: true, version: "2.0.0" });
+      return;
+    }
+
+    if (req.url === "/global/health" && req.method === "GET") {
+      responder(res, 200, { healthy: true, version: "2.0.0" });
+      return;
+    }
+
+    if (req.url === "/doc" && req.method === "GET") {
+      const spec = {
+        openapi: "3.1.0",
+        info: { title: "Neon Server", version: "2.0.0" },
+        servers: [{ url: "/" }],
+        paths: {
+          "/health": { get: { responses: { "200": { description: "ok" } } } },
+          "/session/{id}/message": {
+            post: {
+              parameters: [{ name: "id", in: "path", required: true, schema: { type: "string" } }],
+              requestBody: { content: { "application/json": { schema: { type: "object" } } } },
+              responses: { "200": { description: "resposta da Neon" } },
+            },
+          },
+          "/api/chat": {
+            post: {
+              requestBody: { content: { "application/json": { schema: { type: "object" } } } },
+              responses: { "200": { description: "resposta da Neon" } },
+            },
+          },
+        },
+      };
+      responder(res, 200, spec);
+      return;
+    }
+
+    if (req.url === "/global/event" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
+      const ping = setInterval(() => {
+        res.write(`event: heartbeat\ndata: ${JSON.stringify({ ts: Date.now() })}\n\n`);
+      }, 15000);
+      res.write(`event: server.connected\ndata: ${JSON.stringify({ ts: Date.now() })}\n\n`);
+      req.on("close", () => clearInterval(ping));
+      return;
+    }
+
+    const sessaoMsg = req.url.match(/^\/session\/([^/]+)\/message$/);
+    if (sessaoMsg && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { parts, text } = await lerBody(req);
+        const mensagem = Array.isArray(parts)
+          ? parts.map((p) => (typeof p === "string" ? p : p?.text || "")).join(" ")
+          : text;
+        if (!mensagem || !String(mensagem).trim()) { responder(res, 400, { erro: "parts/text é obrigatório" }); return; }
+        const reply = await askNeon("api_anon", "API", String(mensagem));
+        responder(res, 200, {
+          info: { id: sessaoMsg[1], role: "assistant" },
+          parts: [{ type: "text", text: reply }],
+        });
+      } catch (err) {
+        responder(res, 400, { erro: err.message });
+      }
+      return;
+    }
 
     if (req.url === "/api/chat" && req.method === "POST") {
       if (!exigeChave(req, res)) return;
