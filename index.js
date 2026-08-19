@@ -74,6 +74,15 @@ process.on("uncaughtException", (err) => {
 if (TOKEN) {
   async function tentarLogin() {
     try {
+      if (process.env.RENDER) {
+        try {
+          const resp = await fetch("https://discord.com/api/v10/gateway/bot", { headers: { Authorization: `Bot ${TOKEN}` } });
+          const txt = await resp.text();
+          log("INFO", "[BOOT] Diagnostico Discord REST", { status: resp.status, corpo: txt.slice(0, 200) });
+        } catch (e) {
+          log("ERROR", "[BOOT] Diagnostico Discord REST falhou", { erro: e.message });
+        }
+      }
       log("INFO", "[BOOT] Conectando no Discord...");
       await client.login(TOKEN);
     } catch (err) {
