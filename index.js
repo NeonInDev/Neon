@@ -30,7 +30,7 @@ async function desligar(sinal) {
   process.exit(0);
 }
 
-client.once("ready", async () => {
+function iniciarModulos() {
   try { monitor.iniciar(client); } catch (err) { log("ERROR", "[MONITOR] Falha ao iniciar", { erro: err.message }); }
   if (PROATIVO) {
     try { proativo.iniciar(client).catch(err => log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message })); } catch (err) { log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message }); }
@@ -44,7 +44,9 @@ client.once("ready", async () => {
     const apiPort = parseInt(process.env.PORT || process.env.API_PORT, 10) || 3000;
     apiPublica.iniciar(apiPort);
   } catch (err) { log("ERROR", "[API] Falha ao iniciar", { erro: err.message }); }
-});
+}
+
+client.once("ready", iniciarModulos);
 
 process.on("SIGINT", () => desligar("SIGINT"));
 process.on("SIGTERM", () => desligar("SIGTERM"));
@@ -59,4 +61,12 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-client.login(TOKEN);
+if (TOKEN) {
+  client.login(TOKEN).catch((err) => {
+    log("ERROR", "Falha ao conectar no Discord", { erro: err.message });
+    if (!process.env.RENDER) process.exit(1);
+  });
+} else {
+  log("WARN", "[BOOT] TOKEN ausente — iniciando modulos sem Discord.");
+  iniciarModulos();
+}

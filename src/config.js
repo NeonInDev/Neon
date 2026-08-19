@@ -4,6 +4,10 @@ const required = { TOKEN: process.env.TOKEN, MASTER_KEY: process.env.MASTER_KEY 
 
 for (const [key, val] of Object.entries(required)) {
   if (!val) {
+    if (process.env.RENDER) {
+      console.error(`[AVISO] ${key} não definida (deploy Render) — bot aguardando chaves`);
+      continue;
+    }
     console.error(`[ERRO] ${key} não definida no .env`);
     process.exit(1);
   }
