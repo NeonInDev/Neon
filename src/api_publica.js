@@ -653,6 +653,76 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/celular" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const celular = require("./celular");
+        const st = await celular.status();
+        responder(res, 200, { ok: true, ...st });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/celular/conectar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const celular = require("./celular");
+        const r = await celular.conectar();
+        responder(res, 200, { ok: r.ok, mensagem: r.msg });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/celular/desconectar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const celular = require("./celular");
+        const r = await celular.desconectar();
+        responder(res, 200, { ok: r.ok, mensagem: r.msg });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/celular/espelhar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const celular = require("./celular");
+        const r = await celular.espelhar();
+        responder(res, 200, { ok: r.ok, mensagem: r.msg });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/celular/abrir" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { app } = await lerBody(req);
+        if (!app) { responder(res, 400, { erro: "app é obrigatório" }); return; }
+        const celular = require("./celular");
+        const st = await celular.status();
+        if (!st.conectado) { responder(res, 400, { erro: "celular não conectado" }); return; }
+        const pacote = celular.acharPacote(String(app).toLowerCase());
+        const r = await celular.abrirApp(pacote);
+        responder(res, 200, { ok: r.ok, mensagem: r.msg, pacote });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/celular/print" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const celular = require("./celular");
+        const st = await celular.status();
+        if (!st.conectado) { responder(res, 400, { erro: "celular não conectado" }); return; }
+        const r = await celular.printTela();
+        if (!r.ok) { responder(res, 400, { erro: r.msg || "falha no print" }); return; }
+        const fs = require("fs");
+        const b64 = fs.readFileSync(r.caminho, { encoding: "base64" });
+        responder(res, 200, { ok: true, imagem: `data:image/png;base64,${b64}` });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     responder(res, 404, { erro: "rota não encontrada" });
   };
 

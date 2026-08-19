@@ -7,6 +7,7 @@ import { useModo } from "./ModeProvider";
 const itens = [
   { href: "/", label: "Chat", icon: "💬" },
   { href: "/pc", label: "Painel do PC", icon: "🖥️" },
+  { href: "/celular", label: "Celular", icon: "📱" },
   { href: "/terminal", label: "Terminal", icon: "⌨️" },
   { href: "/arquivos", label: "Arquivos", icon: "📁" },
 ];

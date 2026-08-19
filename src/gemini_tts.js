@@ -39,8 +39,8 @@ const VOZES = {
   "william": "William",
 };
 
-// Voz padrão em PT-BR
-const VOZ_DEFAULT = "francesca";
+// Voz padrão em PT-BR (feminina, natural, estilo ChatGPT)
+const VOZ_DEFAULT = "sophia";
 
 async function geminiTTS(texto, voz = "auto", idioma = "pt-BR") {
   if (!GEMINI_API_KEY) {
@@ -53,7 +53,7 @@ async function geminiTTS(texto, voz = "auto", idioma = "pt-BR") {
   const voiceName = voz === "auto" ? VOZ_DEFAULT : (VOZES[voz.toLowerCase()] || voz);
 
   // Instruções de fala natural (Gemini TTS é prompt-controllable)
-  const speakingStyle = "Diga de forma natural, calorosa e com entonação humana. Fale como se estivesse conversando com um amigo, com ritmo variado e pausas leves. Use sotaque brasileiro natural.";
+  const speakingStyle = "Fale de forma feminina, doce e natural, com entonação humana calorosa, como a voz do ChatGPT. Ritmo suave e conversacional, pausas leves, tom amigável e acolhedor. Use sotaque brasileiro natural.";
 
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent`;

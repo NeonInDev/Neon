@@ -228,6 +228,27 @@ async function falar(guildId, texto) {
   const arquivo = path.join(tmp, `neon_vc_${ts}.mp3`);
 
   try {
+    // Tenta Gemini TTS primeiro (voz natural feminina estilo ChatGPT)
+    try {
+      const { geminiTTS, temApiKey } = require("./gemini_tts");
+      if (temApiKey()) {
+        const wavGemini = await geminiTTS(limpo, "auto");
+        if (wavGemini && wavValido(wavGemini)) {
+          const resource = createAudioResource(wavGemini, { inlineVolume: true, inputType: StreamType.Arbitrary });
+          resource.volume?.setVolume(1);
+          player.play(resource);
+          ultimaFala = { texto: limpo, quando: Date.now() };
+          player.once(AudioPlayerStatus.Idle, () => {
+            mudoAte = Date.now() + 1200;
+            try { fs.unlinkSync(wavGemini); } catch {}
+          });
+          return true;
+        }
+      }
+    } catch (e) {
+      log("WARN", "[VOZ] Gemini TTS falhou, tentando edge", { erro: e.message });
+    }
+
     const tts = new EdgeTTS(limpo, vozPorModo());
     const resultado = await tts.synthesize();
     fs.writeFileSync(arquivo, Buffer.from(await resultado.audio.arrayBuffer()));
