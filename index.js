@@ -1,4 +1,6 @@
 require("dotenv").config();
+const dns = require("dns");
+try { dns.setDefaultResultOrder("ipv4first"); } catch {}
 
 const { client } = require("./src/client");
 const { db } = require("./src/db");
@@ -70,14 +72,22 @@ process.on("uncaughtException", (err) => {
 });
 
 if (TOKEN) {
+  async function tentarLogin() {
+    try {
+      log("INFO", "[BOOT] Conectando no Discord...");
+      await client.login(TOKEN);
+    } catch (err) {
+      log("ERROR", "[BOOT] Falha ao conectar no Discord", { erro: err.message });
+      if (!process.env.RENDER) process.exit(1);
+      log("WARN", "[BOOT] Tentando de novo em 30s (Render)...");
+      setTimeout(tentarLogin, 30000);
+    }
+  }
   const loginTimeout = setTimeout(() => {
-    log("WARN", "[BOOT] Login no Discord demorou demais (30s). API segue rodando.");
-  }, 30000);
-  client.login(TOKEN).then(() => clearTimeout(loginTimeout)).catch((err) => {
-    clearTimeout(loginTimeout);
-    log("ERROR", "Falha ao conectar no Discord", { erro: err.message });
-    if (!process.env.RENDER) process.exit(1);
-  });
+    log("WARN", "[BOOT] Login no Discord ainda pendente (60s). API segue rodando; reconexao automatica do discord.js cuida disso.");
+  }, 60000);
+  client.once("ready", () => clearTimeout(loginTimeout));
+  tentarLogin();
 } else {
   log("WARN", "[BOOT] TOKEN ausente — iniciando modulos sem Discord.");
   iniciarModulos();
