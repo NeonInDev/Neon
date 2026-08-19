@@ -3,7 +3,7 @@
 
   const AMBIENTE_RENDER = window.location.hostname.endsWith("onrender.com");
   if (AMBIENTE_RENDER) {
-    ["terminal", "arquivos", "historico", "tela"].forEach((v) => {
+    ["terminal", "arquivos", "historico", "tela", "celular"].forEach((v) => {
       const view = $(`view${v[0].toUpperCase()}${v.slice(1)}`);
       if (view) view.classList.add("hidden");
       document.querySelectorAll(`[data-view="${v}"]`).forEach((b) => (b.style.display = "none"));
@@ -376,7 +376,7 @@
 
   // ============ ABAS ============
   const tabs = document.querySelectorAll(".tab");
-  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), opencode: $("viewOpencode") };
+  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode") };
 
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -633,7 +633,51 @@
       if (v === "arquivos" && !fileList.dataset.carregado) carregarArquivos();
       if (v === "historico") carregarHistorico();
       if (v === "tela") $("viewTela").classList.add("active");
+      if (v === "celular") carregarCelular();
     });
+  });
+
+  // ============ CELULAR (adb/scrcpy) ============
+  const celStatus = $("celStatus");
+  const celShot = $("celShot");
+  const celShotImg = $("celShotImg");
+  const celAppInput = $("celApp");
+
+  async function carregarCelular() {
+    try {
+      const r = await api("/api/celular");
+      const d = await r.json();
+      celStatus.textContent = d.conectado ? `✅ conectado (${d.dispositivo || (d.ip + ":" + d.porta)})` : "❌ desconectado";
+    } catch { celStatus.textContent = "❌ offline"; }
+  }
+
+  async function acaoCelular(caminho, body) {
+    toast("Executando...");
+    try {
+      const r = await api(`/api/celular/${caminho}`, {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const d = await r.json();
+      if (d.imagem) {
+        celShot.classList.remove("hidden");
+        celShotImg.src = d.imagem;
+        toast("Print gerado");
+      } else {
+        toast(d.mensagem || d.erro || "ok");
+      }
+    } catch (err) { toast(err.message); }
+    carregarCelular();
+  }
+
+  $("btnCelConectar").addEventListener("click", () => acaoCelular("conectar"));
+  $("btnCelDesconectar").addEventListener("click", () => acaoCelular("desconectar"));
+  $("btnCelEspelhar").addEventListener("click", () => acaoCelular("espelhar"));
+  $("btnCelPrint").addEventListener("click", () => acaoCelular("print"));
+  $("btnCelAbrir").addEventListener("click", () => {
+    const app = celAppInput.value.trim();
+    if (app) acaoCelular("abrir", { app });
   });
 
   // ============ OPENCODE (comunicar com o opencode da Neon) ============

@@ -104,6 +104,25 @@
         </div>
       </div>
 
+      <!-- CELULAR -->
+      <div id="viewCelular" class="view">
+        <div class="panel-title">CELULAR <span class="accent">ADB</span></div>
+        <div class="cel-status" id="celStatus">—</div>
+        <div class="control-row" style="flex-wrap:wrap">
+          <button id="btnCelConectar" class="btn">📱 Conectar</button>
+          <button id="btnCelDesconectar" class="btn">⏹ Desconectar</button>
+          <button id="btnCelEspelhar" class="btn">🖥 Espelhar</button>
+          <button id="btnCelPrint" class="btn accent">📸 Print</button>
+        </div>
+        <div class="filebar" style="margin-top:10px">
+          <input id="celApp" class="term-input" placeholder="whatsapp, youtube, instagram..." />
+          <button id="btnCelAbrir" class="btn small">ABRIR APP</button>
+        </div>
+        <div id="celShot" class="screen-wrap hidden">
+          <img id="celShotImg" alt="Print do celular" />
+        </div>
+      </div>
+
       <!-- OPENCODE -->
       <div id="viewOpencode" class="view">
         <div class="panel-title">OPCODE <span class="accent">NEONWORLD</span></div>
@@ -170,6 +189,7 @@
     <button class="bn-item" data-view="arquivos"><span>📁</span><span>Arquivos</span></button>
     <button class="bn-item" data-view="historico"><span>🕓</span><span>Histórico</span></button>
     <button class="bn-item" data-view="tela"><span>🖥</span><span>Tela</span></button>
+    <button class="bn-item" data-view="celular"><span>📱</span><span>Celular</span></button>
     <button class="bn-item" data-view="opencode"><span>🤖</span><span>Opcode</span></button>
   </nav>
 
