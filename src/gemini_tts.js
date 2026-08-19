@@ -6,41 +6,43 @@ const { log } = require("./logger");
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const TMP = process.env.TEMP || "C:\\Temp";
 
-// Vozes disponíveis do Gemini TTS
+// Vozes disponíveis do Gemini TTS (gemini-2.5-flash-preview-tts usa nomes de estrelas)
 const VOZES = {
-  "alice": "Alice",
-  "bill": "Bill",
-  "bo": "Bo",
-  "catalina": "Catalina",
-  "charlie": "Charlie",
-  "charlotte": "Charlotte",
-  "daniel": "Daniel",
-  "elena": "Elena",
-  "emily": "Emily",
-  "eva": "Eva",
-  "francesca": "Francesca",
-  "gabriel": "Gabriel",
-  "george": "George",
-  "giovanni": "Giovanni",
+  "achernar": "Achernar",
+  "achird": "Achird",
+  "algenib": "Algenib",
+  "algieba": "Algieba",
+  "alnilam": "Alnilam",
+  "aoede": "Aoede",
+  "autonoe": "Autonoe",
+  "callirrhoe": "Callirrhoe",
+  "charon": "Charon",
+  "despina": "Despina",
+  "enceladus": "Enceladus",
+  "erinome": "Erinome",
+  "fenrir": "Fenrir",
+  "gacrux": "Gacrux",
+  "iapetus": "Iapetus",
   "kore": "Kore",
-  "leah": "Leah",
-  "leo": "Leo",
-  "lily": "Lily",
-  "mandy": "Mandy",
-  "matthew": "Matthew",
-  "narrator": "Narrator",
-  "nicole": "Nicole",
-  "ninja": "Ninja",
+  "laomedeia": "Laomedeia",
+  "leda": "Leda",
+  "orus": "Orus",
   "puck": "Puck",
-  "rachel": "Rachel",
-  "sam": "Sam",
-  "serena": "Serena",
-  "sophia": "Sophia",
-  "william": "William",
+  "pulcherrima": "Pulcherrima",
+  "rasalgethi": "Rasalgethi",
+  "sadachbia": "Sadachbia",
+  "sadaltager": "Sadaltager",
+  "schedar": "Schedar",
+  "sulafat": "Sulafat",
+  "umbriel": "Umbriel",
+  "vindemiatrix": "Vindemiatrix",
+  "zephyr": "Zephyr",
+  "zubenelgenubi": "Zubenelgenubi",
 };
 
-// Voz padrão em PT-BR (feminina, natural, estilo ChatGPT)
-const VOZ_DEFAULT = "sophia";
+// Voz padrão (feminina, natural, estilo ChatGPT)
+const VOZ_DEFAULT = "kore";
+const MODELO_TTS = "gemini-2.5-flash-preview-tts";
 
 async function geminiTTS(texto, voz = "auto", idioma = "pt-BR") {
   if (!GEMINI_API_KEY) {
@@ -56,7 +58,7 @@ async function geminiTTS(texto, voz = "auto", idioma = "pt-BR") {
   const speakingStyle = "Fale de forma feminina, doce e natural, com entonação humana calorosa, como a voz do ChatGPT. Ritmo suave e conversacional, pausas leves, tom amigável e acolhedor. Use sotaque brasileiro natural.";
 
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-tts-preview:generateContent`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODELO_TTS}:generateContent`;
 
     const payload = {
       contents: [{
