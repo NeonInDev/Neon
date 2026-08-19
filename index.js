@@ -30,6 +30,13 @@ async function desligar(sinal) {
   process.exit(0);
 }
 
+function iniciarAPI() {
+  try {
+    const apiPort = parseInt(process.env.PORT || process.env.API_PORT, 10) || 3000;
+    apiPublica.iniciar(apiPort);
+  } catch (err) { log("ERROR", "[API] Falha ao iniciar", { erro: err.message }); }
+}
+
 function iniciarModulos() {
   try { monitor.iniciar(client); } catch (err) { log("ERROR", "[MONITOR] Falha ao iniciar", { erro: err.message }); }
   if (PROATIVO) {
@@ -40,13 +47,14 @@ function iniciarModulos() {
   try { agendados.verificarCadaMinuto(); } catch (err) { log("ERROR", "[AGENDADOS] Falha ao iniciar", { erro: err.message }); }
   try { alarmes.iniciar(); } catch (err) { log("ERROR", "[ALARME] Falha ao iniciar", { erro: err.message }); }
   try { opencode.iniciarServer().then(port => port ? log("INFO", "[OPENCODE] Pronto", { port }) : log("WARN", "[OPENCODE] Servidor nao iniciou")); } catch (err) { log("ERROR", "[OPENCODE] Falha ao iniciar", { erro: err.message }); }
-  try {
-    const apiPort = parseInt(process.env.PORT || process.env.API_PORT, 10) || 3000;
-    apiPublica.iniciar(apiPort);
-  } catch (err) { log("ERROR", "[API] Falha ao iniciar", { erro: err.message }); }
 }
 
-client.once("ready", iniciarModulos);
+client.once("ready", () => {
+  log("INFO", "Discord pronto");
+  iniciarModulos();
+});
+
+iniciarAPI();
 
 process.on("SIGINT", () => desligar("SIGINT"));
 process.on("SIGTERM", () => desligar("SIGTERM"));
@@ -62,7 +70,11 @@ process.on("uncaughtException", (err) => {
 });
 
 if (TOKEN) {
-  client.login(TOKEN).catch((err) => {
+  const loginTimeout = setTimeout(() => {
+    log("WARN", "[BOOT] Login no Discord demorou demais (30s). API segue rodando.");
+  }, 30000);
+  client.login(TOKEN).then(() => clearTimeout(loginTimeout)).catch((err) => {
+    clearTimeout(loginTimeout);
     log("ERROR", "Falha ao conectar no Discord", { erro: err.message });
     if (!process.env.RENDER) process.exit(1);
   });
