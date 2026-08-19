@@ -49,11 +49,13 @@ function Sync-ToUSB {
     New-Item -ItemType Directory -Path "${target}ventoy\theme" -Force | Out-Null
     New-Item -ItemType Directory -Path "${target}assets" -Force | Out-Null
     New-Item -ItemType Directory -Path "${target}scripts" -Force | Out-Null
+    New-Item -ItemType Directory -Path "${target}yggdrasil" -Force | Out-Null
     New-Item -ItemType Directory -Path "${target}ISO" -Force | Out-Null
 
     Copy-Item "$REPO\installer\*" "${target}installer\" -Force -Recurse
     if (Test-Path "$REPO\neon") { Copy-Item "$REPO\neon" "${target}neon\" -Recurse -Force }
     if (Test-Path "$REPO\runtimes") { Copy-Item "$REPO\runtimes" "${target}runtimes\" -Recurse -Force }
+    if (Test-Path "$REPO\yggdrasil") { Copy-Item "$REPO\yggdrasil\*" "${target}yggdrasil\" -Recurse -Force }
     Copy-Item "$REPO\instalar.bat" "$target" -Force
     Copy-Item "$REPO\desinstalar.bat" "$target" -Force
     Copy-Item "$REPO\instalar.vbs" "$target" -Force
