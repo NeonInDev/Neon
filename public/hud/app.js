@@ -175,6 +175,8 @@
       if (info) {
         if (cpu != null) partes.push(`CPU ${Math.round(cpu)}%`);
         if (ram != null) partes.push(`RAM ${Math.round(ram)}%`);
+        if (info.temperatura != null) partes.push(`Temp ${info.temperatura}°C`);
+        if (info.temperaturaGpu != null) partes.push(`GPU ${info.temperaturaGpu}°C`);
         if (info.ramLivre != null) partes.push(`${info.ramLivre.toFixed(1)} GB livres`);
         if (info.cpuNome) partes.push(info.cpuNome.trim().slice(0, 28));
         if (bateria?.temBateria) partes.push(`Bateria ${bateria.pct}% (${bateria.status})`);

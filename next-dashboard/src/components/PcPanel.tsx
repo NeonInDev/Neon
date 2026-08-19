@@ -8,6 +8,8 @@ type Info = {
   ramUso?: number;
   ramLivre?: number;
   discoUso?: number;
+  temperatura?: number;
+  temperaturaGpu?: number;
 };
 
 type Bateria = { temBateria?: boolean; pct?: number; status?: string };
@@ -137,6 +139,8 @@ export function PcPanel() {
               : "sem bateria"
           }
         />
+        <Card nome="Temp CPU" valor={info?.temperatura != null ? `${info.temperatura}°C` : "--"} />
+        <Card nome="Temp GPU" valor={info?.temperaturaGpu != null ? `${info.temperaturaGpu}°C` : "--"} />
       </div>
 
       <div className="rounded-xl border border-[var(--border)] bg-[var(--panel2)] p-4">
