@@ -25,6 +25,8 @@ module.exports = {
   OMNIROUTE_API_KEY: process.env.OMNIROUTE_API_KEY,
   OMNIROUTE_BASE_URL: process.env.OMNIROUTE_BASE_URL || "http://localhost:20128/v1",
   OMNIROUTE_MODEL: process.env.OMNIROUTE_MODEL || "auto",
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-3.6-flash",
   VOZ_NEON: process.env.VOZ_NEON || "pt-BR-FranciscaNeural",
   PROATIVO: process.env.PROATIVO !== "0",
   DOCS_PORT: parseInt(process.env.DOCS_PORT, 10) || 3000,

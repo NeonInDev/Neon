@@ -354,64 +354,21 @@ if ($w) {
 async function verTela(objetivo = "") {
   const caminho = await screenshot();
   if (!require("fs").existsSync(caminho)) return { erro: "Falha ao capturar tela" };
-  const axios = require("axios");
   const fs2 = require("fs");
   const imgBase64 = fs2.readFileSync(caminho, { encoding: "base64" });
   const prompt = objetivo
     ? `Descreva o que você vê nesta imagem da tela do computador. Foco em: ${objetivo}. Responda em português, seja detalhado sobre posições de elementos, botões, textos.`
     : `Descreva detalhadamente o que você vê nesta imagem da tela do computador. Inclua todos os textos, botões, janelas e elementos visíveis. Responda em português.`;
 
-  const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL } = require("./config");
-
-  try {
-    const resp = await axios.post(
-      "https://api.deepseek.com/v1/chat/completions",
-      {
-        model: DEEPSEEK_MODEL,
-        max_tokens: 1024,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${imgBase64}` } }
-          ]
-        }]
-      },
-      { timeout: 30000, headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" } }
-    );
-    const descricao = resp?.data?.choices?.[0]?.message?.content;
-    if (descricao) return { descricao, caminho };
-  } catch {}
-
-  return { erro: "DeepSeek não conseguiu analisar a tela", caminho };
+  const visao = require("./visao");
+  const resultado = await visao.analisarImagem(imgBase64, prompt);
+  if (resultado?.erro) return { erro: resultado.erro, caminho };
+  return { descricao: resultado.descricao, caminho, modelo: resultado.modelo };
 }
 
 async function analisarImagem(base64, prompt = "Descreva detalhadamente o que você vê nesta imagem. Responda em português.") {
-  const axios = require("axios");
-  const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL } = require("./config");
-
-  try {
-    const resp = await axios.post(
-      "https://api.deepseek.com/v1/chat/completions",
-      {
-        model: DEEPSEEK_MODEL,
-        max_tokens: 1024,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: base64.startsWith("data:") ? base64 : `data:image/png;base64,${base64}` } }
-          ]
-        }]
-      },
-      { timeout: 30000, headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" } }
-    );
-    const descricao = resp?.data?.choices?.[0]?.message?.content;
-    if (descricao) return { descricao };
-  } catch (err) {
-    return { erro: err.message };
-  }
-  return { erro: "DeepSeek não respondeu" };
+  const visao = require("./visao");
+  return visao.analisarImagem(base64, prompt);
 }
 
 // ===================== FUNÇÕES EXISTENTES (MANTIDAS) =====================
@@ -506,6 +463,41 @@ async function pcInfoJson() {
     '  temperatura = $null',
     '  temperaturaDisponivel = $false',
     '}',
+    'try {',
+    '  $lhm = "C:\\Users\\Pichau\\neon\\libs\\librehardwaremonitor\\LibreHardwareMonitorLib.dll"',
+    '  if (Test-Path $lhm) {',
+    '    Add-Type -Path $lhm -ErrorAction Stop',
+    '    $comp = New-Object LibreHardwareMonitor.Hardware.Computer',
+    '    $comp.IsCpuEnabled = $true',
+    '    $comp.IsGpuEnabled = $true',
+    '    $comp.IsMotherboardEnabled = $true',
+    '    $comp.IsMemoryEnabled = $false',
+    '    $comp.Open()',
+    '    $comp.Accept([LibreHardwareMonitor.Hardware.SensorVisitor]::new())',
+    '    $temps = @()',
+    '    foreach ($hw in $comp.Hardware) {',
+    '      $hw.Update()',
+    '      $hw.Hardware | ForEach-Object { $_.Update() }',
+    '      foreach ($s in $hw.Sensors) {',
+    '        if ($s.SensorType -eq [LibreHardwareMonitor.Hardware.SensorType]::Temperature -and $s.Value.HasValue) {',
+    '          $temps += [pscustomobject]@{ Nome = $s.Name; Valor = [math]::Round($s.Value.Value, 1) }',
+    '        }',
+    '      }',
+    '      foreach ($sub in $hw.Hardware) {',
+    '        foreach ($s in $sub.Sensors) {',
+    '          if ($s.SensorType -eq [LibreHardwareMonitor.Hardware.SensorType]::Temperature -and $s.Value.HasValue) {',
+    '            $temps += [pscustomobject]@{ Nome = $s.Name; Valor = [math]::Round($s.Value.Value, 1) }',
+    '          }',
+    '        }',
+    '      }',
+    '    }',
+    '    $comp.Close()',
+    '    if ($temps.Count -gt 0) {',
+    '      $json.temperatura = ($temps | Sort-Object Valor -Descending | Select-Object -First 1).Valor',
+    '      $json.temperaturaDisponivel = $true',
+    '    }',
+    '  }',
+    '} catch {}',
     '$json | ConvertTo-Json -Compress',
   ].join("\n");
   const raw = await ps(script, "pcInfoJson");

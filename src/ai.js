@@ -8,6 +8,7 @@ const axios = require("axios");
 const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, GROQ_API_KEY, GROQ_MODEL, OMNIROUTE_API_KEY, OMNIROUTE_BASE_URL, OMNIROUTE_MODEL } = require("./config");
 const { getModo, personaDoModo } = require("./modo");
 const { isOwner } = require("./perm"); // @chefe
+const visao = require("./visao");
 
 const MAX_INPUT_LEN = 2000;
 const MAX_ITERACOES_FERRAMENTAS = 3;
@@ -150,6 +151,15 @@ ${tratamentoChefe}`;
 
   try {
     let userMsg = `${historicoTxt}Usuário: ${promptTruncado}`;
+
+    if (imageUrl) {
+      const contextoImagem = await visaoDaImagem(imageUrl);
+      if (contextoImagem) {
+        userMsg += `\n\n[IMAGEM ENVIADA PELO USUÁRIO]\n${contextoImagem}\n[FIM DA IMAGEM]`;
+        log("INFO", "[VISAO] Imagem anexada analisada", { usuario: username, url: String(imageUrl).slice(0, 80) });
+      }
+    }
+
     let resposta = await chamarLLM(sistema, userMsg);
 
     for (let iter = 0; iter < MAX_ITERACOES_FERRAMENTAS; iter++) {
@@ -190,6 +200,23 @@ Agora responda ao usuário naturalmente com base nesses resultados. Se precisar 
   } catch (err) {
     log("ERROR", "Falha", { erro: err.message });
     return "❌ Erro interno.";
+  }
+}
+
+async function visaoDaImagem(imageUrl) {
+  try {
+    const { data } = await axios.get(imageUrl, { timeout: 30000, responseType: "arraybuffer" });
+    const mime = data?.type || "image/png";
+    const base64 = Buffer.from(data).toString("base64");
+    const resultado = await visao.analisarImagem(base64, "Descreva detalhadamente o que você vê nesta imagem enviada pelo usuário. Inclua textos, objetos, pessoas, cores e contexto. Responda em português.", mime);
+    if (resultado?.erro) {
+      log("WARN", "[VISAO] Falha ao analisar imagem", { erro: resultado.erro });
+      return null;
+    }
+    return resultado.descricao;
+  } catch (err) {
+    log("WARN", "[VISAO] Erro ao baixar imagem", { erro: err.message?.slice(0, 100) });
+    return null;
   }
 }
 
