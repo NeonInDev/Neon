@@ -34,17 +34,17 @@
     "browser": {
       "type": "local",
       "command": ["npx", "-y", "@playwright/mcp", "--headless", "--browser", "chrome"],
-      "enabled": false
+      "enabled": true
     },
     "pc": {
       "type": "local",
-      "command": ["node", "src/pc.js"],
-      "enabled": false
+      "command": ["node", "src/mcp-pc.js"],
+      "enabled": true
     },
     "celular": {
       "type": "local",
       "command": ["node", "src/mcp-celular.js"],
-      "enabled": false
+      "enabled": true
     },
     "system": {
       "type": "local",

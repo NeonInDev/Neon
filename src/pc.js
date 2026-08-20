@@ -694,9 +694,15 @@ async function abrirAppPorNome(nome) {
   const safe = cmdEsc(nome);
   const { spawn } = require("child_process");
   return new Promise((resolve) => {
-    const child = spawn("cmd.exe", ["/c", "start", "", `"${safe}"`], { windowsHide: true, shell: false });
+    const child = spawn("cmd.exe", ["/c", "start", "", `"${safe}"`], {
+      windowsHide: true,
+      shell: false,
+      detached: true,
+      stdio: "ignore",
+    });
     child.on("error", () => resolve({ ok: false, erro: `Não consegui abrir ${nome}` }));
-    child.on("exit", () => resolve({ ok: true, mensagem: `Abrindo ${nome}.` }));
+    child.on("spawn", () => resolve({ ok: true, mensagem: `Abrindo ${nome}.` }));
+    child.unref();
   });
 }
 

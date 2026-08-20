@@ -77,6 +77,15 @@ const FERRAMENTAS = [
     },
   },
   {
+    name: "pc_abrir_app",
+    description: "Abre um aplicativo/jogo/programa do Windows pelo nome (ex: 'notepad', 'steam', 'discord', 'chrome'). Usa Start-Process para abrir como interface grafica.",
+    inputSchema: {
+      type: "object",
+      properties: { nome: { type: "string", description: "Nome do app (ex: notepad, chrome, steam)" } },
+      required: ["nome"],
+    },
+  },
+  {
     name: "pc_janelas",
     description: "Lista as janelas abertas.",
     inputSchema: { type: "object", properties: {} },
@@ -123,6 +132,9 @@ async function chamarFerramenta(nome, args) {
       break;
     case "pc_digitar":
       texto = JSON.stringify(await pc.digitarTexto(args.texto));
+      break;
+    case "pc_abrir_app":
+      texto = JSON.stringify(await pc.abrirAppPorNome(args.nome));
       break;
     case "pc_janelas":
       texto = JSON.stringify(await pc.listarJanelas());

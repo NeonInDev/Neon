@@ -121,13 +121,24 @@ function combinarTextoMensagens(mensagens) {
 }
 
 function algumaAtiva(mensagens, message) {
+  const bot = message.client.user;
+  // 1) @mention real da Neon (ex.: "@Neon faz X")
+  if (message.mentions?.has(bot?.id)) return true;
   for (const m of mensagens) {
     const lower = m.content.toLowerCase();
+    // 2) Prefixo /neon
     if (/^\/neon\b/.test(lower)) return true;
-    // Ativa quando fala "neon" no início ou no final da mensagem
+    // 3) Fala "neon" no início ou no final (menção por nome)
     if (/^\s*neon[\s,!.\-:;]*\s*/i.test(lower) || /[\s,!.\-:;]*\s*neon\s*$/i.test(lower)) return true;
   }
-  if (message.reference) return true;
+  // 4) Reply SOMENTE se for na mensagem da própria Neon (não em qualquer reply)
+  if (message.reference?.messageId) {
+    try {
+      const referenciada = message.channel?.messages?.cache?.get(message.reference.messageId);
+      if (referenciada?.author?.id === bot?.id) return true;
+    } catch {}
+  }
+  // 5) DM
   if (message.channel.type === ChannelType.DM) return true;
   return false;
 }
