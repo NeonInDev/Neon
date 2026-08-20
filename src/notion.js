@@ -4,7 +4,7 @@
 //   NOTION_API_KEY=<integration token> (criado em notion.so/my-integrations)
 //   NOTION_DATABASE_ID=<id do banco de dados padrão>
 const axios = require("axios");
-const { NOTION_API_KEY, NOTION_DATABASE_ID } = require("./config");
+const { NOTION_API_KEY, NOTION_DATABASE_ID, NOTION_AGENDA_ID } = require("./config");
 const { log } = require("./logger");
 
 const BASE = "https://api.notion.com/v1";
@@ -35,8 +35,55 @@ function status() {
     configurado: Boolean(NOTION_API_KEY && NOTION_DATABASE_ID),
     temChave: Boolean(NOTION_API_KEY),
     temBanco: Boolean(NOTION_DATABASE_ID),
+    temAgenda: Boolean(NOTION_AGENDA_ID),
     bancoId: NOTION_DATABASE_ID || null,
+    agendaId: NOTION_AGENDA_ID || null,
   };
+}
+
+// Lista eventos da agenda (banco com coluna de data). Usado pelo Notion Calendar.
+async function listarEventos(databaseId = NOTION_AGENDA_ID || NOTION_DATABASE_ID, limite = 30) {
+  if (!NOTION_API_KEY) return { ok: false, erro: "NOTION_API_KEY não configurada" };
+  if (!databaseId) return { ok: false, erro: "nenhum banco de agenda configurado" };
+  try {
+    const resp = await client().post(`/databases/${databaseId}/query`, {
+      page_size: limite,
+      sorts: [{ property: "Data", direction: "ascending" }],
+    });
+    const eventos = (resp.data.results || []).map((p) => {
+      const props = {};
+      for (const [nome, valor] of Object.entries(p.properties || {})) {
+        props[nome] = resumirPropriedade(valor);
+      }
+      return { id: p.id, url: p.url, propriedades: props };
+    });
+    return { ok: true, eventos, total: eventos.length, banco: databaseId };
+  } catch (err) {
+    log("ERROR", "[NOTION] listarEventos falhou", { erro: extrairErro(err) });
+    return { ok: false, erro: extrairErro(err) };
+  }
+}
+
+// Cria um evento na agenda. Propriedades esperadas:
+// { nome, data: "2026-08-25T14:00:00" ou "2026-08-25", descricao?, status? }
+async function criarEvento({ nome, data, descricao, status: statusEvt }, databaseId = NOTION_AGENDA_ID || NOTION_DATABASE_ID) {
+  if (!NOTION_API_KEY) return { ok: false, erro: "NOTION_API_KEY não configurada" };
+  if (!databaseId) return { ok: false, erro: "nenhum banco de agenda configurado" };
+  if (!nome || !data) return { ok: false, erro: "informe nome e data (ex.: nome=X, data=2026-08-25T14:00:00)" };
+  try {
+    const props = { nome };
+    if (data) props.data = `date:${data}`;
+    if (descricao) props.descricao = String(descricao);
+    if (statusEvt) props.status = `select:${statusEvt}`;
+    const resp = await client().post("/pages", {
+      parent: { database_id: databaseId },
+      properties: await montarPropriedades(props, databaseId),
+    });
+    return { ok: true, eventoId: resp.data.id, url: resp.data.url };
+  } catch (err) {
+    log("ERROR", "[NOTION] criarEvento falhou", { erro: extrairErro(err) });
+    return { ok: false, erro: extrairErro(err) };
+  }
 }
 
 // Busca as páginas de um banco de dados. Retorna resumo das propriedades.
@@ -94,15 +141,17 @@ function resumirPropriedade(valor) {
 // Cache do schema do banco (nome real das colunas e coluna de título), por databaseId.
 const schemaCache = new Map();
 
-// Busca o schema de um banco e retorna { mapa: chave-minúscula -> nome real, titulo: nome da coluna title }.
+// Busca o schema de um banco e retorna
+// { mapa: chave-minúscula -> nome real, titulo: nome da coluna title, tipos: {nomeReal: tipo} }.
 async function obterMapaColunas(databaseId = NOTION_DATABASE_ID) {
-  if (!NOTION_API_KEY || !databaseId) return { mapa: {}, titulo: null };
+  if (!NOTION_API_KEY || !databaseId) return { mapa: {}, titulo: null, tipos: {} };
   if (schemaCache.has(databaseId)) return schemaCache.get(databaseId);
-  const info = { mapa: {}, titulo: null };
+  const info = { mapa: {}, titulo: null, tipos: {} };
   try {
     const resp = await client().get(`/databases/${databaseId}`);
     for (const [nome, meta] of Object.entries(resp.data.properties || {})) {
       info.mapa[nome.toLowerCase()] = nome;
+      info.tipos[nome] = meta.type;
       if (meta.type === "title") info.titulo = nome;
     }
     schemaCache.set(databaseId, info);
@@ -119,7 +168,7 @@ async function obterMapaColunas(databaseId = NOTION_DATABASE_ID) {
 // (prefixo "status:" ou coluna "Status"), data (prefixo "date:"), url (prefixo
 // "url:"), resto é rich_text. As chaves são normalizadas (case-insensitive).
 async function montarPropriedades(obj, databaseId = NOTION_DATABASE_ID) {
-  const { mapa, titulo } = await obterMapaColunas(databaseId);
+  const { mapa, titulo, tipos } = await obterMapaColunas(databaseId);
   const entradas = Object.entries(obj || {});
   const props = {};
   for (let i = 0; i < entradas.length; i++) {
@@ -127,22 +176,25 @@ async function montarPropriedades(obj, databaseId = NOTION_DATABASE_ID) {
     if (valor === undefined || valor === null) continue;
     const nomeReal = mapa[nome.toLowerCase()] || nome;
     const ehTitulo = (titulo && nomeReal.toLowerCase() === titulo.toLowerCase()) || (!titulo && i === 0);
+    const tipoReal = tipos[nomeReal] || "";
     const chave = nomeReal.toLowerCase();
     if (ehTitulo) {
       props[nomeReal] = { title: [{ text: { content: String(valor).slice(0, 2000) } }] };
-    } else if (chave === "status" || (typeof valor === "string" && valor.startsWith("status:"))) {
-      const v = chave === "status" ? String(valor) : valor.slice(7);
+    } else if (tipoReal === "status" || (chave === "status" && tipoReal !== "select")) {
+      const v = String(valor);
       props[nomeReal] = { status: { name: v } };
+    } else if (tipoReal === "select" || (typeof valor === "string" && valor.startsWith("select:"))) {
+      const v = typeof valor === "string" && valor.startsWith("select:") ? valor.slice(7) : String(valor);
+      props[nomeReal] = { select: { name: v } };
+    } else if (tipoReal === "date" || (typeof valor === "string" && valor.startsWith("date:"))) {
+      const v = typeof valor === "string" && valor.startsWith("date:") ? valor.slice(5) : String(valor);
+      props[nomeReal] = { date: { start: v } };
     } else if (typeof valor === "boolean") {
       props[nomeReal] = { checkbox: valor };
     } else if (typeof valor === "number") {
       props[nomeReal] = { number: valor };
     } else if (Array.isArray(valor)) {
       props[nomeReal] = { multi_select: valor.map((v) => ({ name: String(v) })) };
-    } else if (typeof valor === "string" && valor.startsWith("select:")) {
-      props[nomeReal] = { select: { name: valor.slice(7) } };
-    } else if (typeof valor === "string" && valor.startsWith("date:")) {
-      props[nomeReal] = { date: { start: valor.slice(5) } };
     } else if (typeof valor === "string" && valor.startsWith("url:")) {
       props[nomeReal] = { url: valor.slice(4) };
     } else {
@@ -224,11 +276,14 @@ async function atualizarPagina(paginaId, propriedades) {
 // Retorna a descrição das capacidades pro prompt da IA.
 function descricaoFerramentas() {
   if (!NOTION_API_KEY) return "";
-  return `NOTION (${NOTION_DATABASE_ID ? "banco configurado" : "sem banco padrão"}):
+  const agenda = NOTION_AGENDA_ID ? " (agenda: calendar)" : "";
+  return `NOTION (${NOTION_DATABASE_ID ? "banco configurado" : "sem banco padrão"}${agenda}):
 - "FERRAMENTA: notion_listar" — lista as páginas/itens do banco do Notion
 - "FERRAMENTA: notion_criar | nome=X, materia=select:Matematica, status=Em andamento, tipo=select:Prova, data=date:2026-08-25" — cria um item novo no banco
 - "FERRAMENTA: notion_atualizar | id=<pageId>, status=Feito" — atualiza um item (ex.: marca como Feito)
-- "FERRAMENTA: notion_status" — mostra se a integração está configurada`;
+- "FERRAMENTA: notion_status" — mostra se a integração está configurada
+- "FERRAMENTA: agenda_listar" — lista os eventos da agenda (aparecem no Notion Calendar)
+- "FERRAMENTA: agenda_criar | nome=X, data=2026-08-25T14:00:00, descricao=Y, status=Planejado" — cria um evento na agenda`;
 }
 
 module.exports = {
@@ -237,5 +292,7 @@ module.exports = {
   criarPagina,
   criarPaginaSolta,
   atualizarPagina,
+  listarEventos,
+  criarEvento,
   descricaoFerramentas,
 };

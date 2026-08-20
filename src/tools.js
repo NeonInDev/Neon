@@ -85,6 +85,31 @@ async function executarNotion(nome, args) {
         if (!r.ok) return `❌ ${r.erro}`;
         return `✅ Item atualizado: ${r.url}`;
       }
+      case "agenda_listar": {
+        const limite = parseInt(pares["limite"], 10) || 30;
+        const r = await notion.listarEventos(pares["banco"] || undefined, limite);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.eventos.length) return "Agenda vazia.";
+        const linhas = r.eventos.map((p) => {
+          const resumo = Object.entries(p.propriedades)
+            .filter(([, v]) => v)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(" | ");
+          return `• ${resumo} (id: ${p.id})`;
+        });
+        return `📅 ${r.total} evento(s):\n${linhas.join("\n")}`;
+      }
+      case "agenda_criar": {
+        if (!pares["nome"] || !pares["data"]) return "❌ Uso: agenda_criar | nome=X, data=2026-08-25T14:00:00, descricao=Y, status=Planejado";
+        const r = await notion.criarEvento({
+          nome: pares["nome"],
+          data: pares["data"],
+          descricao: pares["descricao"],
+          status: pares["status"],
+        }, pares["banco"] || undefined);
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `✅ Evento criado: ${r.url}`;
+      }
       default:
         return `❌ Ferramenta Notion desconhecida: ${nome}`;
     }
