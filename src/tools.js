@@ -1,8 +1,11 @@
 const { log } = require("./logger");
 const opencode = require("./opencode");
+const notion = require("./notion");
 
 function descricaoFerramentas() {
-  return `- codar: Delega QUALQUER tarefa ao opencode. Usa navegador, PC, codigo, pesquisa, arquivo, TUDO. Uso: codar | [descricao detalhada do que fazer]`;
+  const base = `- codar: Delega QUALQUER tarefa ao opencode. Usa navegador, PC, codigo, pesquisa, arquivo, TUDO. Uso: codar | [descricao detalhada do que fazer]`;
+  const not = notion.descricaoFerramentas();
+  return not ? `${base}\n${not}` : base;
 }
 
 function extrairFerramentas(texto) {
@@ -17,10 +20,78 @@ function extrairFerramentas(texto) {
 
 async function executarFerramenta(ferramenta, userId = null) {
   const { nome, args } = ferramenta;
+
+  // Ferramentas nativas do Notion (API oficial, sem opencode)
+  if (nome.startsWith("notion_")) {
+    return executarNotion(nome, args);
+  }
+
   log("INFO", "[TOOLS] Delegando pro opencode", { nome, args: args?.slice(0, 100) });
 
   const resultado = await opencode.executar(args);
   return resultado || "❌ OpenCode não respondeu.";
+}
+
+async function executarNotion(nome, args) {
+  log("INFO", "[TOOLS][NOTION]", { nome, args: args?.slice(0, 100) });
+  const pares = {};
+  for (const parte of (args || "").split(",")) {
+    const eq = parte.indexOf("=");
+    if (eq > 0) {
+      const chave = parte.slice(0, eq).trim().toLowerCase();
+      const valor = parte.slice(eq + 1).trim();
+      pares[chave] = valor;
+    }
+  }
+
+  try {
+    switch (nome) {
+      case "notion_status": {
+        const s = await notion.status();
+        if (!s.configurado) return "❌ Notion não configurado. Falta NOTION_API_KEY e/ou NOTION_DATABASE_ID no .env.";
+        return `✅ Notion configurado. Banco: ${s.bancoId}`;
+      }
+      case "notion_listar": {
+        const limite = parseInt(pares["limite"], 10) || 20;
+        const r = await notion.listarBanco(pares["banco"] || undefined, limite);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.paginas.length) return "Banco vazio.";
+        const linhas = r.paginas.map((p) => {
+          const resumo = Object.entries(p.propriedades)
+            .filter(([, v]) => v)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(" | ");
+          return `• ${resumo} (id: ${p.id})`;
+        });
+        return `📋 ${r.total} item(ns):\n${linhas.join("\n")}`;
+      }
+      case "notion_criar": {
+        if (!pares["titulo"]) return "❌ Uso: notion_criar | titulo=X, status=select:Fazer";
+        const props = { titulo: pares["titulo"] };
+        for (const [k, v] of Object.entries(pares)) {
+          if (k !== "titulo") props[k] = v;
+        }
+        const r = await notion.criarPagina(props, pares["banco"] || undefined);
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `✅ Item criado: ${r.url}`;
+      }
+      case "notion_atualizar": {
+        if (!pares["id"]) return "❌ Uso: notion_atualizar | id=<pageId>, status=select:Feito";
+        const props = {};
+        for (const [k, v] of Object.entries(pares)) {
+          if (k !== "id") props[k] = v;
+        }
+        const r = await notion.atualizarPagina(pares["id"], props);
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `✅ Item atualizado: ${r.url}`;
+      }
+      default:
+        return `❌ Ferramenta Notion desconhecida: ${nome}`;
+    }
+  } catch (err) {
+    log("ERROR", "[TOOLS][NOTION] erro", { erro: err.message?.slice(0, 150) });
+    return `❌ Erro na ferramenta Notion: ${err.message?.slice(0, 150)}`;
+  }
 }
 
 async function processarResposta(texto, userId = null) {
