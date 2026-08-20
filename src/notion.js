@@ -70,10 +70,10 @@ function resumirPropriedade(valor) {
     }
     case "rich_text":
       return (valor.rich_text || []).map((x) => x.plain_text).join("");
-    case "select":
-      return valor.select?.name || "";
     case "status":
       return valor.status?.name || "";
+    case "select":
+      return valor.select?.name || "";
     case "multi_select":
       return (valor.multi_select || []).map((x) => x.name).join(", ");
     case "checkbox":
@@ -91,32 +91,63 @@ function resumirPropriedade(valor) {
   }
 }
 
-// Monta as propriedades a partir de um objeto simples {nome: valor}.
-// Tipos básicos: título ('title' no primeiro campo), texto, checkbox,
-// número, select, multi_select, url, data (ISO string).
-function montarPropriedades(obj) {
-  const props = {};
-  let i = 0;
-  for (const [nome, valor] of Object.entries(obj || {})) {
-    if (valor === undefined || valor === null) continue;
-    if (i === 0) {
-      props[nome] = { title: [{ text: { content: String(valor).slice(0, 2000) } }] };
-    } else if (typeof valor === "boolean") {
-      props[nome] = { checkbox: valor };
-    } else if (typeof valor === "number") {
-      props[nome] = { number: valor };
-    } else if (Array.isArray(valor)) {
-      props[nome] = { multi_select: valor.map((v) => ({ name: String(v) })) };
-    } else if (valor.startsWith("select:")) {
-      props[nome] = { select: { name: valor.slice(7) } };
-    } else if (valor.startsWith("date:")) {
-      props[nome] = { date: { start: valor.slice(5) } };
-    } else if (valor.startsWith("url:")) {
-      props[nome] = { url: valor.slice(4) };
-    } else {
-      props[nome] = { rich_text: [{ text: { content: String(valor).slice(0, 2000) } }] };
+// Cache do schema do banco (nome real das colunas e coluna de título), por databaseId.
+const schemaCache = new Map();
+
+// Busca o schema de um banco e retorna { mapa: chave-minúscula -> nome real, titulo: nome da coluna title }.
+async function obterMapaColunas(databaseId = NOTION_DATABASE_ID) {
+  if (!NOTION_API_KEY || !databaseId) return { mapa: {}, titulo: null };
+  if (schemaCache.has(databaseId)) return schemaCache.get(databaseId);
+  const info = { mapa: {}, titulo: null };
+  try {
+    const resp = await client().get(`/databases/${databaseId}`);
+    for (const [nome, meta] of Object.entries(resp.data.properties || {})) {
+      info.mapa[nome.toLowerCase()] = nome;
+      if (meta.type === "title") info.titulo = nome;
     }
-    i++;
+    schemaCache.set(databaseId, info);
+    return info;
+  } catch {
+    return info;
+  }
+}
+
+// Monta as propriedades a partir de um objeto simples {nome: valor}.
+// A chave que corresponde à coluna 'title' do banco vira o título (caso não
+// exista coluna title no schema, a PRIMEIRA chave assume esse papel).
+// Tipos: checkbox, número, multi_select, select (prefixo "select:"), status
+// (prefixo "status:" ou coluna "Status"), data (prefixo "date:"), url (prefixo
+// "url:"), resto é rich_text. As chaves são normalizadas (case-insensitive).
+async function montarPropriedades(obj, databaseId = NOTION_DATABASE_ID) {
+  const { mapa, titulo } = await obterMapaColunas(databaseId);
+  const entradas = Object.entries(obj || {});
+  const props = {};
+  for (let i = 0; i < entradas.length; i++) {
+    const [nome, valor] = entradas[i];
+    if (valor === undefined || valor === null) continue;
+    const nomeReal = mapa[nome.toLowerCase()] || nome;
+    const ehTitulo = (titulo && nomeReal.toLowerCase() === titulo.toLowerCase()) || (!titulo && i === 0);
+    const chave = nomeReal.toLowerCase();
+    if (ehTitulo) {
+      props[nomeReal] = { title: [{ text: { content: String(valor).slice(0, 2000) } }] };
+    } else if (chave === "status" || (typeof valor === "string" && valor.startsWith("status:"))) {
+      const v = chave === "status" ? String(valor) : valor.slice(7);
+      props[nomeReal] = { status: { name: v } };
+    } else if (typeof valor === "boolean") {
+      props[nomeReal] = { checkbox: valor };
+    } else if (typeof valor === "number") {
+      props[nomeReal] = { number: valor };
+    } else if (Array.isArray(valor)) {
+      props[nomeReal] = { multi_select: valor.map((v) => ({ name: String(v) })) };
+    } else if (typeof valor === "string" && valor.startsWith("select:")) {
+      props[nomeReal] = { select: { name: valor.slice(7) } };
+    } else if (typeof valor === "string" && valor.startsWith("date:")) {
+      props[nomeReal] = { date: { start: valor.slice(5) } };
+    } else if (typeof valor === "string" && valor.startsWith("url:")) {
+      props[nomeReal] = { url: valor.slice(4) };
+    } else {
+      props[nomeReal] = { rich_text: [{ text: { content: String(valor).slice(0, 2000) } }] };
+    }
   }
   return props;
 }
@@ -128,7 +159,7 @@ async function criarPagina(propriedades, databaseId = NOTION_DATABASE_ID) {
   try {
     const resp = await client().post("/pages", {
       parent: { database_id: databaseId },
-      properties: montarPropriedades(propriedades),
+      properties: await montarPropriedades(propriedades, databaseId),
     });
     return { ok: true, paginaId: resp.data.id, url: resp.data.url };
   } catch (err) {
@@ -181,7 +212,7 @@ async function atualizarPagina(paginaId, propriedades) {
   if (!paginaId) return { ok: false, erro: "paginaId não informado" };
   try {
     const resp = await client().patch(`/pages/${paginaId}`, {
-      properties: montarPropriedades(propriedades),
+      properties: await montarPropriedades(propriedades),
     });
     return { ok: true, paginaId: resp.data.id, url: resp.data.url };
   } catch (err) {
@@ -195,8 +226,8 @@ function descricaoFerramentas() {
   if (!NOTION_API_KEY) return "";
   return `NOTION (${NOTION_DATABASE_ID ? "banco configurado" : "sem banco padrão"}):
 - "FERRAMENTA: notion_listar" — lista as páginas/itens do banco do Notion
-- "FERRAMENTA: notion_criar | titulo=X, status=select:Fazer" — cria um item novo no banco
-- "FERRAMENTA: notion_atualizar | id=<pageId>, status=select:Feito" — atualiza um item
+- "FERRAMENTA: notion_criar | nome=X, materia=select:Matematica, status=Em andamento, tipo=select:Prova, data=date:2026-08-25" — cria um item novo no banco
+- "FERRAMENTA: notion_atualizar | id=<pageId>, status=Feito" — atualiza um item (ex.: marca como Feito)
 - "FERRAMENTA: notion_status" — mostra se a integração está configurada`;
 }
 

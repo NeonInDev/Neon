@@ -66,10 +66,10 @@ async function executarNotion(nome, args) {
         return `📋 ${r.total} item(ns):\n${linhas.join("\n")}`;
       }
       case "notion_criar": {
-        if (!pares["titulo"]) return "❌ Uso: notion_criar | titulo=X, status=select:Fazer";
-        const props = { titulo: pares["titulo"] };
+        if (!pares["nome"]) return "❌ Uso: notion_criar | nome=X, materia=select:Matematica, status=Em andamento";
+        const props = { nome: pares["nome"] };
         for (const [k, v] of Object.entries(pares)) {
-          if (k !== "titulo") props[k] = v;
+          if (k !== "nome") props[k] = v;
         }
         const r = await notion.criarPagina(props, pares["banco"] || undefined);
         if (!r.ok) return `❌ ${r.erro}`;
