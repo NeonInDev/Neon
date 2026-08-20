@@ -1,6 +1,6 @@
 const fs = require("fs");
 const { spawn } = require("child_process");
-const { log } = require("./logger");
+const { log } = require("../src/logger");
 const http = require("http");
 const path = require("path");
 const os = require("os");

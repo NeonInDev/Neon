@@ -1,6 +1,6 @@
 const { log } = require("./logger");
-const opencode = require("./opencode");
-const notion = require("./notion");
+const opencode = require("../plugins/opencode");
+const notion = require("../plugins/notion");
 
 function descricaoFerramentas() {
   const base = `- codar: Delega QUALQUER tarefa ao opencode. Usa navegador, PC, codigo, pesquisa, arquivo, TUDO. Uso: codar | [descricao detalhada do que fazer]`;

@@ -4,8 +4,8 @@
 //   NOTION_API_KEY=<integration token> (criado em notion.so/my-integrations)
 //   NOTION_DATABASE_ID=<id do banco de dados padrão>
 const axios = require("axios");
-const { NOTION_API_KEY, NOTION_DATABASE_ID, NOTION_AGENDA_ID } = require("./config");
-const { log } = require("./logger");
+const { NOTION_API_KEY, NOTION_DATABASE_ID, NOTION_AGENDA_ID } = require("../src/config");
+const { log } = require("../src/logger");
 
 const BASE = "https://api.notion.com/v1";
 const NOTION_VERSION = "2022-06-28";

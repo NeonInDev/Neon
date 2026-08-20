@@ -7,15 +7,17 @@ const { db } = require("./src/db");
 const { TOKEN, PROATIVO } = require("./src/config");
 const { log, fechar: fecharLogger } = require("./src/logger");
 const { fechar: fecharBrowser } = require("./src/browser");
-const opencode = require("./src/opencode");
+const opencode = require("./plugins/opencode");
 const apiPublica = require("./src/api_publica");
 const monitor = require("./src/monitor");
 const proativo = require("./src/proativo");
 const agendados = require("./src/agendados");
 const alarmes = require("./src/lembrete_alarme");
+const plugins = require("./plugins/gerenciador");
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
+  await plugins.parar();
   agendados.parar();
   proativo.parar();
   monitor.parar();
@@ -49,6 +51,7 @@ function iniciarModulos() {
   try { agendados.verificarCadaMinuto(); } catch (err) { log("ERROR", "[AGENDADOS] Falha ao iniciar", { erro: err.message }); }
   try { alarmes.iniciar(); } catch (err) { log("ERROR", "[ALARME] Falha ao iniciar", { erro: err.message }); }
   try { opencode.iniciarServer().then(port => port ? log("INFO", "[OPENCODE] Pronto", { port }) : log("WARN", "[OPENCODE] Servidor nao iniciou")); } catch (err) { log("ERROR", "[OPENCODE] Falha ao iniciar", { erro: err.message }); }
+  try { plugins.iniciar(client); } catch (err) { log("ERROR", "[PLUGINS] Falha ao iniciar", { erro: err.message }); }
 }
 
 client.once("ready", () => {

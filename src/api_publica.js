@@ -646,7 +646,7 @@ function iniciar(port = 3000) {
       try {
         const { tarefa } = await lerBody(req);
         if (!tarefa || !String(tarefa).trim()) { responder(res, 400, { erro: "tarefa é obrigatória" }); return; }
-        const opencode = require("./opencode");
+        const opencode = require("../plugins/opencode");
         const resultado = await opencode.executar(String(tarefa).slice(0, 3000));
         responder(res, 200, { ok: true, resultado });
       } catch (err) { responder(res, 400, { erro: err.message }); }
