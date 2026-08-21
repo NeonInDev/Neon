@@ -867,6 +867,45 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/discord/enviar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const discordMsg = require("./discord_msg");
+        const r = await discordMsg.enviarDM(
+          corpo && corpo.usuario ? String(corpo.usuario) : "",
+          corpo && corpo.mensagem != null ? String(corpo.mensagem) : ""
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/discord/contatos" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const discordMsg = require("./discord_msg");
+        const r = await discordMsg.listarContatos();
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/discord/enviar_canal" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const discordMsg = require("./discord_msg");
+        const r = await discordMsg.enviarCanal(
+          corpo && corpo.servidor ? String(corpo.servidor) : "",
+          corpo && corpo.canal ? String(corpo.canal) : "",
+          corpo && corpo.mensagem != null ? String(corpo.mensagem) : ""
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/whatsapp/documento" && req.method === "POST") {
       if (!exigeChave(req, res)) return;
       try {
