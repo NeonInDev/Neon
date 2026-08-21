@@ -314,6 +314,15 @@ function encontrarClima(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/(?:tempo|clima|previsão|previsao|temperatura)\s+(?:em\s+|de\s+|do\s+|da\s+|para\s+)?(.+)/i.test(lower)) return true;
   if (/^(?:como\s+)?(?:esta|tá|ta|está)\s+(?:o\s+)?(?:tempo|clima)\s+(?:em\s+)?(.+)/i.test(lower)) return true;
+  if (/^clima$/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarChuva(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:sera\s+que\s+)?vai\s+(?:chover|dar\s+chuva)/i.test(lower)) return true;
+  if (/^(?:tem\s+)?previs[aã]o\s+de\s+chuva/i.test(lower)) return true;
+  if (/^e\s+vai\s+chover/i.test(lower)) return true;
   return false;
 }
 
@@ -756,6 +765,8 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarPcCommand(texto)) return "pcCommand";
   if (isWin() && encontrarExec(texto)) return "exec";
   if (encontrarArquivo(texto)) return "arquivo";
+  if (encontrarChuva(texto)) return "clima_chuva";
+  if (encontrarClima(texto)) return "clima";
   if (encontrarMensagem(texto)) return "mensagem";
   if (encontrarSpotifyControl(texto)) return "spotify_control";
   if (encontrarYouTubeControl(texto)) return "youtube_control";
@@ -1535,11 +1546,28 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       const lower = limparFiller(texto.toLowerCase().trim());
       const m = lower.match(/(?:tempo|clima|previsão|previsao|temperatura)\s+(?:em\s+|de\s+|do\s+|da\s+|para\s+)?(.+)$/i)
               || lower.match(/(?:esta|tá|ta|está)\s+(?:o\s+)?(?:tempo|clima)\s+(?:em\s+)?(.+)$/i);
-      const cidade = m ? m[1].trim() : "São Paulo";
+      let cidade = m ? m[1].replace(/[?.!]+$/, "").trim() : "";
+      if (/^(?:hoje|agora|aqui|ai|aí)$/i.test(cidade)) cidade = "";
       const c = await clima(cidade);
-      return `🌤 **${cidade}** — ${c.condicao}, ${c.temperatura}, umidade ${c.umidade}, vento ${c.vento}`;
+      if (!c.ok) return `❌ ${c.erro || "Não consegui buscar o clima."}`;
+      return `${c.icone} **${c.cidade}** — ${c.condicao}, ${c.temperatura} (sensação ${c.sensacao}), umidade ${c.umidade}, vento ${c.vento}\n📅 Hoje: ${c.hoje.icone} ${c.hoje.min}~${c.hoje.max}, chuva ${c.hoje.probChuva}%\n📅 Amanhã: ${c.amanha.icone} ${c.amanha.condicao}, ${c.amanha.min}~${c.amanha.max}, chuva ${c.amanha.probChuva}%`;
     } catch (err) {
       return `❌ Não consegui buscar o clima: ${err.message}`;
+    }
+  }
+
+  // Vai chover?
+  if (categoria === "clima_chuva") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/(?:em|na|no)\s+(.+?)\s*[?!.]*$/);
+      let cidade = m ? m[1].trim() : "";
+      if (/^(?:hoje|amanhã|amanha|agora)$/i.test(cidade)) cidade = "";
+      const { vaiChover: chuva } = require("./clima");
+      const r = await chuva(cidade);
+      return r.ok ? r.resposta : `❌ ${r.erro || "Não consegui verificar a chuva."}`;
+    } catch (err) {
+      return `❌ Não consegui verificar a chuva: ${err.message}`;
     }
   }
 

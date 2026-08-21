@@ -881,6 +881,28 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/clima" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const qs = new URLSearchParams(req.url.split("?")[1] || "");
+        const { clima: buscarClima } = require("./clima");
+        const r = await buscarClima(qs.get("cidade") || "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/clima/chuva" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const qs = new URLSearchParams(req.url.split("?")[1] || "");
+        const { vaiChover } = require("./clima");
+        const r = await vaiChover(qs.get("cidade") || "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/discord/contatos" && req.method === "GET") {
       if (!exigeChave(req, res)) return;
       try {
