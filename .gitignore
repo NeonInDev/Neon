@@ -28,3 +28,5 @@ echo/
 .whatsapp/
 .wwebjs_cache/
 whatsapp_qr.txt
+
+strava_export/
