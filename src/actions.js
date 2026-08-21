@@ -494,12 +494,24 @@ function encontrarArquivo(texto) {
 function encontrarMensagem(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
 
+  // Pattern 0: manda "<conteudo>" pra <alvo> (aspas, plataforma opcional no fim)
+  let match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm)?\s*["“”'](.+?)["“”']\s*(?:pra|para|pro)\s+(.+)$/i);
+  if (match) {
+    const alvo = match[2].replace(/\s+(?:no|na|pelo|pela)\s+(?:discord|whatsapp|zap|dm|pv|privado)\s*[.!]?\s*$/i, "").trim();
+    const conteudo = match[1].trim();
+    if (alvo && conteudo) return { alvo, conteudo };
+  }
+
   // Pattern 1: "envia msg pra <alvo>: <conteudo>" ou "manda dm pra <alvo> dizendo <conteudo>"
-  let match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm\s*)?(?:pra|para)?\s*(.+?)(?::\s*|,\s*|\s+dizendo\s+)(.+)/i);
-  if (match) return { alvo: match[1].trim(), conteudo: match[2].trim() };
+  match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm)?(?:\s+(?:pra|para|pro))?\s*(.+?)(?::\s*|,\s*|\s+dizendo\s+)(.+)/i);
+  if (match) {
+    const alvo = match[1].trim();
+    const conteudo = match[2].trim().replace(/\s+(?:no|na|pelo|pela)\s+(?:discord|whatsapp|zap|dm|pv|privado)\s*[.!]?\s*$/i, "").trim();
+    if (alvo && conteudo) return { alvo, conteudo };
+  }
 
   // Pattern 2: "envia msg pra <alvo> <conteudo>" (sem separator)
-  match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm\s*)?(?:pra|para)?\s*(.+)/i);
+  match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm)?(?:\s+(?:pra|para|pro))?\s*(.+)/i);
   if (match) {
     const resto = match[1].trim();
     const primeiroEspaco = resto.indexOf(" ");
