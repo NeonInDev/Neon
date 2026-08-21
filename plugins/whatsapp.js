@@ -56,7 +56,7 @@ async function iniciar() {
     puppeteer: {
       headless: false,
       executablePath: "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--window-size=1280,860", "--window-position=40,40"],
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-gpu", "--window-size=1280,860", "--start-minimized"],
     },
   });
 
