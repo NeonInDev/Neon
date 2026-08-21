@@ -339,6 +339,18 @@ function encontrarBoletim(texto) {
   return false;
 }
 
+function encontrarFlashcards(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:criar|novo)\s+deck\b/.test(lower)) return true;
+  if (/^add(?:icionar)?\s+carta\b/.test(lower)) return true;
+  if (/^listar\s+decks$|^meus\s+decks$|^decks$/.test(lower)) return true;
+  if (/^estudar\s+.+/.test(lower)) return true;
+  if (/^resetar\s+deck\b/.test(lower)) return true;
+  if (/^cancelar\s+estudo$/.test(lower)) return true;
+  if (/^(?:sei|nao sei|não sei|acertei|errei|soube|passei|proxima|próxima)$/.test(lower)) return true;
+  return false;
+}
+
 function encontrarCEP(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^cep\s+\d{5}-?\d{3}/i.test(lower)) return true;
@@ -781,6 +793,7 @@ function detectarCategoria(texto) {
   if (encontrarChuva(texto)) return "clima_chuva";
   if (encontrarClima(texto)) return "clima";
   if (encontrarBoletim(texto)) return "boletim";
+  if (encontrarFlashcards(texto)) return "flashcards";
   if (encontrarMensagem(texto)) return "mensagem";
   if (encontrarSpotifyControl(texto)) return "spotify_control";
   if (encontrarYouTubeControl(texto)) return "youtube_control";
@@ -1582,6 +1595,39 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return r.ok ? r.resposta : `❌ ${r.erro || "Não consegui verificar a chuva."}`;
     } catch (err) {
       return `❌ Não consegui verificar a chuva: ${err.message}`;
+    }
+  }
+
+  // Flashcards (repetição espaçada)
+  if (categoria === "flashcards") {
+    try {
+      const fc = require("./flashcards");
+      const limparFim = (s) => s.replace(/[?.!]+$/, "").trim();
+      const lower = limparFiller(texto.toLowerCase().trim());
+      if (/^(?:sei|soube|acertei)$/.test(lower)) {
+        const r = fc.avaliar(userId, true);
+        return r.ok ? r.mensagem : r.erro;
+      }
+      if (/^(?:nao sei|não sei|errei|passei)$/.test(lower)) {
+        const r = fc.avaliar(userId, false);
+        return r.ok ? r.mensagem : r.erro;
+      }
+      if (/^cancelar\s+estudo$/.test(lower)) {
+        const r = fc.cancelarEstudo(userId);
+        return r.ok ? r.mensagem : r.erro;
+      }
+      let m = lower.match(/^(?:criar|novo)\s+deck\s+(?:de\s+|pra\s+|para\s+)?(.+)$/);
+      if (m) { const r = fc.criarDeck(limparFim(m[1])); return r.ok ? r.mensagem : `❌ ${r.erro}`; }
+      m = lower.match(/^add(?:icionar)?\s+carta\s+(?:no\s+deck\s+|do\s+deck\s+|em\s+)?(.+?)\s*[:—-]\s*(.+)\s*\|\s*(.+)$/);
+      if (m) { const r = fc.adicionarCarta(m[1], m[2], limparFim(m[3])); return r.ok ? r.mensagem : `❌ ${r.erro}`; }
+      m = lower.match(/^estudar\s+(?:o\s+deck\s+|deck\s+)?(?:de\s+)?(.+)$/);
+      if (m) { const r = fc.iniciarEstudo(userId, m[1]); return r.ok ? r.mensagem : `❌ ${r.erro}`; }
+      m = lower.match(/^resetar\s+deck\s+(.+)$/);
+      if (m) { const r = fc.resetarDeck(m[1]); return r.ok ? r.mensagem : `❌ ${r.erro}`; }
+      const lista = fc.listarDecks();
+      return lista.mensagem;
+    } catch (err) {
+      return `❌ Flashcards: ${err.message}`;
     }
   }
 

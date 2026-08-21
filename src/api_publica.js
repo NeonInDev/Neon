@@ -940,6 +940,70 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/flashcards/decks" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const fc = require("./flashcards");
+        const r = fc.listarDecks();
+        responder(res, 200, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/flashcards/deck" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const fc = require("./flashcards");
+        const r = fc.criarDeck(corpo && corpo.nome ? String(corpo.nome) : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/flashcards/carta" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const fc = require("./flashcards");
+        const r = fc.adicionarCarta(
+          corpo && corpo.deck ? String(corpo.deck) : "",
+          corpo && corpo.frente ? String(corpo.frente) : "",
+          corpo && corpo.verso ? String(corpo.verso) : ""
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/flashcards/estudar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const fc = require("./flashcards");
+        const r = fc.iniciarEstudo(
+          corpo && corpo.usuario ? String(corpo.usuario) : "",
+          corpo && corpo.deck ? String(corpo.deck) : ""
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/flashcards/avaliar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const fc = require("./flashcards");
+        const r = fc.avaliar(
+          corpo && corpo.usuario ? String(corpo.usuario) : "",
+          !!(corpo && corpo.acertou)
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/discord/contatos" && req.method === "GET") {
       if (!exigeChave(req, res)) return;
       try {
