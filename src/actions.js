@@ -326,6 +326,19 @@ function encontrarChuva(texto) {
   return false;
 }
 
+function encontrarBoletim(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:meu\s+)?boletim\b/.test(lower)) return true;
+  if (/^anota?\s+(?:a\s+)?nota\b/.test(lower)) return true;
+  if (/^tirei\s+[0-9]/.test(lower)) return true;
+  if (/^(?:minha[s]?|as)\s+notas?\b/.test(lower)) return true;
+  if (/^(?:qual|quais)\s+(?:[ée]|sao|s[aã]o)?\s*(?:a\s+|as\s+)?(?:minha[s]?\s+)?m[eé]dia/.test(lower)) return true;
+  if (/^quanto\s+(?:eu\s+)?(?:preciso|tenho\s+que\s+tirar|falta)/.test(lower)) return true;
+  if (/^remov(?:er|o)\s+(?:a\s+)?[uú]ltima\s+nota/.test(lower)) return true;
+  if (/^meta\s+(?:de\s+)?[0-9]/.test(lower)) return true;
+  return false;
+}
+
 function encontrarCEP(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^cep\s+\d{5}-?\d{3}/i.test(lower)) return true;
@@ -767,6 +780,7 @@ function detectarCategoria(texto) {
   if (encontrarArquivo(texto)) return "arquivo";
   if (encontrarChuva(texto)) return "clima_chuva";
   if (encontrarClima(texto)) return "clima";
+  if (encontrarBoletim(texto)) return "boletim";
   if (encontrarMensagem(texto)) return "mensagem";
   if (encontrarSpotifyControl(texto)) return "spotify_control";
   if (encontrarYouTubeControl(texto)) return "youtube_control";
@@ -1568,6 +1582,57 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return r.ok ? r.resposta : `❌ ${r.erro || "Não consegui verificar a chuva."}`;
     } catch (err) {
       return `❌ Não consegui verificar a chuva: ${err.message}`;
+    }
+  }
+
+  // Boletim escolar
+  if (categoria === "boletim") {
+    try {
+      const b = require("./boletim");
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const limpaFim = (s) => s.replace(/[?.!]+$/, "").trim();
+      let m = lower.match(/^anota?\s+(?:a\s+)?nota\s+(?:de\s+|da\s+|do\s+)?(.+?)\s+(?:b\s*)?([1-4])\s*[ºo]?\s*(?:bimestre)?\s*([0-9]+(?:[.,][0-9])?)\s*$/);
+      if (!m) m = lower.match(/^anota?\s+(?:a\s+)?nota\s+(?:de\s+|da\s+|do\s+)?(.+?)\s+([0-9]+(?:[.,][0-9])?)\s*$/);
+      if (m) {
+        const temB = m.length === 4;
+        const materia = temB ? m[1] : m[1];
+        const bimestre = temB ? m[2] : null;
+        const valor = temB ? m[3] : m[2];
+        const r = b.adicionarNota(materia, valor, bimestre);
+        return r.ok ? r.mensagem : `❌ ${r.erro}`;
+      }
+      m = lower.match(/^tirei\s+([0-9]+(?:[.,][0-9])?)\s+(?:em|na|de)\s+(.+)$/);
+      if (m) {
+        const r = b.adicionarNota(limpaFim(m[2]), m[1]);
+        return r.ok ? r.mensagem : `❌ ${r.erro}`;
+      }
+      m = lower.match(/^remov(?:er|o)\s+(?:a\s+)?[uú]ltima\s+nota\s+(?:de\s+|da\s+|do\s+)?(.+)$/);
+      if (m) {
+        const r = b.removerUltimaNota(limpaFim(m[1]));
+        return r.ok ? r.mensagem : `❌ ${r.erro}`;
+      }
+      m = lower.match(/^meta\s+(?:de\s+)?([0-9]+(?:[.,][0-9])?)$/);
+      if (m) {
+        const r = b.definirMeta(m[1]);
+        return r.ok ? r.mensagem : `❌ ${r.erro}`;
+      }
+      m = lower.match(/^quanto\s+(?:eu\s+)?(?:preciso\s+tirar|preciso|tenho\s+que\s+tirar|falta)(?:\s+pra\s+(?:passar\s+com\s+|ficar\s+com\s+)?)?\s*([0-9]+(?:[.,][0-9])?)?(?:\s+(?:em|na|no)\s+(.+?))?\s*[?!.]*$/);
+      if (m && (m[2] || m[1])) {
+        if (m[2]) {
+          const r = b.quantoFalta(m[2], m[1]);
+          if (r.ok) return r.mensagem;
+          return `❌ ${r.erro}`;
+        }
+      }
+      m = lower.match(/^(?:qual|quais)\s+(?:[ée]\s+|sao\s+|s[aã]o\s+)?(?:a\s+|as\s+)?(?:minha[s]?\s+)?m[eé]dia\s+(?:de\s+|da\s+|do\s+)?(.+?)\s*[?!.]*$/);
+      if (m && !/^geral/.test(m[1])) {
+        const med = b.mediaDe(b.slugMateria(m[1]));
+        if (med !== null) return `📊 Média de **${limpaFim(m[1])}**: **${med}**`;
+      }
+      const completo = b.boletimCompleto();
+      return completo.mensagem;
+    } catch (err) {
+      return `❌ Boletim: ${err.message}`;
     }
   }
 

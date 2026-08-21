@@ -903,6 +903,43 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/boletim" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const b = require("./boletim");
+        const r = b.boletimCompleto();
+        responder(res, 200, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/boletim/nota" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const b = require("./boletim");
+        const r = b.adicionarNota(
+          corpo && corpo.materia ? String(corpo.materia) : "",
+          corpo && corpo.valor != null ? String(corpo.valor) : "",
+          corpo && corpo.bimestre != null ? String(corpo.bimestre) : "",
+          corpo && corpo.descricao ? String(corpo.descricao) : ""
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/boletim/meta" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const b = require("./boletim");
+        const r = b.definirMeta(corpo && corpo.valor != null ? String(corpo.valor) : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/discord/contatos" && req.method === "GET") {
       if (!exigeChave(req, res)) return;
       try {
