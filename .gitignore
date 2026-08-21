@@ -24,3 +24,7 @@ google_credentials.json
 google_token.json
 opencode.json.chefe.bak
 echo/
+
+.whatsapp/
+.wwebjs_cache/
+whatsapp_qr.txt

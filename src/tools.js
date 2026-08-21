@@ -1,11 +1,14 @@
 const { log } = require("./logger");
 const opencode = require("../plugins/opencode");
 const notion = require("../plugins/notion");
+const whatsapp = require("../plugins/whatsapp");
 
 function descricaoFerramentas() {
   const base = `- codar: Delega QUALQUER tarefa ao opencode. Usa navegador, PC, codigo, pesquisa, arquivo, TUDO. Uso: codar | [descricao detalhada do que fazer]`;
   const not = notion.descricaoFerramentas();
-  return not ? `${base}\n${not}` : base;
+  const wa = "- whatsapp_enviar: Envia mensagem no WhatsApp (assinatura _Enviado pela Neon_ automatica). Uso: whatsapp_enviar | numero=5571999999999, mensagem=texto";
+  const ferramentas = [base, not, wa].filter(Boolean).join("\n");
+  return ferramentas;
 }
 
 function extrairFerramentas(texto) {
@@ -26,10 +29,43 @@ async function executarFerramenta(ferramenta, userId = null) {
     return executarNotion(nome, args);
   }
 
+  // Ferramenta nativa do WhatsApp (via plugin, sem opencode)
+  if (nome.startsWith("whatsapp_")) {
+    return executarWhatsapp(nome, args);
+  }
+
   log("INFO", "[TOOLS] Delegando pro opencode", { nome, args: args?.slice(0, 100) });
 
   const resultado = await opencode.executar(args);
   return resultado || "❌ OpenCode não respondeu.";
+}
+
+async function executarWhatsapp(nome, args) {
+  log("INFO", "[TOOLS][WHATSAPP]", { nome, args: args?.slice(0, 100) });
+  try {
+    switch (nome) {
+      case "whatsapp_status": {
+        const st = whatsapp.status();
+        return st.conectado
+          ? `✅ WhatsApp conectado.`
+          : `❌ WhatsApp desconectado (${st.estado}). Reinicie a Neon e escaneie o QR.`;
+      }
+      case "whatsapp_enviar": {
+        const m = String(args || "").match(/(?:numero|n)=(\d+)/i);
+        const t = String(args || "").match(/(?:mensagem|texto|msg)=([^]*)/i);
+        if (!m) return "❌ Uso: whatsapp_enviar | numero=5571999999999, mensagem=texto";
+        const texto = (t ? t[1] : "").replace(/^.*mensagem=/i, "").trim();
+        if (!texto) return "❌ Uso: whatsapp_enviar | numero=5571999999999, mensagem=texto";
+        const r = await whatsapp.enviar(m[1], texto);
+        return r.ok ? `✅ WhatsApp enviado para ${r.numero}.` : `❌ ${r.erro}`;
+      }
+      default:
+        return `❌ Ferramenta WhatsApp desconhecida: ${nome}`;
+    }
+  } catch (err) {
+    log("ERROR", "[TOOLS][WHATSAPP] erro", { erro: err.message?.slice(0, 150) });
+    return `❌ Erro na ferramenta WhatsApp: ${err.message?.slice(0, 150)}`;
+  }
 }
 
 async function executarNotion(nome, args) {

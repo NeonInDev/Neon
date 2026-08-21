@@ -23,17 +23,6 @@ module.exports = {
       log("WARN", "Tools nao iniciaram", { erro: err.message });
     }
 
-    try {
-      pc.notificarToast("Neon", "Neon iniciando de novo!").catch(() => {});
-    } catch {}
-
-    try {
-      const master = await c.users.fetch(OWNER);
-      if (master) await master.send("🔁 Neon iniciando novamente!");
-    } catch {
-      log("WARN", "DM ao mestre falhou");
-    }
-
     log("INFO", "Client conectado", {
       tag: c.user.tag,
       guilds: c.guilds.cache.size,

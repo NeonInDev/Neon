@@ -26,9 +26,12 @@
     "obs-websocket-js": "^5.0.8",
     "opusscript": "^0.0.8",
     "playwright": "^1.61.0",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
     "sharp": "^0.35.2",
     "socket.io": "^4.8.3",
-    "spotify-web-api-node": "^5.0.2"
+    "spotify-web-api-node": "^5.0.2",
+    "whatsapp-web.js": "github:pedroslopez/whatsapp-web.js#pull/5772/head"
   },
   "allowScripts": {
     "sharp@0.32.6": true,

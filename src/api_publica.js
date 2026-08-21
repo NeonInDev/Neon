@@ -47,11 +47,18 @@ const OPENCODE_PASS = process.env.OPENCODE_SERVER_PASSWORD || SSL_PASS || "";
 
 function temChave(req) {
   const chave = req.headers["x-hud-key"];
-  if (typeof chave !== "string") return false;
-
-  const recebida = Buffer.from(chave);
-  const esperada = Buffer.from(MASTER_KEY);
-  return recebida.length === esperada.length && crypto.timingSafeEqual(recebida, esperada);
+  if (typeof chave === "string") {
+    const recebida = Buffer.from(chave);
+    const esperada = Buffer.from(MASTER_KEY);
+    if (recebida.length === esperada.length && crypto.timingSafeEqual(recebida, esperada)) return true;
+  }
+  const qKey = new URL(req.url, "http://x").searchParams.get("key");
+  if (typeof qKey === "string" && qKey.length > 0) {
+    const recebida = Buffer.from(qKey);
+    const esperada = Buffer.from(MASTER_KEY);
+    if (recebida.length === esperada.length && crypto.timingSafeEqual(recebida, esperada)) return true;
+  }
+  return false;
 }
 
 function temBasicAuth(req) {
@@ -120,13 +127,24 @@ function lerBodyBuffer(req, maxBytes) {
   });
 }
 
-function servirArquivo(url, res) {
+function servirArquivo(urlComQuery, res) {
+  const url = urlComQuery.split("?")[0];
   let caminho;
   if (url === "/" || url === "/dashboard" || url === "/hud") caminho = path.join(PUBLIC_DIR, "hud", "index.html");
   else if (url === "/manifest.json") caminho = path.join(PUBLIC_DIR, "manifest.json");
   else if (url === "/sw.js") caminho = path.join(PUBLIC_DIR, "sw.js");
   else if (url === "/gesture" || url === "/gesture.html") caminho = path.join(PUBLIC_DIR, "gesture.html");
   else if (url.startsWith("/public/")) caminho = path.join(PUBLIC_DIR, url.slice("/public/".length));
+  else if (url === "/whatsapp" || url === "/whatsapp.html") {
+    caminho = path.join(PUBLIC_DIR, "whatsapp.html");
+    let conteudo = "";
+    try { conteudo = fs.readFileSync(caminho, "utf8"); } catch { return false; }
+    const qKey = new URL(url, "http://x").searchParams.get("key") || "";
+    conteudo = conteudo.replace("__CHAVE__", qKey || MASTER_KEY || "");
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(conteudo);
+    return true;
+  }
   else return false;
 
   const base = path.resolve(PUBLIC_DIR).toLowerCase();
@@ -649,6 +667,214 @@ function iniciar(port = 3000) {
         const opencode = require("../plugins/opencode");
         const resultado = await opencode.executar(String(tarefa).slice(0, 3000));
         responder(res, 200, { ok: true, resultado });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/qr" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const whatsapp = require("../plugins/whatsapp");
+        const buf = await whatsapp.qrPng();
+        if (!buf) { responder(res, 404, { erro: "QR indisponível" }); return; }
+        res.writeHead(200, { "Content-Type": "image/png", "Content-Length": buf.length, "Cache-Control": "no-store" });
+        res.end(buf);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/status" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const whatsapp = require("../plugins/whatsapp");
+        responder(res, 200, { ok: true, ...whatsapp.status() });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/enviar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const whatsapp = require("../plugins/whatsapp");
+        const { numero, mensagem } = await lerBody(req);
+        if (!numero || !mensagem) { responder(res, 400, { erro: "numero e mensagem são obrigatórios" }); return; }
+        const r = await whatsapp.enviar(String(numero), String(mensagem));
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/grupos" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.listarGrupos();
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/debug" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.debugPagina();
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/fechar_modais" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.fecharModais();
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/entrar_grupo" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.entrarGrupo(corpo && corpo.link ? corpo.link : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/abrir_conversa" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.abrirConversa(corpo && corpo.termo ? corpo.termo : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/enviar_doc_ui" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.enviarDocUI(
+          corpo && corpo.arquivo ? corpo.arquivo : "",
+          corpo && corpo.legenda ? corpo.legenda : ""
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/enviar_ui" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.enviarUI(corpo && corpo.texto ? corpo.texto : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/enviar_raw" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.enviarRaw(corpo && corpo.destino ? corpo.destino : "", corpo && corpo.texto ? corpo.texto : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/info_chat" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.infoChat(corpo && corpo.id ? corpo.id : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/diag_fiber" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.diagFiber(corpo && corpo.termo ? corpo.termo : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/extrair_ids" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const whatsapp = require("../plugins/whatsapp");
+        const corpo = await lerBody(req);
+        const r = await whatsapp.extrairIds(corpo && typeof corpo.escopo === "string" ? corpo.escopo : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/clicar_texto" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.clicarTexto(corpo && corpo.termo ? corpo.termo : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/inspecionar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.inspecionar(corpo && corpo.termo ? corpo.termo : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/buscar_chat" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const whatsapp = require("../plugins/whatsapp");
+        const r = await whatsapp.buscarChat(corpo && corpo.nome ? corpo.nome : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/grupos_conhecidos" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const whatsapp = require("../plugins/whatsapp");
+        responder(res, 200, whatsapp.gruposConhecidos());
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/whatsapp/documento" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const whatsapp = require("../plugins/whatsapp");
+        const { destino, arquivo, caption } = await lerBody(req);
+        if (!destino || !arquivo) { responder(res, 400, { erro: "destino e arquivo são obrigatórios" }); return; }
+        const r = await whatsapp.enviarDocumento(String(destino), String(arquivo), caption || "");
+        responder(res, r.ok ? 200 : 400, r);
       } catch (err) { responder(res, 400, { erro: err.message }); }
       return;
     }
