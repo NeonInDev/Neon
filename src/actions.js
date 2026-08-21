@@ -494,20 +494,32 @@ function encontrarArquivo(texto) {
 function encontrarMensagem(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
 
+  // Detecta plataforma mencionada no fim ("no discord", "no zap") e remove da frase
+  const plataformaDe = (s) => {
+    const m = s.match(/\s+(?:no|na|pelo|pela)\s+(discord|whatsapp|zapzap|zap|dm|pv|privado)\s*[.!]?\s*$/i);
+    if (!m) return { alvoOuTexto: s.trim(), plataforma: null };
+    const p = m[1].toLowerCase();
+    return { alvoOuTexto: s.slice(0, m.index).trim(), plataforma: p === "discord" ? "discord" : "whatsapp" };
+  };
+  const ehZapExplicito = (alvo) => /^(?:um\s+)?(?:zaps?\b|whats(?:app)?\b|zapzap\b)/.test(alvo);
+
   // Pattern 0: manda "<conteudo>" pra <alvo> (aspas, plataforma opcional no fim)
   let match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm)?\s*["“”'](.+?)["“”']\s*(?:pra|para|pro)\s+(.+)$/i);
   if (match) {
-    const alvo = match[2].replace(/\s+(?:no|na|pelo|pela)\s+(?:discord|whatsapp|zap|dm|pv|privado)\s*[.!]?\s*$/i, "").trim();
+    const { alvoOuTexto, plataforma } = plataformaDe(match[2]);
     const conteudo = match[1].trim();
-    if (alvo && conteudo) return { alvo, conteudo };
+    if (alvoOuTexto && conteudo && !ehZapExplicito(alvoOuTexto)) return { alvo: alvoOuTexto, conteudo, plataforma };
+    if (ehZapExplicito(alvoOuTexto)) return null;
   }
 
   // Pattern 1: "envia msg pra <alvo>: <conteudo>" ou "manda dm pra <alvo> dizendo <conteudo>"
   match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm)?(?:\s+(?:pra|para|pro))?\s*(.+?)(?::\s*|,\s*|\s+dizendo\s+)(.+)/i);
   if (match) {
     const alvo = match[1].trim();
-    const conteudo = match[2].trim().replace(/\s+(?:no|na|pelo|pela)\s+(?:discord|whatsapp|zap|dm|pv|privado)\s*[.!]?\s*$/i, "").trim();
-    if (alvo && conteudo) return { alvo, conteudo };
+    if (ehZapExplicito(alvo)) return null;
+    const { alvoOuTexto, plataforma } = plataformaDe(match[2].trim());
+    const conteudo = alvoOuTexto;
+    if (alvo && conteudo) return { alvo, conteudo, plataforma };
   }
 
   // Pattern 2: "envia msg pra <alvo> <conteudo>" (sem separator)
@@ -517,8 +529,10 @@ function encontrarMensagem(texto) {
     const primeiroEspaco = resto.indexOf(" ");
     if (primeiroEspaco > 0) {
       const alvo = resto.slice(0, primeiroEspaco).trim();
-      const conteudo = resto.slice(primeiroEspaco).trim();
-      if (alvo && conteudo) return { alvo, conteudo };
+      if (ehZapExplicito(alvo)) return null;
+      const { alvoOuTexto, plataforma } = plataformaDe(resto.slice(primeiroEspaco).trim());
+      const conteudo = alvoOuTexto;
+      if (alvo && conteudo) return { alvo, conteudo, plataforma };
     }
   }
 
@@ -1322,6 +1336,20 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   if (categoria === "mensagem") {
     const { client: dc } = require("./client");
     const info = encontrarMensagem(texto);
+
+    // Rota WhatsApp: a frase mencionou zap/whatsapp no fim
+    if (info.plataforma === "whatsapp") {
+      try {
+        const wa = require("../plugins/whatsapp");
+        const abriu = await wa.abrirConversa(info.alvo);
+        if (!abriu || abriu.ok === false) return `❌ Não achei a conversa "${info.alvo}" no WhatsApp.`;
+        const r = await wa.enviarUI(info.conteudo);
+        return r.ok ? `✅ Enviado no WhatsApp para **${info.alvo}**.` : `❌ ${r.erro || "Falhou o envio no WhatsApp."}`;
+      } catch (err) {
+        return `❌ WhatsApp: ${err.message}`;
+      }
+    }
+
     const alvo = info.alvo.toLowerCase();
 
     let usuarioDiscord = null;
