@@ -73,15 +73,51 @@ function tempoParaSegundos(v) {
   return 0;
 }
 
+function carregarManuais() {
+  const arquivo = path.join(PASTA, "manuais.json");
+  if (!fs.existsSync(arquivo)) return [];
+  try {
+    const lista = JSON.parse(fs.readFileSync(arquivo, "utf8"));
+    return Array.isArray(lista)
+      ? lista.map((a) => ({
+          ts: a.ts || new Date(a.data).getTime() || 0,
+          data: a.data || "",
+          nome: a.nome || "",
+          tipo: a.tipo || "Run",
+          km: a.km || 0,
+          movSeg: a.movSeg || 0,
+          elevM: a.elevM || 0,
+          hrMed: a.hrMed || null,
+          kudos: a.kudos || 0,
+          fonte: "manual",
+        }))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 function carregar(forcar = false) {
   if (!forcar && cache.atividades && Date.now() - cache.quando < 10 * 60000) {
     return { ok: true, atividades: cache.atividades, arquivo: cache.arquivo };
   }
   if (!fs.existsSync(PASTA)) {
+    const manuais = carregarManuais();
+    if (manuais.length) {
+      manuais.sort((a, b) => b.ts - a.ts);
+      cache = { atividades: manuais, quando: Date.now(), arquivo: "manuais.json" };
+      return { ok: true, atividades: manuais, arquivo: "manuais.json" };
+    }
     return { ok: false, erro: `Pasta do export não existe: ${PASTA}` };
   }
   const csvs = fs.readdirSync(PASTA).filter((f) => /^activities\.csv$/i.test(f));
   if (!csvs.length) {
+    const manuais = carregarManuais();
+    if (manuais.length) {
+      manuais.sort((a, b) => b.ts - a.ts);
+      cache = { atividades: manuais, quando: Date.now(), arquivo: "manuais.json" };
+      return { ok: true, atividades: manuais, arquivo: "manuais.json" };
+    }
     return {
       ok: false,
       erro: `activities.csv não encontrado em ${PASTA}. Extraia o zip do export lá dentro.`,
@@ -124,9 +160,12 @@ function carregar(forcar = false) {
   }
   atividades.sort((a, b) => b.ts - a.ts);
 
-  cache = { atividades, quando: Date.now(), arquivo };
-  log("INFO", "[STRAVA] Export carregado", { atividades: atividades.length, arquivo });
-  return { ok: true, atividades, arquivo };
+  const manuais = carregarManuais();
+  const tudo = atividades.concat(manuais).sort((a, b) => b.ts - a.ts);
+
+  cache = { atividades: tudo, quando: Date.now(), arquivo };
+  log("INFO", "[STRAVA] Export carregado", { atividades: tudo.length, arquivo });
+  return { ok: true, atividades: tudo, arquivo };
 }
 
 function duracao(segundos) {
@@ -170,8 +209,12 @@ module.exports = {
 
   async iniciar() {
     const r = carregar(true);
-    if (r.ok) log("INFO", "[STRAVA] Export disponível", { atividades: r.atividades.length });
-    else log("INFO", `[STRAVA] Sem export ainda — ${r.erro}`);
+    if (r.ok) log("INFO", "[STRAVA] Dados disponíveis", { atividades: r.atividades.length });
+    else
+      log(
+        "INFO",
+        "[STRAVA] Sem dados ainda — extraia o export em strava_export/ ou registre com scripts/strava_registrar.js"
+      );
   },
 
   async parar() {
