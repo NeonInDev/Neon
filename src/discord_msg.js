@@ -23,7 +23,8 @@ async function resolverUsuario(alvo) {
       try {
         await guild.members.fetch();
         encontrado = guild.members.cache.find(achar);
-      } catch {
+      } catch (err) {
+        log("WARN", "[DISCORD_MSG] members.fetch falhou", { guild: guild.name, erro: err.message });
         continue;
       }
     }
@@ -53,7 +54,8 @@ async function listarContatos() {
     let membros;
     try {
       membros = await guild.members.fetch();
-    } catch {
+    } catch (err) {
+      log("WARN", "[DISCORD_MSG] listarContatos: fetch falhou", { guild: guild.name, erro: err.message });
       continue;
     }
     for (const m of membros.values()) {
