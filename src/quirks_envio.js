@@ -60,4 +60,36 @@ async function enviarQuirk(client, q) {
   return canal;
 }
 
-module.exports = { enviarQuirk, buscar, listar };
+async function acharMensagem(canal, titulo) {
+  const alvo = `**${titulo};**`;
+  let antes = null;
+  for (let i = 0; i < 10; i++) {
+    const lote = await canal.messages.fetch({ limit: 100, before: antes }).catch(() => null);
+    if (!lote || !lote.size) break;
+    const hit = lote.find((m) => m.content.includes(alvo));
+    if (hit) return hit;
+    antes = lote.last().id;
+  }
+  return null;
+}
+
+function atualizarTexto(titulo, novoTexto) {
+  const l = carregar();
+  const q = buscar(titulo);
+  if (!q) return false;
+  q.textoNovo = novoTexto;
+  fs.writeFileSync(DADOS, JSON.stringify(l, null, 1));
+  cache = l;
+  return true;
+}
+
+function remover(titulo) {
+  let l = carregar();
+  const antes = l.length;
+  l = l.filter((x) => x.titulo !== titulo);
+  fs.writeFileSync(DADOS, JSON.stringify(l, null, 1));
+  cache = l;
+  return antes - l.length;
+}
+
+module.exports = { enviarQuirk, buscar, listar, acharCanal, acharMensagem, atualizarTexto, remover };
