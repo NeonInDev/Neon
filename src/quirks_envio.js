@@ -21,6 +21,19 @@ function normalizar(s) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 }
 
+// só letras/números/espaço — ignora enfeites tipo 𑁍 ˖ 𖥔 que vêm dentro do negrito em alguns cards
+function nucleo(s) {
+  return normalizar(s).replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// casa título capturado de um card com um nome do pacote, dos dois lados
+function mesmoTitulo(capturado, nome) {
+  const a = nucleo(capturado);
+  const b = nucleo(nome);
+  if (!a || !b) return false;
+  return a === b || a.includes(b) || b.includes(a);
+}
+
 function listar() {
   return carregar().map((q) => q.titulo);
 }
@@ -86,7 +99,13 @@ async function acharMensagem(canal, titulo) {
   for (let i = 0; i < 10; i++) {
     const lote = await canal.messages.fetch({ limit: 100, before: antes }).catch(() => null);
     if (!lote || !lote.size) break;
-    const hit = lote.find((m) => m.content.includes(alvo));
+    let hit = lote.find((m) => m.content.includes(alvo));
+    if (!hit) {
+      hit = lote.find((m) => {
+        const t = m.content.match(/\*\*([^*\n]{1,100}?);\*\*/);
+        return t && mesmoTitulo(t[1], titulo);
+      });
+    }
     if (hit) return hit;
     antes = lote.last().id;
   }
@@ -121,10 +140,10 @@ async function mapearLinks(canal) {
     const lote = await canal.messages.fetch({ limit: 100, before: antes }).catch(() => null);
     if (!lote || !lote.size) break;
     for (const m of lote.values()) {
-      const t = m.content.match(/\*\*([^*\n]+?);\*\*/);
+      const t = m.content.match(/\*\*([^*\n]{1,100}?);\*\*/);
       if (!t) continue;
-      const q = buscar(t[1]);
-      if (q && !q.link) {
+      const q = carregar().find((x) => !x.link && mesmoTitulo(t[1], x.titulo));
+      if (q) {
         q.link = m.url;
         q.canal = "livres";
         novos++;
