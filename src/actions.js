@@ -1634,22 +1634,41 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
   }
 
-  // Envio de quirk no canal oficial (só dono)
+  // Envio de quirk nos canais de quirks (admin ou dono)
   if (categoria === "quirk_enviar") {
     try {
-      const { isOwner } = require("./perm");
-      if (!isOwner(userId)) return "🔒 Esse comando é só pro dono.";
+      const { PermissionFlagsBits } = require("discord.js");
+      const { isOwner, OWNER } = require("./perm");
+      const ehAdmin =
+        userId === OWNER ||
+        isOwner(userId) ||
+        Boolean(message?.member?.permissions?.has?.(PermissionFlagsBits.Administrator));
+      if (!ehAdmin) return "🔒 Só admins ou o dono podem mexer nas quirks.";
       const qe = require("./quirks_envio");
       const m = texto.match(/^(?:neon[,!\s]+)?(?:manda|mande|mandar|envia|envie|enviar)\s+(?:a\s+|o\s+)?quirks?\s+(.+)$/i);
-      let titulo = m ? m[1].replace(/\s+(?:pro|pra|para|no|na)\s+.*$/i, "").replace(/[?.!]+$/, "").trim() : "";
+      let titulo = m ? m[1].trim() : "";
+      const proSorteio = /\b(?:pro|pra|para|no|na)\s+sorteio\b/i.test(titulo);
+      titulo = titulo
+        .replace(/\s+(?:pro|pra|para|no|na)\s+(?:canal\s+de\s+)?quirks?\s*[- ]?\s*(?:livres|livre|sorteio).*$/i, "")
+        .replace(/\s+(?:pro|pra|para|no|na)\s+sorteio$/i, "")
+        .replace(/[?.!]+$/, "")
+        .trim();
       if (!titulo || /^(?:lista|todas|todas as quirks)$/i.test(titulo)) {
         return `📚 Tem ${qe.listar().length} quirks no pacote. Manda "envia quirk <nome>" que eu envio.`;
       }
       const q = qe.buscar(titulo);
       if (!q) return `❌ Não achei a quirk "${titulo}" no pacote.`;
       if (!message || !message.client) return "❌ Manda esse comando pelo Discord pra eu acessar o servidor.";
-      await qe.enviarQuirk(message.client, q);
-      return `✅ Enviei **${q.titulo}** no quirks-livres.`;
+      const tipo = proSorteio ? "sorteio" : "livres";
+      const msg = await qe.enviarQuirk(message.client, q, tipo);
+      let extra = "";
+      if (tipo === "livres") {
+        try {
+          await qe.reconstruirSumario(message.client);
+          extra = " Sumário atualizado!";
+        } catch {}
+      }
+      return `✅ Enviei **${q.titulo}** em ${msg.channel}.${extra}`;
     } catch (err) {
       return `❌ Quirks: ${err.message}`;
     }

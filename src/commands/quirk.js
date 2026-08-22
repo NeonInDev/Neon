@@ -1,5 +1,6 @@
 const {
   SlashCommandBuilder,
+  PermissionFlagsBits,
   InteractionContextType,
   ApplicationIntegrationType,
   ModalBuilder,
@@ -14,7 +15,15 @@ function normalizar(s) {
   return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 }
 
-async function responderNome(canalAlvo, interaction) {
+// dono OU cargo Administrador ou superior
+function podeUsar(interaction) {
+  return (
+    isOwner(interaction.user.id) ||
+    (interaction.inGuild() && interaction.member.permissions.has(PermissionFlagsBits.Administrator))
+  );
+}
+
+async function responderNome(interaction) {
   const digitado = normalizar(interaction.options.getFocused());
   const opcoes = quirksEnvio
     .listar()
@@ -27,15 +36,24 @@ async function responderNome(canalAlvo, interaction) {
 module.exports = {
   data: new SlashCommandBuilder()
     .setName("quirk")
-    .setDescription("Gerenciar quirks do pacote (só dono)")
+    .setDescription("Gerenciar quirks do pacote (só admin+)")
     .setContexts(InteractionContextType.Guild)
     .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
     .addSubcommand((sc) =>
       sc
         .setName("enviar")
-        .setDescription("Enviar uma quirk no canal quirks-livres")
+        .setDescription("Enviar uma quirk com imagem no canal escolhido")
         .addStringOption((o) =>
           o.setName("nome").setDescription("Nome da quirk").setRequired(true).setAutocomplete(true)
+        )
+        .addStringOption((o) =>
+          o
+            .setName("canal")
+            .setDescription("Onde enviar")
+            .addChoices(
+              { name: "quirks-livres", value: "livres" },
+              { name: "quirk-sorteio", value: "sorteio" }
+            )
         )
     )
     .addSubcommand((sc) =>
@@ -49,27 +67,40 @@ module.exports = {
     .addSubcommand((sc) =>
       sc
         .setName("apagar")
-        .setDescription("Apagar a mensagem de uma quirk já enviada")
+        .setDescription("Apagar a mensagem de uma quirk já enviada (atualiza o sumário)")
         .addStringOption((o) =>
           o.setName("nome").setDescription("Nome da quirk").setRequired(true).setAutocomplete(true)
         )
         .addBooleanOption((o) =>
-          o
-            .setName("do_pacote")
-            .setDescription("Também remover a quirk do pacote (pra não reenviar depois)")
+          o.setName("do_pacote").setDescription("Também remover do pacote (não reenvia depois)")
         )
+    )
+    .addSubcommand((sc) =>
+      sc.setName("sumario").setDescription("Reconstruir agora o sumário com os links das quirks")
     ),
 
   async autocomplete(interaction) {
-    if (!isOwner(interaction.user.id)) return await interaction.respond([]);
-    await responderNome(null, interaction);
+    if (!podeUsar(interaction)) return await interaction.respond([]);
+    await responderNome(interaction);
   },
 
   async execute(interaction) {
-    if (!isOwner(interaction.user.id)) {
-      return await interaction.reply({ content: "🔒 Esse comando é só pro dono.", ephemeral: true });
+    if (!podeUsar(interaction)) {
+      return await interaction.reply({ content: "🔒 Só admins ou superior.", ephemeral: true });
     }
     const sub = interaction.options.getSubcommand();
+
+    if (sub === "sumario") {
+      await interaction.deferReply({ ephemeral: true });
+      try {
+        const n = await quirksEnvio.reconstruirSumario(interaction.client);
+        await interaction.editReply(`📚 Sumário reconstruído (${n} mensagens).`);
+      } catch (err) {
+        await interaction.editReply(`❌ Sumário: ${err.message}`);
+      }
+      return;
+    }
+
     const titulo = interaction.options.getString("nome");
     const q = quirksEnvio.buscar(titulo);
     if (!q) {
@@ -77,10 +108,18 @@ module.exports = {
     }
 
     if (sub === "enviar") {
+      const tipo = interaction.options.getString("canal") || "livres";
       await interaction.deferReply({ ephemeral: true });
       try {
-        const canal = await quirksEnvio.enviarQuirk(interaction.client, q);
-        await interaction.editReply(`✅ Enviei **${q.titulo}** em ${canal}.`);
+        const msg = await quirksEnvio.enviarQuirk(interaction.client, q, tipo);
+        let extra = "";
+        if (tipo !== "sorteio") {
+          try {
+            await quirksEnvio.reconstruirSumario(interaction.client);
+            extra = " Sumário atualizado!";
+          } catch {}
+        }
+        await interaction.editReply(`✅ Enviei **${q.titulo}** em ${msg.channel}.${extra}`);
       } catch (err) {
         await interaction.editReply(`❌ Quirks: ${err.message}`);
       }
@@ -102,20 +141,25 @@ module.exports = {
     if (sub === "apagar") {
       await interaction.deferReply({ ephemeral: true });
       try {
-        const canal = await quirksEnvio.acharCanal(interaction.client);
-        if (!canal) throw new Error("canal quirks-livres não encontrado");
+        const tipo = q.canal || "livres";
+        const canal = await quirksEnvio.acharCanal(interaction.client, tipo);
+        if (!canal) throw new Error(`canal de quirks (${tipo}) não encontrado`);
         const msg = await quirksEnvio.acharMensagem(canal, q.titulo);
         let apagada = false;
         if (msg) {
           await msg.delete();
           apagada = true;
         }
-        const removida = interaction.options.getBoolean("do_pacote")
-          ? quirksEnvio.remover(q.titulo)
-          : 0;
+        const removida = interaction.options.getBoolean("do_pacote") ? quirksEnvio.remover(q.titulo) : 0;
+        let extra = "";
+        try {
+          const n = await quirksEnvio.reconstruirSumario(interaction.client);
+          extra = ` Sumário atualizado (${n} msgs).`;
+        } catch {}
         const partes = [];
-        partes.push(apagada ? "🗑️ Mensagem apagada no canal." : "⚠️ Mensagem não encontrada no canal.");
-        if (removida) partes.push("📦 Também removi do pacote.");
+        partes.push(apagada ? "🗑️ Mensagem apagada." : "⚠️ Mensagem não encontrada.");
+        if (removida) partes.push("📦 Removida do pacote também.");
+        partes.push(extra);
         await interaction.editReply(partes.join(" "));
       } catch (err) {
         await interaction.editReply(`❌ Quirks: ${err.message}`);
@@ -125,8 +169,8 @@ module.exports = {
   },
 
   async modalSubmit(interaction) {
-    if (!isOwner(interaction.user.id)) {
-      return await interaction.reply({ content: "🔒 Esse comando é só pro dono.", ephemeral: true });
+    if (!podeUsar(interaction)) {
+      return await interaction.reply({ content: "🔒 Só admins ou superior.", ephemeral: true });
     }
     const titulo = interaction.customId.split(":").slice(1).join(":");
     const novoTexto = interaction.fields.getTextInputValue("texto");
@@ -136,8 +180,8 @@ module.exports = {
     }
     await interaction.deferReply({ ephemeral: true });
     try {
-      const canal = await quirksEnvio.acharCanal(interaction.client);
-      if (!canal) throw new Error("canal quirks-livres não encontrado");
+      const canal = await quirksEnvio.acharCanal(interaction.client, quirksEnvio.buscar(titulo).canal || "livres");
+      if (!canal) throw new Error("canal não encontrado");
       const msg = await quirksEnvio.acharMensagem(canal, titulo);
       if (msg) {
         await msg.edit({ content: novoTexto });

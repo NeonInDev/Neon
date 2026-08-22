@@ -1,9 +1,10 @@
-// Envio de quirks do pacote migrado para o canal oficial (só dono)
+// Pacote de quirks migrado + envio em canais + sumário automático
 const fs = require("fs");
 const path = require("path");
 
 const DADOS = path.join(__dirname, "..", "data", "quirks", "envio_v2.json");
 const IMGS = path.join(__dirname, "..", "data", "quirks", "imgs");
+const MARCADOR = "⊹₊˚ʚ  Sumário!";
 
 let cache = null;
 
@@ -12,8 +13,12 @@ function carregar() {
   return cache;
 }
 
+function persistir() {
+  fs.writeFileSync(DADOS, JSON.stringify(carregar(), null, 1));
+}
+
 function normalizar(s) {
-  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9 ]/g, "").trim();
+  return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 }
 
 function listar() {
@@ -39,25 +44,40 @@ function resolverArquivos(q) {
     .filter((f) => fs.existsSync(f));
 }
 
-async function acharCanal(client) {
+// tipo: "livres" | "sorteio"
+function nomeAlvo(tipo) {
+  return /sorte/i.test(tipo || "") ? "sorteio" : "quirks-livres";
+}
+
+async function acharCanal(client, tipo) {
+  const alvo = nomeAlvo(tipo);
+  const querSorteio = alvo === "sorteio";
   let canal = null;
   for (const g of client.guilds.cache.values()) {
     const chans = await g.channels.fetch().catch(() => null);
     if (!chans) continue;
     canal =
-      chans.find((c) => c.isTextBased() && c.name.includes("quirks-livres") && !c.name.includes("teste")) ||
-      canal;
+      chans.find(
+        (c) =>
+          c.isTextBased() &&
+          !c.name.includes("teste") &&
+          c.name.includes("quirk") &&
+          (querSorteio ? c.name.includes("sorteio") : c.name.includes("livre"))
+      ) || canal;
   }
   return canal;
 }
 
-async function enviarQuirk(client, q) {
+async function enviarQuirk(client, q, tipo) {
   const { AttachmentBuilder } = require("discord.js");
-  const canal = await acharCanal(client);
-  if (!canal) throw new Error("canal quirks-livres não encontrado em nenhum servidor");
+  const canal = await acharCanal(client, tipo);
+  if (!canal) throw new Error(`canal de quirks (${nomeAlvo(tipo)}) não encontrado`);
   const files = resolverArquivos(q).map((f) => new AttachmentBuilder(f));
-  await canal.send({ content: q.textoNovo || q.texto, files });
-  return canal;
+  const msg = await canal.send({ content: q.textoNovo || q.texto, files });
+  q.canal = nomeAlvo(tipo);
+  q.link = msg.url;
+  persistir();
+  return msg;
 }
 
 async function acharMensagem(canal, titulo) {
@@ -78,8 +98,7 @@ function atualizarTexto(titulo, novoTexto) {
   const q = buscar(titulo);
   if (!q) return false;
   q.textoNovo = novoTexto;
-  fs.writeFileSync(DADOS, JSON.stringify(l, null, 1));
-  cache = l;
+  persistir();
   return true;
 }
 
@@ -87,9 +106,103 @@ function remover(titulo) {
   let l = carregar();
   const antes = l.length;
   l = l.filter((x) => x.titulo !== titulo);
-  fs.writeFileSync(DADOS, JSON.stringify(l, null, 1));
   cache = l;
+  persistir();
   return antes - l.length;
 }
 
-module.exports = { enviarQuirk, buscar, listar, acharCanal, acharMensagem, atualizarTexto, remover };
+// ===== SUMÁRIO =====
+
+// varre o canal e guarda o link de cada card já enviado que ainda não tem link no pacote
+async function mapearLinks(canal) {
+  let antes = null;
+  let novos = 0;
+  for (let i = 0; i < 12; i++) {
+    const lote = await canal.messages.fetch({ limit: 100, before: antes }).catch(() => null);
+    if (!lote || !lote.size) break;
+    for (const m of lote.values()) {
+      const t = m.content.match(/\*\*([^*\n]+?);\*\*/);
+      if (!t) continue;
+      const q = buscar(t[1]);
+      if (q && !q.link) {
+        q.link = m.url;
+        q.canal = "livres";
+        novos++;
+      }
+    }
+    antes = lote.last().id;
+  }
+  if (novos) persistir();
+  return novos;
+}
+
+async function apagarSumarioAntigo(canal, client) {
+  let antes = null;
+  const apagar = [];
+  for (let i = 0; i < 10; i++) {
+    const lote = await canal.messages.fetch({ limit: 100, before: antes }).catch(() => null);
+    if (!lote || !lote.size) break;
+    for (const m of lote.values()) {
+      if (m.author.id === client.user.id && m.content.startsWith(MARCADOR)) apagar.push(m);
+    }
+    antes = lote.last().id;
+  }
+  for (const m of apagar) await m.delete().catch(() => {});
+  return apagar.length;
+}
+
+function montarChunksSumario() {
+  const lista = [...carregar()].sort((a, b) => a.titulo.localeCompare(b.titulo, "pt-BR"));
+  const secoes = [];
+  let letra = "";
+  let atual = "";
+  for (const q of lista) {
+    const inicial = (q.titulo.normalize("NFD").replace(/[^A-Za-zÀ-ÿ]/g, "").match(/[A-ZÀ-Ý]/) || ["#"])[0].toUpperCase();
+    if (inicial !== letra) {
+      if (atual) secoes.push(atual);
+      letra = inicial;
+      atual = `__**— ${letra} —**__\n`;
+    }
+    const item = q.link ? `[${q.titulo}](${q.link})` : q.titulo;
+    if (atual.length + item.length > 1750) {
+      secoes.push(atual);
+      atual = `__**— ${letra} (cont.) —**__\n`;
+    }
+    atual += `${item}\n`;
+  }
+  if (atual) secoes.push(atual);
+
+  // quebrar em mensagens de até ~1800 chars, cada uma começando com o marcador
+  const msgs = [];
+  let buf = "";
+  for (const s of secoes) {
+    if (buf.length + s.length > 1700) {
+      msgs.push(buf);
+      buf = "";
+    }
+    buf += s;
+  }
+  if (buf) msgs.push(buf);
+  return msgs.map((t, i) => `${MARCADOR}${msgs.length > 1 ? ` (${i + 1}/${msgs.length})` : ""}\n\n${t}`);
+}
+
+async function reconstruirSumario(client) {
+  const canal = await acharCanal(client, "livres");
+  if (!canal) throw new Error("canal quirks-livres não encontrado pro sumário");
+  await apagarSumarioAntigo(canal, client);
+  await mapearLinks(canal);
+  const chunks = montarChunksSumario();
+  for (const c of chunks) await canal.send({ content: c });
+  return chunks.length;
+}
+
+module.exports = {
+  enviarQuirk,
+  buscar,
+  listar,
+  acharCanal,
+  acharMensagem,
+  atualizarTexto,
+  remover,
+  reconstruirSumario,
+};
