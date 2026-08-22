@@ -4,7 +4,8 @@ const path = require("path");
 
 const DADOS = path.join(__dirname, "..", "data", "quirks", "envio_v2.json");
 const IMGS = path.join(__dirname, "..", "data", "quirks", "imgs");
-const MARCADOR = "⊹₊˚ʚ  Sumário!";
+const MARCADOR = "⊹₊˚ʚ 📚 Sumário";
+const EMOJIS_LETRA = ["🌟", "✨", "⚡", "🌀", "🧬", "💫", "🔮", "🦋", "🔥", "🌊", "🌙", "⭐", "🍀", "🎭", "💎", "🌸"];
 
 let cache = null;
 
@@ -162,7 +163,7 @@ async function apagarSumarioAntigo(canal, client) {
     const lote = await canal.messages.fetch({ limit: 100, before: antes }).catch(() => null);
     if (!lote || !lote.size) break;
     for (const m of lote.values()) {
-      if (m.author.id === client.user.id && m.content.startsWith(MARCADOR)) apagar.push(m);
+      if (m.author.id === client.user.id && m.content.includes("Sumário")) apagar.push(m);
     }
     antes = lote.last().id;
   }
@@ -175,23 +176,24 @@ function montarChunksSumario() {
   const secoes = [];
   let letra = "";
   let atual = "";
+  let ei = 0;
   for (const q of lista) {
     const inicial = (q.titulo.normalize("NFD").replace(/[^A-Za-zÀ-ÿ]/g, "").match(/[A-ZÀ-Ý]/) || ["#"])[0].toUpperCase();
     if (inicial !== letra) {
       if (atual) secoes.push(atual);
       letra = inicial;
-      atual = `__**— ${letra} —**__\n`;
+      atual = `## ${EMOJIS_LETRA[ei % EMOJIS_LETRA.length]} — ${letra} —\n`;
+      ei++;
     }
-    const item = q.link ? `[${q.titulo}](${q.link})` : q.titulo;
+    const item = q.link ? `- [${q.titulo}](${q.link})` : `- ${q.titulo}`;
     if (atual.length + item.length > 1750) {
       secoes.push(atual);
-      atual = `__**— ${letra} (cont.) —**__\n`;
+      atual = `## ✳️ — ${letra} (cont.) —\n`;
     }
     atual += `${item}\n`;
   }
   if (atual) secoes.push(atual);
 
-  // quebrar em mensagens de até ~1800 chars, cada uma começando com o marcador
   const msgs = [];
   let buf = "";
   for (const s of secoes) {
@@ -202,7 +204,13 @@ function montarChunksSumario() {
     buf += s;
   }
   if (buf) msgs.push(buf);
-  return msgs.map((t, i) => `${MARCADOR}${msgs.length > 1 ? ` (${i + 1}/${msgs.length})` : ""}\n\n${t}`);
+  return msgs.map((t, i) => {
+    const cab =
+      i === 0
+        ? `# ${MARCADOR}! ﹒꒷₊⩇`
+        : `*${MARCADOR}! ﹒꒷₊⩇ (${i + 1}/${msgs.length})*`;
+    return `${cab}\n\n${t}`;
+  });
 }
 
 async function reconstruirSumario(client) {
