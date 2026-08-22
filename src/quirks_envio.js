@@ -4,10 +4,16 @@ const path = require("path");
 
 const DADOS = path.join(__dirname, "..", "data", "quirks", "envio_v2.json");
 const IMGS = path.join(__dirname, "..", "data", "quirks", "imgs");
+const FANDOM = path.join(__dirname, "..", "data", "quirks", "fandom.json");
+const ADICIONADAS = path.join(__dirname, "..", "data", "quirks", "adicionadas.json");
+const APAGADAS = path.join(__dirname, "..", "data", "quirks", "apagadas.json");
 const MARCADOR = "⊹₊˚ʚ 📚 Sumário";
 const EMOJIS_LETRA = ["🌟", "✨", "⚡", "🌀", "🧬", "💫", "🔮", "🦋", "🔥", "🌊", "🌙", "⭐", "🍀", "🎭", "💎", "🌸"];
+const EMOJI_TIPO = { Emissora: "⚡", Mutação: "🧬", Transformação: "🌀" };
 
 let cache = null;
+let cacheFandom = null;
+let cacheAdic = null;
 
 function carregar() {
   if (!cache) cache = JSON.parse(fs.readFileSync(DADOS, "utf8"));
@@ -16,6 +22,55 @@ function carregar() {
 
 function persistir() {
   fs.writeFileSync(DADOS, JSON.stringify(carregar(), null, 1));
+}
+
+function carregarFandom() {
+  if (!cacheFandom) cacheFandom = JSON.parse(fs.readFileSync(FANDOM, "utf8"));
+  return cacheFandom;
+}
+
+function listarFandom() {
+  return carregarFandom().map((q) => q.nome);
+}
+
+function buscarFandom(nome) {
+  const n = normalizar(nome);
+  const l = carregarFandom();
+  return (
+    l.find((q) => normalizar(q.nome) === n) ||
+    l.find((q) => nucleo(q.nome).includes(nucleo(nome))) ||
+    null
+  );
+}
+
+function carregarAdicionadas() {
+  if (!cacheAdic) {
+    try {
+      cacheAdic = JSON.parse(fs.readFileSync(ADICIONADAS, "utf8"));
+    } catch {
+      cacheAdic = [];
+    }
+  }
+  return cacheAdic;
+}
+
+function salvarAdicionadas(l) {
+  cacheAdic = l;
+  fs.writeFileSync(ADICIONADAS, JSON.stringify(l, null, 1));
+}
+
+function registrarApagada(origem, dados) {
+  let l = [];
+  try {
+    l = JSON.parse(fs.readFileSync(APAGADAS, "utf8"));
+  } catch {}
+  l.push({
+    de: origem,
+    titulo: dados.titulo,
+    textoNovo: dados.textoNovo || dados.texto || "",
+    tipo: dados.tipo || null,
+  });
+  fs.writeFileSync(APAGADAS, JSON.stringify(l, null, 1));
 }
 
 function normalizar(s) {
@@ -36,12 +91,12 @@ function mesmoTitulo(capturado, nome) {
 }
 
 function listar() {
-  return carregar().map((q) => q.titulo);
+  return [...carregar(), ...carregarAdicionadas()].map((q) => q.titulo);
 }
 
 function buscar(titulo) {
   const n = normalizar(titulo);
-  const l = carregar();
+  const l = [...carregar(), ...carregarAdicionadas()];
   return l.find((q) => normalizar(q.titulo) === n) || l.find((q) => normalizar(q.titulo).includes(n)) || null;
 }
 
@@ -82,10 +137,63 @@ async function acharCanal(client, tipo) {
   return canal;
 }
 
-async function enviarQuirk(client, q, tipo) {
+// card no mesmo molde dos do pacote, montado a partir dos dados da fandom
+function montarCardFandom(f) {
+  const desc = (f.descricao || "").slice(0, 1300).replace(/\n{2,}/g, "\n");
+  const partes = [
+    "───────",
+    `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`,
+    "",
+    `> 💭 ᝢ__${desc}__`,
+    "",
+  ];
+  if (f.usuario) partes.push(`> **꒰👤꒱ Usuário ➳** __${f.usuario}__`, "");
+  partes.push(` ⭐ Tipo de quirk ：__\`${f.tipo || "Desconhecido"}\`__`);
+  partes.push(" ︶︶︶︶︶︶︶︶︶︶");
+  partes.push(" ₊˚✧◝ ᵔ₊.");
+  return partes.join("\n");
+}
+
+// resumo de uma quirk canônica da fandom (pra /quirk informação)
+function informacao(nome) {
+  const f = buscarFandom(nome);
+  if (!f) return null;
+  const e = EMOJI_TIPO[f.tipo] || "✨";
+  const linhas = [
+    `───────`,
+    `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`,
+    "",
+    `> 💭 ᝢ__${(f.descricao || "").slice(0, 1400)}__`,
+    "",
+  ];
+  if (f.usuario) linhas.push(`> **꒰👤꒱ Usuário ➳** __${f.usuario}__`, "");
+  linhas.push(` ⭐ Tipo de quirk ：__\`${f.tipo || "Desconhecido"} ${e}\`__`);
+  linhas.push(" ︶︶︶︶︶︶︶︶︶︶", " ₊˚✧◝ ᵔ₊.");
+  if (f.url) linhas.push("", `🔗 <${f.url}>`);
+  return { texto: linhas.join("\n"), fandom: f };
+}
+
+async function enviarQuirk(client, q, tipo, origem = "pacote") {
   const { AttachmentBuilder } = require("discord.js");
   const canal = await acharCanal(client, tipo);
   if (!canal) throw new Error(`canal de quirks (${nomeAlvo(tipo)}) não encontrado`);
+
+  if (origem === "fandom") {
+    const card = montarCardFandom(q);
+    const msg = await canal.send({ content: card });
+    const adic = carregarAdicionadas().filter((x) => !mesmoTitulo(x.titulo, q.nome));
+    adic.push({
+      titulo: q.nome,
+      textoNovo: card,
+      tipo: q.tipo,
+      link: msg.url,
+      canal: nomeAlvo(tipo),
+      imagens: [],
+    });
+    salvarAdicionadas(adic);
+    return msg;
+  }
+
   const files = resolverArquivos(q).map((f) => new AttachmentBuilder(f));
   const msg = await canal.send({ content: q.textoNovo || q.texto, files });
   q.canal = nomeAlvo(tipo);
@@ -118,17 +226,36 @@ function atualizarTexto(titulo, novoTexto) {
   const q = buscar(titulo);
   if (!q) return false;
   q.textoNovo = novoTexto;
-  persistir();
+  if (carregarAdicionadas().includes(q)) salvarAdicionadas(cacheAdic);
+  else persistir();
   return true;
 }
 
 function remover(titulo) {
+  let n = 0;
   let l = carregar();
-  const antes = l.length;
-  l = l.filter((x) => x.titulo !== titulo);
-  cache = l;
-  persistir();
-  return antes - l.length;
+  const alvo = buscar(titulo);
+
+  const restPacote = l.filter((x) => x.titulo !== titulo && !mesmoTitulo(x.titulo, titulo));
+  if (restPacote.length !== l.length) {
+    const tirada = l.find((x) => !restPacote.includes(x));
+    if (tirada) registrarApagada("pacote", tirada);
+    cache = restPacote;
+    persistir();
+    n++;
+  }
+
+  if (!n && alvo) {
+    const adic = carregarAdicionadas();
+    const restAdic = adic.filter((x) => x.titulo !== alvo.titulo);
+    if (restAdic.length !== adic.length) {
+      const tirada = adic.find((x) => !restAdic.includes(x));
+      if (tirada) registrarApagada("adicionadas", tirada);
+      salvarAdicionadas(restAdic);
+      n++;
+    }
+  }
+  return n;
 }
 
 // ===== SUMÁRIO =====
@@ -172,7 +299,9 @@ async function apagarSumarioAntigo(canal, client) {
 }
 
 function montarChunksSumario() {
-  const lista = [...carregar()].sort((a, b) => a.titulo.localeCompare(b.titulo, "pt-BR"));
+  const lista = [...carregar(), ...carregarAdicionadas()].sort((a, b) =>
+    a.titulo.localeCompare(b.titulo, "pt-BR")
+  );
   const secoes = [];
   let letra = "";
   let atual = "";
@@ -227,6 +356,9 @@ module.exports = {
   enviarQuirk,
   buscar,
   listar,
+  listarFandom,
+  buscarFandom,
+  informacao,
   acharCanal,
   acharMensagem,
   atualizarTexto,
