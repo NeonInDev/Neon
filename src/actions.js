@@ -537,8 +537,10 @@ function encontrarMensagem(texto) {
   };
   const ehZapExplicito = (alvo) => /^(?:um\s+)?(?:zaps?\b|whats(?:app)?\b|zapzap\b)/.test(alvo);
 
+  const VERBOS_MSG = "(?:manda|mande|mandar|envia|envie|enviar|fala|fale|diga|dizer|digita|escreve|escreva)";
+
   // Pattern 0: manda "<conteudo>" pra <alvo> (aspas, plataforma opcional no fim)
-  let match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm)?\s*["“”'](.+?)["“”']\s*(?:pra|para|pro)\s+(.+)$/i);
+  let match = lower.match(new RegExp(`^${VERBOS_MSG}\\s+(?:mensagem|msg|dm)?\\s*["“”'](.+?)["“”']\\s*(?:pra|para|pro)\\s+(.+)$`, "i"));
   if (match) {
     const { alvoOuTexto, plataforma } = plataformaDe(match[2]);
     const conteudo = match[1].trim();
@@ -547,9 +549,9 @@ function encontrarMensagem(texto) {
   }
 
   // Pattern 1: "envia msg pra <alvo>: <conteudo>" ou "manda dm pra <alvo> dizendo <conteudo>"
-  match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm)?(?:\s+(?:pra|para|pro))?\s*(.+?)(?::\s*|,\s*|\s+dizendo\s+)(.+)/i);
+  match = lower.match(new RegExp(`^${VERBOS_MSG}\\s+(?:mensagem|msg|dm)?(?:\\s+(?:pra|para|pro))?\\s*(.+?)(?::\\s*|,\\s*|\\s+dizendo\\s+)(.+)`, "i"));
   if (match) {
-    const alvo = match[1].trim();
+    const alvo = match[1].trim().replace(/^(?:pra|para|pro)\s+/i, "");
     if (ehZapExplicito(alvo)) return null;
     const { alvoOuTexto, plataforma } = plataformaDe(match[2].trim());
     const conteudo = alvoOuTexto;
@@ -557,9 +559,9 @@ function encontrarMensagem(texto) {
   }
 
   // Pattern 2: "envia msg pra <alvo> <conteudo>" (sem separator)
-  match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm)?(?:\s+(?:pra|para|pro))?\s*(.+)/i);
+  match = lower.match(new RegExp(`^${VERBOS_MSG}\\s+(?:mensagem|msg|dm)?(?:\\s+(?:pra|para|pro))?\\s*(.+)`, "i"));
   if (match) {
-    const resto = match[1].trim();
+    const resto = match[1].trim().replace(/^(?:pra|para|pro)\s+/i, "");
     const primeiroEspaco = resto.indexOf(" ");
     if (primeiroEspaco > 0) {
       const alvo = resto.slice(0, primeiroEspaco).trim();
