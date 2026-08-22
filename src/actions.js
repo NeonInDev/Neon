@@ -795,6 +795,7 @@ function detectarCategoria(texto) {
   if (encontrarChuva(texto)) return "clima_chuva";
   if (encontrarClima(texto)) return "clima";
   if (encontrarBoletim(texto)) return "boletim";
+  if (/^(?:neon[,!\s]+)?(?:manda|mande|mandar|envia|envie|enviar)\s+(?:a\s+|o\s+)?quirks?\s+\S/i.test(texto)) return "quirk_enviar";
   if (encontrarFlashcards(texto)) return "flashcards";
   if (encontrarMensagem(texto)) return "mensagem";
   if (encontrarSpotifyControl(texto)) return "spotify_control";
@@ -1630,6 +1631,27 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return lista.mensagem;
     } catch (err) {
       return `❌ Flashcards: ${err.message}`;
+    }
+  }
+
+  // Envio de quirk no canal oficial (só dono)
+  if (categoria === "quirk_enviar") {
+    try {
+      const { isOwner } = require("./perm");
+      if (!isOwner(userId)) return "🔒 Esse comando é só pro dono.";
+      const qe = require("./quirks_envio");
+      const m = texto.match(/^(?:neon[,!\s]+)?(?:manda|mande|mandar|envia|envie|enviar)\s+(?:a\s+|o\s+)?quirks?\s+(.+)$/i);
+      let titulo = m ? m[1].replace(/\s+(?:pro|pra|para|no|na)\s+.*$/i, "").replace(/[?.!]+$/, "").trim() : "";
+      if (!titulo || /^(?:lista|todas|todas as quirks)$/i.test(titulo)) {
+        return `📚 Tem ${qe.listar().length} quirks no pacote. Manda "envia quirk <nome>" que eu envio.`;
+      }
+      const q = qe.buscar(titulo);
+      if (!q) return `❌ Não achei a quirk "${titulo}" no pacote.`;
+      if (!message || !message.client) return "❌ Manda esse comando pelo Discord pra eu acessar o servidor.";
+      await qe.enviarQuirk(message.client, q);
+      return `✅ Enviei **${q.titulo}** no quirks-livres.`;
+    } catch (err) {
+      return `❌ Quirks: ${err.message}`;
     }
   }
 
