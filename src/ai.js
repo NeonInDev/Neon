@@ -145,6 +145,15 @@ ${tratamentoChefe}`;
   const inicio = Date.now();
 
   try {
+    const decisao = await opencode.decidir(promptTruncado);
+    if (decisao.acao && decisao.resposta) {
+      user.historico.push({ user: userInput, bot: decisao.resposta.slice(0, 500) });
+      if (user.historico.length > 200) user.historico.shift();
+      await db.write();
+      log("INFO", "Ação executada pelo OpenCode", { usuario: username, chars: decisao.resposta.length });
+      return decisao.resposta.slice(0, 4000);
+    }
+
     let userMsg = `${historicoTxt}Usuário: ${promptTruncado}`;
 
     if (imageUrl) {

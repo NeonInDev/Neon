@@ -1,7 +1,6 @@
 const { ChannelType } = require("discord.js");
 const { db } = require("../db");
 const { askNeon } = require("../ai");
-const { executarAcao } = require("../actions");
 const { getOrCreateUser } = require("../user");
 const { estaNaBlacklist } = require("../moderation");
 const { MASTER_KEY } = require("../config");
@@ -161,22 +160,9 @@ async function processarLote(userId, lote) {
   enfileirar(userId, async () => {
     processando.delete(message.id);
     try {
-      const mestre = db.data.users?.[userId]?.mestre || false;
       const username = message.author.username;
 
       await message.channel.sendTyping();
-      const resultadoAcao = await executarAcao(textoLimpo, mestre, userId, message);
-      if (resultadoAcao === "__PRIVADO__") {
-        // Resposta já enviada via DM, não fazer nada
-        return;
-      }
-      if (resultadoAcao && !resultadoAcao.startsWith("❌")) {
-        addContexto(userId, username, textoLimpo, resultadoAcao);
-        auditar(userId, username, textoLimpo, resultadoAcao.slice(0, 100));
-        await enviarResposta(message, resultadoAcao);
-        return;
-      }
-
       const imageUrl = message.attachments.first()?.url || null;
       const reply = await askNeon(userId, username, textoLimpo, imageUrl);
       if (!message.replied) {

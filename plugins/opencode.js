@@ -261,6 +261,29 @@ async function executar(tarefa) {
   }
 }
 
+async function decidir(tarefa) {
+  const instrucoes = [
+    "Você é o roteador de ações da Neon.",
+    "Analise a mensagem abaixo.",
+    "Se for conversa, dúvida, cumprimento ou pedido que não exige executar nada no computador, responda exatamente: __NEON_PASS__",
+    "Se for uma ação explícita, execute-a agora usando suas ferramentas. Depois responda em português brasileiro, em uma frase curta, começando exatamente por: __NEON_ACTION__",
+    "Nunca diga que executou algo sem executar. Para abrir programas no Windows, use Start-Process ou start \"\" \"<nome>\" como interface gráfica.",
+    "",
+    `Mensagem do usuário: ${String(tarefa).slice(0, 3000)}`,
+  ].join("\n");
+
+  const resposta = await executar(instrucoes);
+  if (!resposta) return { acao: false, resposta: null };
+
+  const texto = resposta.trim();
+  if (texto.startsWith("__NEON_ACTION__")) {
+    const final = texto.replace(/^__NEON_ACTION__\s*/i, "").trim();
+    return { acao: Boolean(final), resposta: final || null };
+  }
+
+  return { acao: false, resposta: null };
+}
+
 function parar() {
   desligando = true;
   clearTimeout(reiniciador);
@@ -273,4 +296,4 @@ function parar() {
   }
 }
 
-module.exports = { iniciarServer, executar, parar };
+module.exports = { iniciarServer, executar, decidir, parar };
