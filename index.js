@@ -57,6 +57,8 @@ function iniciarModulos() {
 client.once("ready", () => {
   log("INFO", "Discord pronto");
   iniciarModulos();
+  // efeito sonoro de boot quando roda no PC local
+  try { require("./src/som").tocar("online"); } catch {}
 });
 
 iniciarAPI();

@@ -1,6 +1,5 @@
 const { db } = require("./db");
 const { getOrCreateUser } = require("./user");
-const { detectarManipulacao } = require("./moderation");
 const { log } = require("./logger");
 const opencode = require("../plugins/opencode");
 const toolsMod = require("./tools");
@@ -94,10 +93,6 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
   if (!db.data.blacklist) db.data.blacklist = [];
 
   const user = getOrCreateUser(db, userId, username);
-
-  if (detectarManipulacao(userInput) && !user.mestre) {
-    return "Tentativa de manipulação detectada.";
-  }
 
   const promptTruncado = userInput.slice(0, MAX_INPUT_LEN);
 

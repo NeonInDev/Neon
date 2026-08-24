@@ -7,6 +7,7 @@ const opencode = require("../plugins/opencode");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
 const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao } = require("./api");
 const pc = require("./pc");
+const som = require("./som");
 const { traduzir } = require("./translate");
 const { detectar: detectarCustom, adicionar: addCustom, remover: removeCustom, listar: listarCustom } = require("./custom_commands");
 const { criarLembrete } = require("./timers");
@@ -1758,6 +1759,22 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     } catch (err) {
       return `❌ Não consegui descobrir seu IP: ${err.message}`;
     }
+  }
+
+  // Tocar efeitos sonoros no PC
+  const mSom = texto.toLowerCase().match(/^(?:toca|toque|p[oô]e)\s+(?:um\s+|o\s+)?som\s+(?:de\s+|do\s+|da\s+)?(ligar|online|conectad[ao]|desligar|desligad[ao]|notifica[cç][aã]o|erro|mensagem)\b/i);
+  if (mSom) {
+    const mapa = {
+      ligar: "ligar", online: "online", conectada: "online", conectado: "online",
+      desligar: "desligar", desligada: "desligar", desligado: "desligar",
+      "notificação": "notificar", notificacao: "notificar", erro: "erro", mensagem: "mensagem",
+    };
+    const chave = mSom[1].toLowerCase();
+    const r = som.tocar(mapa[chave] || chave);
+    return r.ok ? `🔊 Tocando som de ${r.som}!` : `❌ Não consegui tocar: ${r.motivo || r.erro}`;
+  }
+  if (/^(?:quais\s+sons?|lista\s+de\s+sons?)\b/i.test(texto.toLowerCase())) {
+    return `🔊 Sons disponíveis: ${som.listar().join(", ")}`;
   }
 
   // Gerar imagem via IA
