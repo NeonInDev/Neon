@@ -33,3 +33,4 @@ strava_export/
 boletim.json
 
 data/quirks/imgs/
+libs/librehardwaremonitor/*.sys
