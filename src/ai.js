@@ -88,7 +88,7 @@ async function chamarLLM(sistema, userMsg) {
   return await opencode.executar(userMsg);
 }
 
-async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false) {
+async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null) {
   if (!db.data.users) db.data.users = {};
   if (!db.data.blacklist) db.data.blacklist = [];
 
@@ -143,6 +143,13 @@ ${tratamentoChefe}`;
 
   log("INFO", "Processando", { usuario: username, pergunta: promptTruncado.slice(0, 100) });
   const inicio = Date.now();
+  const atrasoTimer = typeof notificarAtraso === "function"
+    ? setTimeout(() => {
+      Promise.resolve(notificarAtraso()).catch((err) => {
+        log("WARN", "Falha ao enviar aviso de atraso", { erro: err.message });
+      });
+    }, 180000)
+    : null;
 
   try {
     const decisao = await opencode.decidir(promptTruncado);
@@ -204,6 +211,8 @@ Agora responda ao usuário naturalmente com base nesses resultados. Se precisar 
   } catch (err) {
     log("ERROR", "Falha", { erro: err.message });
     return "❌ Erro interno.";
+  } finally {
+    if (atrasoTimer) clearTimeout(atrasoTimer);
   }
 }
 

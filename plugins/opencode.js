@@ -185,7 +185,7 @@ function iniciarServer() {
 
 async function executar(tarefa) {
   if (!tarefa || !String(tarefa).trim()) return null;
-  const maxAttempts = 2;
+  const maxAttempts = 1;
   let tentativa = 0;
   let fallbackPermitido = true;
 
@@ -210,7 +210,7 @@ async function executar(tarefa) {
           port,
           `/session/${sessaoId}/message`,
           { agent: "neon", parts: [{ type: "text", text: tarefa }] },
-          60000
+          300000
         );
 
         if (msg && msg.info && msg.info.name && msg.info.name !== "Text") {

@@ -5,7 +5,8 @@ const { getOrCreateUser } = require("../user");
 const { estaNaBlacklist } = require("../moderation");
 const { MASTER_KEY } = require("../config");
 const { log } = require("../logger");
-const { verificarRateLimit, permitido, auditar } = require("../permissions");
+const { verificarRateLimit, auditar } = require("../permissions");
+const { isOwner } = require("../perm");
 const { enfileirar } = require("../fila");
 const { add: addContexto } = require("../contexto");
 const axios = require("axios");
@@ -164,7 +165,10 @@ async function processarLote(userId, lote) {
 
       await message.channel.sendTyping();
       const imageUrl = message.attachments.first()?.url || null;
-      const reply = await askNeon(userId, username, textoLimpo, imageUrl);
+      const avisarAtraso = isOwner(userId)
+        ? () => message.author.send("⚠️ O OpenCode está processando há mais de 3 minutos. A Neon continuará aguardando até 5 minutos antes de informar o erro.")
+        : null;
+      const reply = await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso);
       if (!message.replied) {
         addContexto(userId, username, textoLimpo, reply);
         auditar(userId, username, textoLimpo, reply?.slice(0, 100));
