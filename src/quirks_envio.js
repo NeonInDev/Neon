@@ -159,18 +159,43 @@ function informacao(nome) {
   const f = buscarFandom(nome);
   if (!f) return null;
   const e = EMOJI_TIPO[f.tipo] || "✨";
-  const linhas = [
+
+  // monta com descrição que caiba inteira (nunca corta no meio do card)
+  const base = [
     `───────`,
     `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`,
     "",
-    `> 💭 ᝢ__${(f.descricao || "").slice(0, 1400)}__`,
+    "",
     "",
   ];
-  if (f.usuario) linhas.push(`> **꒰👤꒱ Usuário ➳** __${f.usuario}__`, "");
-  linhas.push(` ⭐ Tipo de quirk ：__\`${f.tipo || "Desconhecido"} ${e}\`__`);
-  linhas.push(" ︶︶︶︶︶︶︶︶︶︶", " ₊˚✧◝ ᵔ₊.");
-  if (f.url) linhas.push("", `🔗 <${f.url}>`);
-  return { texto: linhas.join("\n"), fandom: f };
+  if (f.usuario) base.push(`> **꒰👤꒱ Usuário ➳** __${f.usuario}__`, "");
+  base.push(` ⭐ Tipo de quirk ：__\`${f.tipo || "Desconhecido"} ${e}\`__`);
+  base.push(" ︶︶︶︶︶︶︶︶︶︶", " ₊˚✧◝ ᵔ₊.");
+  if (f.url) base.push("", `🔗 <${f.url}>`);
+
+  const teto = 1980 - base.join("\n").length;
+  let desc = (f.descricao || "").replace(/\n{2,}/g, "\n").trim();
+  if (teto < 60) {
+    // link gigante: encurta o link e tenta de novo
+    base[base.length - 1] = f.url ? `🔗 ${f.url}` : "";
+    desc = desc.slice(0, Math.max(0, 1980 - base.join("\n").length));
+  } else {
+    desc = desc.slice(0, teto);
+  }
+  if (desc.length < (f.descricao || "").length && !desc.endsWith(".")) {
+    const ponto = desc.lastIndexOf(".");
+    if (ponto > 100) desc = desc.slice(0, ponto + 1);
+  }
+  base[3] = `> 💭 ᝢ__${desc}__`;
+
+  return { texto: base.join("\n"), fandom: f };
+}
+
+// sugestões próximas quando não achar o nome exato
+function sugerirNomes(nome, banco) {
+  const alvo = nucleo(nome);
+  if (!alvo) return [];
+  return banco.filter((t) => nucleo(t).startsWith(alvo)).slice(0, 3);
 }
 
 async function enviarQuirk(client, q, tipo, origem = "pacote") {
@@ -359,6 +384,7 @@ module.exports = {
   listarFandom,
   buscarFandom,
   informacao,
+  sugerirNomes,
   acharCanal,
   acharMensagem,
   atualizarTexto,

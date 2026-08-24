@@ -110,9 +110,12 @@ module.exports = {
     // consulta aberta pra todo mundo
     if (sub === "informacao") {
       await interaction.deferReply();
-      const r = quirksEnvio.informacao(interaction.options.getString("nome"));
+      const nome = interaction.options.getString("nome");
+      const r = quirksEnvio.informacao(nome);
       if (!r) {
-        return await interaction.editReply(`❌ Não achei essa quirk no banco da fandom.`);
+        const dica = quirksEnvio.sugerirNomes(nome, quirksEnvio.listarFandom());
+        const extra = dica.length ? `\n👉 Você quis dizer: **${dica.join("**, **")}**?` : "";
+        return await interaction.editReply(`❌ Não achei essa quirk no banco da fandom.${extra}`);
       }
       return await interaction.editReply(r.texto.slice(0, 2000));
     }

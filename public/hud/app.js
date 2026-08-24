@@ -378,7 +378,7 @@
 
   // ============ ABAS ============
   const tabs = document.querySelectorAll(".tab");
-  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode") };
+  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode"), projetos3d: $("viewProjetos3d") };
 
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -636,6 +636,7 @@
       if (v === "historico") carregarHistorico();
       if (v === "tela") $("viewTela").classList.add("active");
       if (v === "celular") carregarCelular();
+      if (v === "projetos3d") { const f = $("frameProjetos"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
     });
   });
 

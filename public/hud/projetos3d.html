@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEON · Projetos 3D</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #141428 0%, #05050c 70%); font-family: 'Segoe UI', system-ui, sans-serif; }
+    #cena { width: 100%; height: 100%; display: block; }
+    .hud-top {
+      position: fixed; top: 12px; left: 16px; z-index: 10;
+      color: #6c5ce7; letter-spacing: 2px; font-weight: 700;
+      text-shadow: 0 0 12px rgba(108,92,231,.8); pointer-events: none;
+    }
+    .hud-top small { color: #8d84e8aa; font-weight: 400; letter-spacing: 1px; }
+    #info {
+      position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,20,40,.85); border: 1px solid #6c5ce766; border-radius: 10px;
+      padding: 8px 18px; color: #cfc9ff; font-size: 13px; z-index: 10;
+      backdrop-filter: blur(6px); white-space: nowrap; pointer-events: none;
+    }
+    #carregando { position: fixed; inset: 0; display: grid; place-items: center; color: #6c5ce7; letter-spacing: 3px; z-index: 5; }
+    a { color: inherit; text-decoration: none; pointer-events: auto; }
+  </style>
+</head>
+<body>
+  <canvas id="cena"></canvas>
+  <div class="hud-top">🧊 PROJETOS · NEONWORLD <small>— arraste pra girar · scroll pra zoom · clique num card pra abrir</small></div>
+  <div id="info">carregando repositórios...</div>
+  <div id="carregando">⣿ SINCRONIZANDO</div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                   "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/" } }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+    const CORES = { JavaScript: 0xf1e05a, TypeScript: 0x3178c6, Python: 0x3572a5, C#: 0x178600, HTML: 0xe34c26, CSS: 0x563d7c, Shell: 0x89e051 };
+
+    const info = document.getElementById("info");
+    const carregando = document.getElementById("carregando");
+
+    async function pegarProjetos() {
+      try {
+        const r = await fetch("https://api.github.com/users/NeonInDev/repos?sort=updated&per_page=24");
+        if (!r.ok) throw new Error();
+        const j = await r.json();
+        return j.map((x) => ({ nome: x.name, desc: x.description || "", lang: x.language || "", url: x.html_url }));
+      } catch {
+        return [
+          { nome: "Neon", desc: "Assistente pessoal", lang: "JavaScript", url: "https://github.com/NeonInDev/Neon" },
+          { nome: "NEONWORLD", desc: "Mundo 3D da Neon", lang: "TypeScript", url: "https://github.com/NeonInDev" },
+        ];
+      }
+    }
+
+    function cardTexture(p) {
+      const cv = document.createElement("canvas");
+      cv.width = 512; cv.height = 320;
+      const c = cv.getContext("2d");
+      const cor = "#" + (CORES[p.lang] || 0x6c5ce7).toString(16).padStart(6, "0");
+      const g = c.createLinearGradient(0, 0, 512, 320);
+      g.addColorStop(0, "#16162b"); g.addColorStop(1, "#0b0b18");
+      c.fillStyle = g; c.fillRect(0, 0, 512, 320);
+      c.strokeStyle = cor; c.lineWidth = 6; c.strokeRect(6, 6, 500, 308);
+      c.fillStyle = cor; c.font = "bold 40px Segoe UI";
+      c.fillText(p.nome.slice(0, 22), 26, 78);
+      c.fillStyle = "#8d84e8"; c.font = "22px Segoe UI";
+      const palavras = (p.desc || "projeto").split(" ");
+      let linha = "", y = 130;
+      for (const w of palavras) {
+        if ((linha + w).length > 38) { c.fillText(linha, 26, y); y += 30; linha = ""; if (y > 210) break; }
+        linha += w + " ";
+      }
+      if (y <= 210 && linha) c.fillText(linha.trim(), 26, y);
+      c.beginPath(); c.arc(34, 272, 11, 0, 7); c.fill();
+      c.fillStyle = "#cfc9ff"; c.font = "24px Segoe UI";
+      c.fillText(p.lang || "code", 56, 280);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    const cena = new THREE.Scene();
+    const cam = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 100);
+    cam.position.set(0, 4, 14);
+    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("cena"), antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+    const controles = new OrbitControls(cam, renderer.domElement);
+    controles.enableDamping = true;
+    controles.minDistance = 6; controles.maxDistance = 30;
+
+    cena.add(new THREE.AmbientLight(0xffffff, 1.1));
+    const luz = new THREE.PointLight(0x6c5ce7, 80, 60); luz.position.set(0, 8, 0); cena.add(luz);
+
+    // anel de partículas de fundo
+    const partGeo = new THREE.BufferGeometry();
+    const N = 700; const pos = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      const a = Math.random() * Math.PI * 2, r = 16 + Math.random() * 22;
+      pos[i*3] = Math.cos(a) * r; pos[i*3+1] = (Math.random() - .5) * 18; pos[i*3+2] = Math.sin(a) * r;
+    }
+    partGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    cena.add(new THREE.Points(partGeo, new THREE.PointsMaterial({ color: 0x6c5ce7, size: .12, transparent: true, opacity: .55 })));
+
+    const núcleo = new THREE.Mesh(
+      new THREE.IcosahedronGeometry(1.6, 1),
+      new THREE.MeshBasicMaterial({ color: 0x6c5ce7, wireframe: true })
+    );
+    cena.add(núcleo);
+
+    const cards = [];
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let hover = null;
+
+    const projetos = await pegarProjetos();
+    carregando.style.display = "none";
+    info.textContent = `${projetos.length} projetos · arraste pra girar`;
+
+    const raio = Math.max(6.5, projetos.length * 0.42);
+    projetos.forEach((p, i) => {
+      const ang = (i / projetos.length) * Math.PI * 2;
+      const mat = new THREE.MeshBasicMaterial({ map: cardTexture(p), side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.1), mat);
+      mesh.position.set(Math.cos(ang) * raio, (Math.random() - .5) * 2.4, Math.sin(ang) * raio);
+      mesh.lookAt(0, mesh.position.y * .4, 0);
+      mesh.userData = p;
+      cena.add(mesh); cards.push(mesh);
+
+      // pedestal luminoso
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(.06, .06, 1.2, 8),
+        new THREE.MeshBasicMaterial({ color: CORES[p.lang] || 0x6c5ce7, transparent: true, opacity: .5 })
+      );
+      base.position.set(mesh.position.x, mesh.position.y - 1.65, mesh.position.z);
+      cena.add(base);
+    });
+
+    addEventListener("resize", () => {
+      cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+    addEventListener("pointermove", (e) => {
+      mouse.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+    });
+    let baixouEm = null;
+    addEventListener("pointerdown", () => { baixouEm = Date.now(); });
+    addEventListener("pointerup", () => {
+      if (baixouEm && Date.now() - baixouEm < 250 && hover) window.open(hover.userData.url, "_blank");
+      baixouEm = null;
+    });
+
+    const relogio = new THREE.Clock();
+    (function anima() {
+      requestAnimationFrame(anima);
+      const t = relogio.getElapsedTime();
+      núcleo.rotation.y = t * .35; núcleo.rotation.x = Math.sin(t * .3) * .25;
+
+      cards.forEach((m, i) => {
+        const ang = (i / cards.length) * Math.PI * 2 + t * .07;
+        m.position.x = Math.cos(ang) * raio;
+        m.position.z = Math.sin(ang) * raio;
+        m.position.y += Math.sin(t * 1.4 + i) * .0016;
+        if (m !== hover) m.lookAt(0, m.position.y * .4, 0);
+      });
+
+      raycaster.setFromCamera(mouse, cam);
+      const hit = raycaster.intersectObjects(cards)[0]?.object || null;
+      if (hit !== hover) {
+        hover = hit;
+        info.textContent = hover ? `🔗 ${hover.userData.nome} — ${hover.userData.desc}` : `${projetos.length} projetos · arraste pra girar`;
+        document.body.style.cursor = hover ? "pointer" : "default";
+      }
+
+      controles.update();
+      renderer.render(cena, cam);
+    })();
+  </script>
+</body>
+</html>
