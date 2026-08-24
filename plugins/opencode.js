@@ -97,6 +97,20 @@ function iniciarServer() {
 
   return new Promise((resolve) => {
     try {
+      // mata servidor orfao deixado por um boot anterior (node morto na forca)
+      const arqPid = path.join(__dirname, "..", "data", "opencode_server.pid");
+      try {
+        const velho = parseInt(fs.readFileSync(arqPid, "utf8"));
+        if (velho && velho > 0) {
+          const saida = require("child_process")
+            .execSync(`tasklist /fi "PID eq ${velho}" /fo list`, { timeout: 3000, windowsHide: true, stdio: "pipe" })
+            .toString();
+          if (/opencode/i.test(saida)) {
+            try { process.kill(velho); log("INFO", "[OPENCODE] Servidor orfao do boot anterior encerrado", { pid: velho }); } catch {}
+          }
+        }
+      } catch {}
+
       log("INFO", "[OPENCODE] Iniciando servidor...", { bin: OPENCODE_BIN });
 
       const proc = spawn(OPENCODE_BIN, ["serve", "--port", "0", "--hostname", "127.0.0.1", "--print-logs"], {
@@ -154,7 +168,11 @@ function iniciarServer() {
         }
       });
 
-      proc.on("spawn", () => {});
+      proc.on("spawn", () => {
+        try {
+          fs.writeFileSync(path.join(__dirname, "..", "data", "opencode_server.pid"), String(proc.pid));
+        } catch {}
+      });
 
       setTimeout(() => finish(null), 30000);
       serverProcess = proc;
