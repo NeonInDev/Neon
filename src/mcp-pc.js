@@ -86,6 +86,54 @@ const FERRAMENTAS = [
     },
   },
   {
+    name: "pc_abrir_whatsapp",
+    description: "Abre o WhatsApp. Só use quando o usuário pedir explicitamente para abrir o WhatsApp.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "pc_abrir_url",
+    description: "Abre uma URL http/https no navegador padrão.",
+    inputSchema: {
+      type: "object",
+      properties: { url: { type: "string" } },
+      required: ["url"],
+    },
+  },
+  {
+    name: "pc_iniciar_jogo_steam",
+    description: "Inicia um jogo pela Steam usando o AppID numérico.",
+    inputSchema: {
+      type: "object",
+      properties: { appid: { type: "string", description: "AppID numérico da Steam" } },
+      required: ["appid"],
+    },
+  },
+  {
+    name: "pc_fechar_apps",
+    description: "Fecha aplicativos com janelas abertas, preservando Medal, Steam e a Neon.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "pc_spotify_buscar_tocar",
+    description: "Abre o Spotify, busca uma música por nome e artista e tenta iniciar a primeira correspondência.",
+    inputSchema: {
+      type: "object",
+      properties: { busca: { type: "string", description: "Nome da música e, de preferência, o artista" } },
+      required: ["busca"],
+    },
+  },
+  {
+    name: "pc_spotify_controle",
+    description: "Controla a reprodução do Spotify: tocar, pausar, continuar, proxima ou anterior.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        acao: { type: "string", enum: ["tocar", "pausar", "continuar", "proxima", "anterior"] },
+      },
+      required: ["acao"],
+    },
+  },
+  {
     name: "pc_janelas",
     description: "Lista as janelas abertas.",
     inputSchema: { type: "object", properties: {} },
@@ -135,6 +183,24 @@ async function chamarFerramenta(nome, args) {
       break;
     case "pc_abrir_app":
       texto = JSON.stringify(await pc.abrirAppPorNome(args.nome));
+      break;
+    case "pc_abrir_whatsapp":
+      texto = JSON.stringify(await pc.abrirWhatsApp());
+      break;
+    case "pc_abrir_url":
+      texto = JSON.stringify(await pc.abrirUrl(args.url));
+      break;
+    case "pc_iniciar_jogo_steam":
+      texto = JSON.stringify(await pc.iniciarJogoSteam(args.appid));
+      break;
+    case "pc_fechar_apps":
+      texto = JSON.stringify(await pc.fecharAppsExceto());
+      break;
+    case "pc_spotify_buscar_tocar":
+      texto = JSON.stringify(await pc.spotifyBuscarTocar(args.busca));
+      break;
+    case "pc_spotify_controle":
+      texto = JSON.stringify(await pc.spotifyControle(args.acao));
       break;
     case "pc_janelas":
       texto = JSON.stringify(await pc.listarJanelas());

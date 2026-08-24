@@ -695,6 +695,9 @@ async function abrirAppPorNome(nome) {
   if (!alvo || /[\r\n]/.test(alvo)) {
     return { ok: false, erro: `Nome de aplicativo inválido` };
   }
+  if (/^(?:whatsapp|whats|zap|zapzap)$/i.test(alvo)) {
+    return { ok: false, erro: "WhatsApp só pode ser aberto pelo comando explícito do WhatsApp." };
+  }
 
   const psAlvo = alvo.replace(/'/g, "''");
   return new Promise((resolve) => {
@@ -721,10 +724,110 @@ async function abrirAppPorNome(nome) {
   });
 }
 
+async function abrirWhatsApp() {
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath 'whatsapp:'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+  return { ok: true, mensagem: "Abrindo o WhatsApp porque você pediu." };
+}
+
+async function abrirUrl(url) {
+  const alvo = String(url || "").trim();
+  if (!/^https?:\/\/\S+$/i.test(alvo) || /[\r\n]/.test(alvo)) {
+    return { ok: false, erro: "URL inválida" };
+  }
+  const psUrl = alvo.replace(/'/g, "''");
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath '${psUrl}'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+  return { ok: true, mensagem: `Abrindo ${alvo} no navegador.` };
+}
+
+async function iniciarJogoSteam(appid) {
+  const id = String(appid || "").trim();
+  if (!/^\d+$/.test(id)) return { ok: false, erro: "AppID da Steam inválido" };
+  const uri = `steam://rungameid/${id}`;
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath '${uri}'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+  return { ok: true, mensagem: `Iniciando o jogo da Steam (AppID ${id}).` };
+}
+
+async function fecharAppsExceto() {
+  const script = `
+$preservar = @('medal', 'steam', 'node', 'opencode', 'explorer', 'powershell', 'conhost', 'cmd', 'dwm')
+$alvos = Get-Process | Where-Object {
+  $_.MainWindowHandle -ne 0 -and
+  $_.ProcessName.ToLower() -notin $preservar -and
+  $_.Id -ne $PID
+}
+$fechados = @()
+foreach ($p in $alvos) {
+  try {
+    if ($p.CloseMainWindow()) {
+      $fechados += $p.ProcessName
+    }
+  } catch {}
+}
+Start-Sleep -Milliseconds 1200
+($fechados | Sort-Object -Unique) -join ','
+`;
+  const resultado = await ps(script, "closeAppsExcept");
+  return {
+    ok: true,
+    mensagem: resultado ? `Fechei: ${resultado}.` : "Não havia outros aplicativos com janela para fechar.",
+  };
+}
+
+async function spotifyBuscarTocar(busca) {
+  const consulta = String(busca || "").trim();
+  if (!consulta || /[\r\n]/.test(consulta)) {
+    return { ok: false, erro: "Busca do Spotify inválida" };
+  }
+
+  const uri = `spotify:search:${encodeURIComponent(consulta)}`;
+  const psUri = uri.replace(/'/g, "''");
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath '${psUri}'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, 1800));
+  const sendkey = require("./sendkey");
+  sendkey.focusJanela("Spotify");
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  sendkey.sendKey("{ENTER}", "Spotify");
+  return { ok: true, mensagem: `Buscando e tentando tocar "${consulta}" no Spotify.` };
+}
+
+async function spotifyControle(acao) {
+  const comandos = {
+    tocar: "PLAY_PAUSE",
+    pausar: "PLAY_PAUSE",
+    continuar: "PLAY_PAUSE",
+    proxima: "NEXT",
+    anterior: "PREV",
+  };
+  const comando = comandos[String(acao || "").toLowerCase().trim()];
+  if (!comando) {
+    return { ok: false, erro: "Ação do Spotify inválida. Use tocar, pausar, continuar, proxima ou anterior." };
+  }
+
+  const sendkey = require("./sendkey");
+  const enviado = sendkey.send(sendkey.VK[comando]);
+  return enviado
+    ? { ok: true, mensagem: `Comando "${acao}" enviado ao Spotify.` }
+    : { ok: false, erro: `Não consegui enviar o comando "${acao}" ao Spotify.` };
+}
+
 module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
-  dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome,
+  dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, abrirWhatsApp, abrirUrl,
+  iniciarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyControle,
   moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   tamanhoTela, scroll,

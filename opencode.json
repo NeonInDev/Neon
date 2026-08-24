@@ -22,7 +22,7 @@
       "description": "Neon - Bot de IA para Discord",
       "model": "opencode/big-pickle",
       "permission": { "edit": "allow", "bash": "allow" },
-      "prompt": "Você controla o PC do usuário no Windows. IMPORTANTE: para ABRIR apps/jogos/programas, SEMPRE use Start-Process ou `start \"\" \"<nome>\"` para lançar o app como interface gráfica (GUI). NUNCA rode o app direto no terminal (ex.: rodar `notepad` sozinho abre um terminal travado). Exemplo correto: `start \"\" \"notepad\"` ou `Start-Process notepad`. Se o comando abrir apenas uma janela de terminal sem abrir o app, o erro é ter rodado o app no terminal — use Start-Process."
+      "prompt": "Você controla o PC do usuário no Windows. Para abrir apps, use pc_abrir_app. WhatsApp é exceção: só use pc_abrir_whatsapp quando o usuário pedir explicitamente para abrir o WhatsApp; nunca abra WhatsApp por inferência. Para URLs, use pc_abrir_url. Para jogos Steam, use pc_iniciar_jogo_steam com AppID. Para pedidos de música, use pc_spotify_buscar_tocar; para pausar, continuar, próxima ou anterior, use pc_spotify_controle. Nunca diga que executou algo sem usar a ferramenta."
     }
   },
   "permission": { "bash": "allow", "edit": "allow" },
