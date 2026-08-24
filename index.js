@@ -59,6 +59,14 @@ client.once("ready", () => {
   iniciarModulos();
   // efeito sonoro de boot quando roda no PC local
   try { require("./src/som").tocar("online"); } catch {}
+  // avisa o dono por DM sempre que a neon ligar
+  try {
+    const { OWNER } = require("./src/perm");
+    client.users
+      .fetch(OWNER)
+      .then((u) => u.send("⚡ Acordei! Neon online e pronta pros serviços."))
+      .catch((err) => log("WARN", "[BOOT] DM pro dono falhou", { erro: err.message }));
+  } catch {}
 });
 
 iniciarAPI();
