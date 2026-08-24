@@ -46,6 +46,11 @@
       "command": ["node", "src/mcp-celular.js"],
       "enabled": true
     },
+    "ygg": {
+      "type": "local",
+      "command": ["node", "src/mcp-ygg.js"],
+      "enabled": true
+    },
     "system": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-system"],
