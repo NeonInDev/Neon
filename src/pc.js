@@ -691,18 +691,33 @@ async function cancelarDesligar() {
 }
 
 async function abrirAppPorNome(nome) {
-  const safe = cmdEsc(nome);
-  const { spawn } = require("child_process");
+  const alvo = String(nome || "").trim();
+  if (!alvo || /[\r\n]/.test(alvo)) {
+    return { ok: false, erro: `Nome de aplicativo inválido` };
+  }
+
+  const psAlvo = alvo.replace(/'/g, "''");
   return new Promise((resolve) => {
-    const child = spawn("cmd.exe", ["/c", "start", "", `"${safe}"`], {
+    const child = spawn("powershell.exe", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `$ErrorActionPreference = 'Stop'; Start-Process -FilePath '${psAlvo}'`,
+    ], {
       windowsHide: true,
       shell: false,
-      detached: true,
-      stdio: "ignore",
+      stdio: ["ignore", "ignore", "pipe"],
     });
-    child.on("error", () => resolve({ ok: false, erro: `Não consegui abrir ${nome}` }));
-    child.on("spawn", () => resolve({ ok: true, mensagem: `Abrindo ${nome}.` }));
-    child.unref();
+    let erro = "";
+    child.stderr.on("data", (data) => { erro += data.toString(); });
+    child.on("error", () => resolve({ ok: false, erro: `Não consegui abrir ${alvo}` }));
+    child.on("close", (codigo) => {
+      if (codigo === 0) {
+        resolve({ ok: true, mensagem: `Abrindo ${alvo}.` });
+      } else {
+        resolve({ ok: false, erro: erro.trim().slice(0, 250) || `Não consegui abrir ${alvo}` });
+      }
+    });
   });
 }
 
