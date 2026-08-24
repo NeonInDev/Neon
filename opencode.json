@@ -1,7 +1,7 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "openrouter/google/gemma-4-31b-it:free",
-  "small_model": "openrouter/google/gemma-4-31b-it:free",
+  "model": "opencode/big-pickle",
+  "small_model": "opencode/big-pickle",
   "default_agent": "neon",
   "provider": {
     "openrouter": {
@@ -20,6 +20,7 @@
     "neon": {
       "mode": "primary",
       "description": "Neon - Bot de IA para Discord",
+      "model": "opencode/big-pickle",
       "permission": { "edit": "allow", "bash": "allow" },
       "prompt": "Você controla o PC do usuário no Windows. IMPORTANTE: para ABRIR apps/jogos/programas, SEMPRE use Start-Process ou `start \"\" \"<nome>\"` para lançar o app como interface gráfica (GUI). NUNCA rode o app direto no terminal (ex.: rodar `notepad` sozinho abre um terminal travado). Exemplo correto: `start \"\" \"notepad\"` ou `Start-Process notepad`. Se o comando abrir apenas uma janela de terminal sem abrir o app, o erro é ter rodado o app no terminal — use Start-Process."
     }
