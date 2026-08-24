@@ -192,10 +192,38 @@ function limparUsuario(u) {
     .trim();
 }
 
+// descreve dentro do orçamento de caracteres: inteira se couber, senão condensa com IA (1x, fica salvo)
+async function encaixarTexto(f, orcamento) {
+  const bruto = String(await traduzirDescricao(f)).replace(/\n{2,}/g, "\n").trim();
+  if (bruto.length <= orcamento) return bruto;
+
+  if (!f.descricaoPtCurta) {
+    try {
+      const { chamarLLM } = require("./ai");
+      const curta = await chamarLLM(
+        "Encurte o texto a seguir para no máximo " +
+          Math.floor(orcamento * 0.95) +
+          " caracteres, em português do Brasil, mantendo TODAS as informações mecânicas essenciais (o que faz, como usa, limites e fraquezas). Não comente nada: responda só o texto encurtado.",
+        bruto
+      );
+      if (curta && curta.length <= orcamento && curta.length > 20) {
+        f.descricaoPtCurta = curta;
+        persistirFandom();
+      }
+    } catch {}
+  }
+  if (f.descricaoPtCurta && f.descricaoPtCurta.length <= orcamento) return f.descricaoPtCurta;
+
+  // último recurso: corta em fim de frase
+  let d = bruto.slice(0, orcamento);
+  const ponto = Math.max(d.lastIndexOf("."), d.lastIndexOf("!"), d.lastIndexOf("?"));
+  if (ponto > 80) d = d.slice(0, ponto + 1);
+  return d;
+}
+
 // card no mesmo molde dos do pacote, montado a partir dos dados da fandom
 async function montarCardFandom(f) {
-  const descBruta = await traduzirDescricao(f);
-  const desc = String(descBruta || "").slice(0, 1300).replace(/\n{2,}/g, "\n");
+  const desc = await encaixarTexto(f, 1300);
   const partes = [
     "───────",
     `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`,
@@ -215,7 +243,6 @@ async function informacao(nome) {
   const f = buscarFandom(nome);
   if (!f) return null;
   const e = EMOJI_TIPO[f.tipo] || "✨";
-  const descLimpa = String(await traduzirDescricao(f)).replace(/\n{2,}/g, "\n").trim();
 
   // encaixe: o texto é prioridade máxima — usuário sempre entra; link só se sobrar espaço
   const cabecalho = [`───────`, `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`, ""];
@@ -234,11 +261,7 @@ async function informacao(nome) {
     11; // "> 💭 ᝢ__" + "__"
 
   let orcamento = Math.max(1980 - custoFixo, 200);
-  let desc = descLimpa.slice(0, orcamento);
-  if (desc.length < descLimpa.length && !/[.!?…]$/.test(desc)) {
-    const ponto = Math.max(desc.lastIndexOf("."), desc.lastIndexOf("!"), desc.lastIndexOf("?"));
-    if (ponto > 80) desc = desc.slice(0, ponto + 1);
-  }
+  const desc = await encaixarTexto(f, orcamento);
 
   const partes = [...cabecalho];
   partes.push(`> 💭 ᝢ__${desc}__`, "");

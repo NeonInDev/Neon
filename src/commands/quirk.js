@@ -120,10 +120,13 @@ module.exports = {
         return await interaction.editReply(`❌ Não achei essa quirk no banco da fandom.${extra}`);
       }
       const envio = { content: r.texto };
-      if (r.painel) {
+      const img = String(r.fandom.imagem || "");
+      if (img.toLowerCase().includes(".gif")) {
+        envio.embeds = [new EmbedBuilder().setImage(img)];
+      } else if (r.painel) {
         envio.files = [new AttachmentBuilder(r.painel)];
-      } else if (r.fandom.imagem) {
-        envio.embeds = [new EmbedBuilder().setImage(r.fandom.imagem)];
+      } else if (img) {
+        envio.embeds = [new EmbedBuilder().setImage(img)];
       }
       return await interaction.editReply(envio);
     }
