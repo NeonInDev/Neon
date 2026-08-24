@@ -7,6 +7,8 @@ const {
   TextInputBuilder,
   TextInputStyle,
   ActionRowBuilder,
+  AttachmentBuilder,
+  EmbedBuilder,
 } = require("discord.js");
 const { isOwner } = require("../perm");
 const quirksEnvio = require("../quirks_envio");
@@ -111,13 +113,19 @@ module.exports = {
     if (sub === "informacao") {
       await interaction.deferReply();
       const nome = interaction.options.getString("nome");
-      const r = quirksEnvio.informacao(nome);
+      const r = await quirksEnvio.informacao(nome);
       if (!r) {
         const dica = quirksEnvio.sugerirNomes(nome, quirksEnvio.listarFandom());
         const extra = dica.length ? `\n👉 Você quis dizer: **${dica.join("**, **")}**?` : "";
         return await interaction.editReply(`❌ Não achei essa quirk no banco da fandom.${extra}`);
       }
-      return await interaction.editReply(r.texto.slice(0, 2000));
+      const envio = { content: r.texto };
+      if (r.painel) {
+        envio.files = [new AttachmentBuilder(r.painel)];
+      } else if (r.fandom.imagem) {
+        envio.embeds = [new EmbedBuilder().setImage(r.fandom.imagem)];
+      }
+      return await interaction.editReply(envio);
     }
 
     if (!podeUsar(interaction)) {

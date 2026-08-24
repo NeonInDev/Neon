@@ -29,6 +29,10 @@ function carregarFandom() {
   return cacheFandom;
 }
 
+function persistirFandom() {
+  fs.writeFileSync(FANDOM, JSON.stringify(carregarFandom(), null, 1));
+}
+
 function listarFandom() {
   return carregarFandom().map((q) => q.nome);
 }
@@ -137,9 +141,61 @@ async function acharCanal(client, tipo) {
   return canal;
 }
 
+// ===== TRADUÇÃO (descrições da fandom vêm em inglês) =====
+
+const traducoesEmCurso = new Map();
+
+// traduz a descrição pra PT-BR uma única vez por quirk e guarda no fandom.json
+async function traduzirDescricao(f) {
+  if (!f.descricao) return "";
+  if (f.descricaoPt) return f.descricaoPt;
+  const ja = traducoesEmCurso.get(f.nome);
+  if (ja) return ja;
+  const tarefa = (async () => {
+    try {
+      const { chamarLLM } = require("./ai");
+      const pt = await chamarLLM(
+        "Você é um tradutor. Traduza o texto para português do Brasil. Mantenha nomes próprios de personagens, lugares e quirks no original. Não resuma, não comente, não adicione aspas: responda SOMENTE com a tradução fiel completa.",
+        f.descricao
+      );
+      if (pt && pt.length > 20 && !/^(desculpe|sorry)/i.test(pt)) {
+        f.descricaoPt = pt;
+        persistirFandom();
+        return pt;
+      }
+    } catch {}
+    return f.descricao;
+  })();
+  traducoesEmCurso.set(f.nome, tarefa);
+  try {
+    return await tarefa;
+  } finally {
+    traducoesEmCurso.delete(f.nome);
+  }
+}
+
+// procura um painel da quirk nos bancos prontos (pacote + adicionadas)
+function painelDe(titulo) {
+  const todos = [...carregar(), ...carregarAdicionadas()];
+  const q = todos.find((x) => mesmoTitulo(x.titulo, titulo));
+  if (!q) return null;
+  return resolverArquivos(q)[0] || null;
+}
+
+// limpa sujeira de scrape no campo usuário (<br>, tags soltas)
+function limparUsuario(u) {
+  return String(u || "")
+    .replace(/<br\s*\/?>/gi, " / ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/(?:\s*\/\s*){2,}/g, " / ")
+    .replace(/^\s*\/\s*|\s*\/\s*$/g, "")
+    .trim();
+}
+
 // card no mesmo molde dos do pacote, montado a partir dos dados da fandom
-function montarCardFandom(f) {
-  const desc = (f.descricao || "").slice(0, 1300).replace(/\n{2,}/g, "\n");
+async function montarCardFandom(f) {
+  const descBruta = await traduzirDescricao(f);
+  const desc = String(descBruta || "").slice(0, 1300).replace(/\n{2,}/g, "\n");
   const partes = [
     "───────",
     `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`,
@@ -147,7 +203,7 @@ function montarCardFandom(f) {
     `> 💭 ᝢ__${desc}__`,
     "",
   ];
-  if (f.usuario) partes.push(`> **꒰👤꒱ Usuário ➳** __${f.usuario}__`, "");
+  if (f.usuario) partes.push(`> **꒰👤꒱ Usuário ➳** __${limparUsuario(f.usuario)}__`, "");
   partes.push(` ⭐ Tipo de quirk ：__\`${f.tipo || "Desconhecido"}\`__`);
   partes.push(" ︶︶︶︶︶︶︶︶︶︶");
   partes.push(" ₊˚✧◝ ᵔ₊.");
@@ -155,40 +211,47 @@ function montarCardFandom(f) {
 }
 
 // resumo de uma quirk canônica da fandom (pra /quirk informação)
-function informacao(nome) {
+async function informacao(nome) {
   const f = buscarFandom(nome);
   if (!f) return null;
   const e = EMOJI_TIPO[f.tipo] || "✨";
+  const descLimpa = String(await traduzirDescricao(f)).replace(/\n{2,}/g, "\n").trim();
 
-  // monta com descrição que caiba inteira (nunca corta no meio do card)
-  const base = [
-    `───────`,
-    `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`,
-    "",
-    "",
-    "",
+  // encaixe: o texto é prioridade máxima — usuário sempre entra; link só se sobrar espaço
+  const cabecalho = [`───────`, `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`, ""];
+  const linhaUsuario = f.usuario ? `> **꒰👤꒱ Usuário ➳** __${limparUsuario(f.usuario)}__` : null;
+  const linhasFim = [
+    ` ⭐ Tipo de quirk ：__\`${f.tipo || "Desconhecido"} ${e}\`__`,
+    " ︶︶︶︶︶︶︶︶︶︶",
+    " ₊˚✧◝ ᵔ₊.",
   ];
-  if (f.usuario) base.push(`> **꒰👤꒱ Usuário ➳** __${f.usuario}__`, "");
-  base.push(` ⭐ Tipo de quirk ：__\`${f.tipo || "Desconhecido"} ${e}\`__`);
-  base.push(" ︶︶︶︶︶︶︶︶︶︶", " ₊˚✧◝ ᵔ₊.");
-  if (f.url) base.push("", `🔗 <${f.url}>`);
+  const custoFixo =
+    cabecalho.join("\n").length +
+    2 +
+    (linhaUsuario ? linhaUsuario.length + 2 : 0) +
+    linhasFim.join("\n").length +
+    1 + // \n antes do bloco da descrição
+    11; // "> 💭 ᝢ__" + "__"
 
-  const teto = 1980 - base.join("\n").length;
-  let desc = (f.descricao || "").replace(/\n{2,}/g, "\n").trim();
-  if (teto < 60) {
-    // link gigante: encurta o link e tenta de novo
-    base[base.length - 1] = f.url ? `🔗 ${f.url}` : "";
-    desc = desc.slice(0, Math.max(0, 1980 - base.join("\n").length));
-  } else {
-    desc = desc.slice(0, teto);
+  let orcamento = Math.max(1980 - custoFixo, 200);
+  let desc = descLimpa.slice(0, orcamento);
+  if (desc.length < descLimpa.length && !/[.!?…]$/.test(desc)) {
+    const ponto = Math.max(desc.lastIndexOf("."), desc.lastIndexOf("!"), desc.lastIndexOf("?"));
+    if (ponto > 80) desc = desc.slice(0, ponto + 1);
   }
-  if (desc.length < (f.descricao || "").length && !desc.endsWith(".")) {
-    const ponto = desc.lastIndexOf(".");
-    if (ponto > 100) desc = desc.slice(0, ponto + 1);
-  }
-  base[3] = `> 💭 ᝢ__${desc}__`;
 
-  return { texto: base.join("\n"), fandom: f };
+  const partes = [...cabecalho];
+  partes.push(`> 💭 ᝢ__${desc}__`, "");
+  if (linhaUsuario) partes.push(linhaUsuario, "");
+  partes.push(...linhasFim);
+  let texto = partes.join("\n");
+
+  const linkBonito = `🔗 <${f.url}>`;
+  const linkCurto = `🔗 ${f.url}`;
+  if (texto.length + linkBonito.length + 2 <= 1995) texto += "\n\n" + linkBonito;
+  else if (texto.length + linkCurto.length + 2 <= 1998) texto += "\n\n" + linkCurto;
+
+  return { texto: texto.slice(0, 2000), fandom: f, painel: painelDe(f.nome) };
 }
 
 // sugestões próximas quando não achar o nome exato
@@ -204,8 +267,10 @@ async function enviarQuirk(client, q, tipo, origem = "pacote") {
   if (!canal) throw new Error(`canal de quirks (${nomeAlvo(tipo)}) não encontrado`);
 
   if (origem === "fandom") {
-    const card = montarCardFandom(q);
-    const msg = await canal.send({ content: card });
+    const card = await montarCardFandom(q);
+    const painel = painelDe(q.nome);
+    const files = painel ? [new AttachmentBuilder(painel)] : [];
+    const msg = await canal.send({ content: card, files });
     const adic = carregarAdicionadas().filter((x) => !mesmoTitulo(x.titulo, q.nome));
     adic.push({
       titulo: q.nome,
@@ -213,7 +278,7 @@ async function enviarQuirk(client, q, tipo, origem = "pacote") {
       tipo: q.tipo,
       link: msg.url,
       canal: nomeAlvo(tipo),
-      imagens: [],
+      imagens: painel ? ["LOCAL:" + path.basename(painel)] : [],
     });
     salvarAdicionadas(adic);
     return msg;

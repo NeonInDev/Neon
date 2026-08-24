@@ -215,4 +215,4 @@ async function visaoDaImagem(imageUrl) {
   }
 }
 
-module.exports = { askNeon };
+module.exports = { askNeon, chamarLLM };
