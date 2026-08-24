@@ -501,6 +501,15 @@ function iniciar(port = 3000) {
       return;
     }
 
+    // desliga o processo do bot de forma limpa (usado pelo YGG pra reiniciar a Neon)
+    if (req.url === "/api/bot/parar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      responder(res, 200, { ok: true, tchau: true });
+      log("INFO", "[BOOT] Desligamento solicitado via API (YGG)");
+      setTimeout(() => process.exit(0), 400);
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/historico" && req.method === "GET") {
       if (!exigeChave(req, res)) return;
       try {

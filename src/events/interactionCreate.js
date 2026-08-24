@@ -37,13 +37,14 @@ module.exports = {
 
     if (!interaction.isChatInputCommand()) return;
 
-    const { permitido } = require("../perm");
-    if (!permitido(interaction.user.id)) {
-      return interaction.reply({ content: "❌ Acesso negado.", ephemeral: true });
-    }
-
     const command = commands.get(interaction.commandName);
     if (!command) return;
+
+    const { permitido } = require("../perm");
+    // comandos "publicos" (ex: /mod) seguem as permissoes do Discord, nao a whitelist
+    if (!command.publico && !permitido(interaction.user.id)) {
+      return interaction.reply({ content: "❌ Acesso negado.", ephemeral: true });
+    }
 
     if (command.adminOnly) {
       const mestre = db.data.users?.[interaction.user.id];

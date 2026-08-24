@@ -5,20 +5,24 @@ const {
   ApplicationIntegrationType,
 } = require("discord.js");
 
-function ehMod(interaction) {
-  return (
-    interaction.member.permissions.has(PermissionFlagsBits.ModerateMembers) &&
-    interaction.member.permissions.has(PermissionFlagsBits.KickMembers) &&
-    interaction.member.permissions.has(PermissionFlagsBits.BanMembers)
-  );
+// cada subcomando exige sua propria permissao (nao todas de uma vez)
+const PERM_SUB = {
+  mute: PermissionFlagsBits.ModerateMembers,
+  kick: PermissionFlagsBits.KickMembers,
+  ban: PermissionFlagsBits.BanMembers,
+};
+
+function ehMod(interaction, sub) {
+  return interaction.member.permissions.has(PERM_SUB[sub] || PermissionFlagsBits.ModerateMembers);
 }
 
-function checarAlvo(interaction, alvo) {
+function checarAlvo(interaction, alvo, membro) {
   if (alvo.id === interaction.user.id) return "Você não pode fazer isso com você mesmo 😅";
   if (alvo.id === interaction.client.user.id) return "Eu prefiro não moderar a mim mesma 💜";
-  if (!alvo.manageable) return "Não consigo mexer nesse usuário (cargo acima do meu).";
+  // alvo pode nao estar mais no servidor (ban por ID) — nesses casos so checa hierarquia se der
+  if (!membro) return null;
   if (
-    interaction.member.roles.highest.comparePositionTo(alvo.roles.highest) <= 0 &&
+    interaction.member.roles.highest.comparePositionTo(membro.roles.highest) <= 0 &&
     interaction.guild.ownerId !== interaction.user.id
   ) {
     return "O cargo dele é igual ou maior que o seu.";
@@ -27,6 +31,7 @@ function checarAlvo(interaction, alvo) {
 }
 
 module.exports = {
+  publico: true, // quem pode usar é definido pelo Discord (default_member_permissions), nao pela whitelist
   data: new SlashCommandBuilder()
     .setName("mod")
     .setDescription("Ferramentas de moderação")
@@ -106,8 +111,8 @@ module.exports = {
       return;
     }
 
-    if (!ehMod(interaction)) {
-      return await interaction.reply({ content: "🔒 Só quem pode moderar.", ephemeral: true });
+    if (!ehMod(interaction, sub)) {
+      return await interaction.reply({ content: "🔒 Você não tem permissão de moderação pra isso.", ephemeral: true });
     }
     const alvo = interaction.options.getUser("usuario", true);
     const membro = await interaction.guild.members.fetch(alvo.id).catch(() => null);
@@ -116,8 +121,10 @@ module.exports = {
 
     try {
       if (sub === "mute") {
-        const erro = checarAlvo(interaction, membro);
+        const erro = checarAlvo(interaction, alvo, membro);
         if (erro) return await interaction.editReply(`❌ ${erro}`);
+        if (!membro) return await interaction.editReply(`❌ **${alvo.tag}** não está mais no servidor.`);
+        if (!membro.moderatable) return await interaction.editReply(`❌ Não consigo silenciar **${alvo.tag}** (cargo acima do meu).`);
         const mins = interaction.options.getInteger("minutos", true);
         await membro.timeout(mins * 60 * 1000, `${motivo} (por ${interaction.user.tag})`);
         return await interaction.editReply(
@@ -126,14 +133,14 @@ module.exports = {
       }
 
       if (sub === "kick") {
-        const erro = checarAlvo(interaction, membro);
+        const erro = checarAlvo(interaction, alvo, membro);
         if (erro) return await interaction.editReply(`❌ ${erro}`);
         await membro.kick(`${motivo} (por ${interaction.user.tag})`);
         return await interaction.editReply(`👢 **${alvo.tag}** foi expulso.\n📄 Motivo: ${motivo}`);
       }
 
       if (sub === "ban") {
-        const erro = checarAlvo(interaction, membro);
+        const erro = checarAlvo(interaction, alvo, membro);
         if (erro) return await interaction.editReply(`❌ ${erro}`);
         const dias = interaction.options.getInteger("apagar_dias") || 0;
         await interaction.guild.members.ban(alvo.id, {
