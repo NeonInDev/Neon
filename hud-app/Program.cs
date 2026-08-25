@@ -204,6 +204,18 @@ namespace NeonHud
                 try { web.ZoomFactor = 1.1; } catch { }
             };
             web.WebMessageReceived += Web_Mensagem;
+            web.NavigationCompleted += (senderNav, navArgs) =>
+            {
+                LogLinha("ygg_debug.log", "navegacao concluida: " + navArgs.IsSuccess + " " + (web.Source != null ? web.Source.ToString() : ""));
+            };
+            web.CoreWebView2InitializationCompleted += (senderInit, initArgs) =>
+            {
+                if (initArgs.IsSuccess)
+                {
+                    web.CoreWebView2.NavigationStarting += (senderNav, navArgs) =>
+                        LogLinha("ygg_debug.log", "navegacao iniciada: " + navArgs.Uri);
+                }
+            };
         }
 
         void MontarTray()
@@ -432,6 +444,12 @@ namespace NeonHud
         }
 
         string UrlLocal() { return "http://" + apiHost + ":" + apiPorta + "/api/pc"; }
+        string UrlHud()
+        {
+            return File.Exists(Path.Combine(botDir, "index.js"))
+                ? "http://" + apiHost + ":" + apiPorta + "/hud"
+                : cfg.url;
+        }
 
         void Web_Mensagem(object sender, CoreWebView2WebMessageReceivedEventArgs e)
         {
@@ -446,7 +464,7 @@ namespace NeonHud
         async System.Threading.Tasks.Task InicializarWebView()
         {
             CoreWebView2Environment env = null;
-            string pasta = Path.Combine(Path.GetTempPath(), "neon_hud_wv2");
+            string pasta = Path.Combine(Path.GetTempPath(), "neon_hud_wv2_" + DateTime.UtcNow.Ticks);
             bool ok = false;
             Exception falha = null;
             LogLinha("ygg_debug.log", "criando environment webview2");
@@ -660,14 +678,16 @@ namespace NeonHud
         async System.Threading.Tasks.Task NavegarHUD()
         {
             conectado = true;
+            string hudUrl = UrlHud();
+            LogLinha("ygg_debug.log", "navegando para HUD: " + hudUrl);
             try
             {
                 if (!string.IsNullOrEmpty(cfg.chave))
                 {
                     await web.CoreWebView2.ExecuteScriptAsync("localStorage.setItem('hud_key', '" + cfg.chave.Replace("'", "\\'") + "');");
                 }
-                string separador = cfg.url.IndexOf('?') >= 0 ? "&" : "?";
-                web.Source = new Uri(cfg.url + separador + "hud_refresh=" + DateTime.UtcNow.Ticks);
+                string separador = hudUrl.IndexOf('?') >= 0 ? "&" : "?";
+                web.CoreWebView2.Navigate(hudUrl + separador + "hud_refresh=" + DateTime.UtcNow.Ticks);
             }
             catch
             {
