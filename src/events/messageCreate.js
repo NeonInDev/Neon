@@ -7,6 +7,7 @@ const { MASTER_KEY } = require("../config");
 const { log } = require("../logger");
 const { verificarRateLimit, auditar } = require("../permissions");
 const { isOwner } = require("../perm");
+const { adicionarGuest, removerGuest } = require("../perm");
 const { enfileirar } = require("../fila");
 const { add: addContexto } = require("../contexto");
 const axios = require("axios");
@@ -41,6 +42,35 @@ function checkCooldown(userId) {
   if (ultimo && agora - ultimo < COOLDOWN_MS) return true;
   cooldowns.set(userId, agora);
   return false;
+}
+
+function interpretarConvidado(message) {
+  if (!isOwner(message.author.id)) return false;
+  const texto = message.content || "";
+  if (!/^\s*neon[\s,!.\-:;]+/i.test(texto)) return false;
+  const id = texto.match(/<@!?(\d+)>/)?.[1];
+  if (!id) return false;
+  const remover = /\b(tire|remova|remover|retire)\b/i.test(texto);
+  const adicionar = /\b(coloque|adicion[ae]|convid[ae])\b/i.test(texto);
+  if (!remover && !adicionar) return false;
+  if (remover) {
+    removerGuest(id);
+    message.reply(`✅ <@${id}> foi removido da casa.`).catch(() => {});
+    return true;
+  }
+  const duracao = texto.match(/\bpor\s+(\d+(?:[.,]\d+)?)\s*(minutos?|mins?|horas?|dias?|d)\b/i);
+  let duracaoMs = null;
+  let resumo = "permanentemente";
+  if (duracao) {
+    const valor = Number(duracao[1].replace(",", "."));
+    const unidade = duracao[2].toLowerCase();
+    const multiplicador = /^min/.test(unidade) ? 60000 : /^hor/.test(unidade) ? 3600000 : 86400000;
+    duracaoMs = Math.round(valor * multiplicador);
+    resumo = `por ${duracao[1]} ${unidade}`;
+  }
+  adicionarGuest(id, duracaoMs);
+  message.reply(`✅ <@${id}> agora é convidado ${resumo}, podendo apenas conversar com a Neon.`).catch(() => {});
+  return true;
 }
 
 async function enviarResposta(message, texto) {
@@ -203,6 +233,10 @@ module.exports = {
       if (seg > 0) {
         try { await message.reply(`⏳ Calma la! Aguarde ${seg}s entre os comandos.`); } catch {}
       }
+      return;
+    }
+    if (interpretarConvidado(message)) {
+      processando.delete(message.id);
       return;
     }
 

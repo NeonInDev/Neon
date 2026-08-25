@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
-const { isOwner, guests, salvarGuests } = require("../perm");
+const { isOwner, guests, adicionarGuest, removerGuest } = require("../perm");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -14,7 +14,8 @@ module.exports = {
         { name: "Remover", value: "remover" },
         { name: "Listar", value: "listar" },
       ))
-    .addUserOption((o) => o.setName("usuario").setDescription("Usuário convidado")),
+    .addUserOption((o) => o.setName("usuario").setDescription("Usuário convidado"))
+    .addStringOption((o) => o.setName("duracao").setDescription("Ex.: 30 minutos, 2 horas ou 1 dia")),
   async execute(interaction) {
     if (!isOwner(interaction.user.id)) {
       await interaction.reply({ content: "❌ Apenas o chefe pode gerenciar convidados.", ephemeral: true });
@@ -22,6 +23,7 @@ module.exports = {
     }
     const acao = interaction.options.getString("acao");
     const usuario = interaction.options.getUser("usuario");
+    const duracaoTexto = interaction.options.getString("duracao");
     const lista = guests();
     if (acao === "listar") {
       await interaction.reply({
@@ -38,10 +40,17 @@ module.exports = {
       await interaction.reply({ content: "❌ Bots não podem ser convidados.", ephemeral: true });
       return;
     }
-    const nova = acao === "adicionar"
-      ? [...new Set([...lista, usuario.id])]
-      : lista.filter((id) => id !== usuario.id);
-    salvarGuests(nova);
+    if (acao === "adicionar") {
+      const m = duracaoTexto?.match(/^(\d+(?:[.,]\d+)?)\s*(minutos?|mins?|horas?|dias?|d)$/i);
+      let duracaoMs = null;
+      if (m) {
+        const valor = Number(m[1].replace(",", "."));
+        const multiplicador = /^min/i.test(m[2]) ? 60000 : /^hor/i.test(m[2]) ? 3600000 : 86400000;
+        duracaoMs = Math.round(valor * multiplicador);
+      }
+      adicionarGuest(usuario.id, duracaoMs);
+    }
+    else removerGuest(usuario.id);
     await interaction.reply({
       content: acao === "adicionar"
         ? `✅ ${usuario} agora pode conversar com a Neon, sem comandos nem acesso ao PC.`
