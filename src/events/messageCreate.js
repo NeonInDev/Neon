@@ -47,11 +47,13 @@ function checkCooldown(userId) {
 function interpretarConvidado(message) {
   if (!isOwner(message.author.id)) return false;
   const texto = message.content || "";
-  if (!/^\s*neon[\s,!.\-:;]+/i.test(texto)) return false;
-  const id = texto.match(/<@!?(\d+)>/)?.[1];
+  const prefixo = /^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+/i;
+  if (!prefixo.test(texto)) return false;
+  const mencionado = message.mentions?.users?.find((usuario) => usuario.id !== message.client.user?.id);
+  const id = mencionado?.id || texto.match(/<@!?(\d+)>/)?.[1];
   if (!id) return false;
-  const remover = /\b(tire|remova|remover|retire)\b/i.test(texto);
-  const adicionar = /\b(coloque|adicion[ae]|convid[ae])\b/i.test(texto);
+  const remover = /\b(tire|remova|remover|retire|remove|remover)\b/i.test(texto);
+  const adicionar = /\b(coloque|adicion[ae]|adicionar|convid[ae]|convidar)\b/i.test(texto);
   if (!remover && !adicionar) return false;
   if (remover) {
     removerGuest(id);
