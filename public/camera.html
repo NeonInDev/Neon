@@ -1,0 +1,13 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<title>Neon · Câmera remota</title>
+<style>body{background:#030811;color:#b8e6ea;font:16px Segoe UI;text-align:center;padding:40px}video{max-width:90%;border:1px solid #00f0ff;border-radius:12px}button{margin:12px;padding:12px 20px;background:#071522;color:#b8e6ea;border:1px solid #00f0ff;border-radius:8px}#status{color:#76aeb8}</style>
+<h1>NEON · WONDER NEON</h1><p>Use esta tela no notebook para transmitir a webcam ao holomap.</p>
+<video id="video" autoplay muted playsinline></video><br><button id="start">ATIVAR WEBCAM</button><div id="status">aguardando permissão</div>
+<script>
+const video=document.getElementById("video"), status=document.getElementById("status"); let timer=null;
+function key(){let k=localStorage.getItem("hud_key");if(!k){k=prompt("Chave MASTER_KEY da Neon:");if(k)localStorage.setItem("hud_key",k)}return k}
+async function enviar(){if(!video.videoWidth)return;const c=document.createElement("canvas");c.width=640;c.height=Math.round(640*video.videoHeight/video.videoWidth);c.getContext("2d").drawImage(video,0,0,c.width,c.height);const blob=await new Promise(r=>c.toBlob(r,"image/jpeg",.68));const r=await fetch("/api/holomap/camera/frame",{method:"POST",headers:{"Content-Type":"image/jpeg","X-Hud-Key":key()},body:blob});status.textContent=r.ok?"transmitindo pela Neon":"erro ao transmitir"}
+document.getElementById("start").onclick=async()=>{try{video.srcObject=await navigator.mediaDevices.getUserMedia({video:{width:1280,height:720},audio:false});timer=setInterval(enviar,350);status.textContent="webcam ativa"}catch(e){status.textContent="permissão de webcam negada"}};
+</script>

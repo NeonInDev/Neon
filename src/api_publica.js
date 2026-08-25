@@ -32,6 +32,7 @@ const MIME = {
 };
 
 let server = null;
+let ultimaCamera = null;
 
 const ORIGENS_PERMITIDAS = [
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
@@ -134,6 +135,7 @@ function servirArquivo(urlComQuery, res) {
   else if (url === "/manifest.json") caminho = path.join(PUBLIC_DIR, "manifest.json");
   else if (url === "/sw.js") caminho = path.join(PUBLIC_DIR, "sw.js");
   else if (url === "/gesture" || url === "/gesture.html") caminho = path.join(PUBLIC_DIR, "gesture.html");
+  else if (url === "/camera" || url === "/camera.html") caminho = path.join(PUBLIC_DIR, "camera.html");
   else if (url.startsWith("/public/")) caminho = path.join(PUBLIC_DIR, url.slice("/public/".length));
   else if (url === "/whatsapp" || url === "/whatsapp.html") {
     caminho = path.join(PUBLIC_DIR, "whatsapp.html");
@@ -301,6 +303,29 @@ function iniciar(port = 3000) {
       } catch (err) {
         responder(res, 500, { erro: err.message });
       }
+      return;
+    }
+
+    if (req.url === "/api/holomap/camera/frame" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      const imagem = await lerBodyBuffer(req, 2 * 1024 * 1024);
+      if (!imagem || !String(req.headers["content-type"] || "").startsWith("image/")) {
+        responder(res, 400, { erro: "frame JPEG/PNG inválido ou maior que 2 MB" });
+        return;
+      }
+      ultimaCamera = { buffer: imagem, tipo: req.headers["content-type"], recebido: Date.now() };
+      responder(res, 200, { ok: true, recebido: ultimaCamera.recebido });
+      return;
+    }
+
+    if (req.url === "/api/holomap/camera/frame" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      if (!ultimaCamera || Date.now() - ultimaCamera.recebido > 10000) {
+        responder(res, 404, { erro: "nenhum frame recente da Wonder Neon" });
+        return;
+      }
+      res.writeHead(200, { "Content-Type": ultimaCamera.tipo, "Cache-Control": "no-store" });
+      res.end(ultimaCamera.buffer);
       return;
     }
 
