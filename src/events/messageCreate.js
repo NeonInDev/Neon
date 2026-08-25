@@ -7,7 +7,7 @@ const { MASTER_KEY } = require("../config");
 const { log } = require("../logger");
 const { verificarRateLimit, auditar } = require("../permissions");
 const { isOwner } = require("../perm");
-const { adicionarGuest, removerGuest } = require("../perm");
+const { adicionarGuest, removerGuest, guestRecords } = require("../perm");
 const { enfileirar } = require("../fila");
 const { add: addContexto } = require("../contexto");
 const axios = require("axios");
@@ -49,6 +49,18 @@ function interpretarConvidado(message) {
   const texto = message.content || "";
   const prefixo = /^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+/i;
   if (!prefixo.test(texto)) return false;
+  if (/\b(list[ae]|listar|mostra|mostrar)\b.*\b(convidados?|casa)\b/i.test(texto)) {
+    const lista = guestRecords();
+    const resumo = lista.length
+      ? lista.map((item) => {
+        const inicio = item.addedAt ? `<t:${Math.floor(item.addedAt / 1000)}:F>` : "data não registrada";
+        const fim = item.expiresAt ? `<t:${Math.floor(item.expiresAt / 1000)}:R>` : "nunca";
+        return `• <@${item.id}> — adicionado: ${inicio} — expira: ${fim}`;
+      }).join("\n")
+      : "Nenhum convidado cadastrado.";
+    message.reply(`👥 **Convidados**\n${resumo}`).catch(() => {});
+    return true;
+  }
   const mencionado = message.mentions?.users?.find((usuario) => usuario.id !== message.client.user?.id);
   const id = mencionado?.id || texto.match(/<@!?(\d+)>/)?.[1];
   if (!id) return false;

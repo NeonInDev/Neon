@@ -827,41 +827,17 @@ async function spotifyBuscarTocar(busca) {
   }
   const id = consulta.match(/(?:spotify:track:|open\.spotify\.com\/track\/)([A-Za-z0-9]{22})/)?.[1] || ( /^[A-Za-z0-9]{22}$/.test(consulta) ? consulta : null);
   if (id) return spotifyTocarPorId(id);
-
-  const uri = `spotify:search:${encodeURIComponent(consulta)}`;
-  const psUri = uri.replace(/'/g, "''");
-  await execAsync(
-    `powershell -NoProfile -Command "Start-Process -FilePath '${psUri}'"`,
-    { timeout: 10000, windowsHide: true }
-  );
-
-  await new Promise((resolve) => setTimeout(resolve, 1800));
-  const sendkey = require("./sendkey");
-  sendkey.focusJanela("Spotify");
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  sendkey.sendKey("{ENTER}", "Spotify");
-  return { ok: true, mensagem: `Buscando e tentando tocar "${consulta}" no Spotify.` };
+  const { tocarSpotify } = require("./browser");
+  return { ok: true, mensagem: await tocarSpotify(consulta) };
 }
 
 async function spotifyTocarPorId(trackId) {
   const entrada = String(trackId || "").trim().replace(/[?#].*$/, "").replace(/\/+$/, "");
   const id = entrada.match(/(?:spotify:track:|open\.spotify\.com\/track\/)?([A-Za-z0-9]{22})$/)?.[1];
   if (!id) return { ok: false, erro: "ID de faixa do Spotify inválido" };
-  const uri = `spotify:track:${id}`;
-  await execAsync(
-    `powershell -NoProfile -Command "Start-Process -FilePath 'explorer.exe' -ArgumentList '${uri}'"`,
-    { timeout: 10000, windowsHide: true }
-  );
-  await new Promise((resolve) => setTimeout(resolve, 3000));
-  const sendkey = require("./sendkey");
-  if (!sendkey.focusJanela("Spotify")) {
-    return { ok: false, erro: "Spotify não está com uma janela disponível" };
-  }
-  await new Promise((resolve) => setTimeout(resolve, 300));
-  const tocou = sendkey.send(sendkey.VK.PLAY_PAUSE);
-  return tocou
-    ? { ok: true, mensagem: `Tocando a faixa do Spotify (${id}).` }
-    : { ok: false, erro: "A faixa foi aberta, mas não consegui iniciar a reprodução." };
+  const { abrirUrlNoOpera } = require("./browser");
+  await abrirUrlNoOpera(`https://open.spotify.com/track/${id}`);
+  return { ok: true, mensagem: `Tocando a faixa do Spotify (${id}) no player local.` };
 }
 
 async function spotifyControle(acao) {
