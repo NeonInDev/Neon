@@ -135,11 +135,20 @@ const FERRAMENTAS = [
   },
   {
     name: "pc_spotify_buscar_tocar",
-    description: "Abre o Spotify, busca uma música por nome e artista e tenta iniciar a primeira correspondência.",
+    description: "Abre o Spotify e toca uma música por nome/artista ou diretamente por ID/URL de faixa.",
     inputSchema: {
       type: "object",
       properties: { busca: { type: "string", description: "Nome da música e, de preferência, o artista" } },
       required: ["busca"],
+    },
+  },
+  {
+    name: "pc_spotify_tocar_id",
+    description: "Abre e toca diretamente uma faixa do Spotify pelo ID de 22 caracteres ou URL da faixa.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "ID ou URL da faixa do Spotify" } },
+      required: ["id"],
     },
   },
   {
@@ -224,6 +233,9 @@ async function chamarFerramenta(nome, args) {
       break;
     case "pc_spotify_buscar_tocar":
       texto = JSON.stringify(await pc.spotifyBuscarTocar(args.busca));
+      break;
+    case "pc_spotify_tocar_id":
+      texto = JSON.stringify(await pc.spotifyTocarPorId(args.id));
       break;
     case "pc_spotify_controle":
       texto = JSON.stringify(await pc.spotifyControle(args.acao));

@@ -825,6 +825,8 @@ async function spotifyBuscarTocar(busca) {
   if (!consulta || /[\r\n]/.test(consulta)) {
     return { ok: false, erro: "Busca do Spotify inválida" };
   }
+  const id = consulta.match(/(?:spotify:track:|open\.spotify\.com\/track\/)([A-Za-z0-9]{22})/)?.[1] || ( /^[A-Za-z0-9]{22}$/.test(consulta) ? consulta : null);
+  if (id) return spotifyTocarPorId(id);
 
   const uri = `spotify:search:${encodeURIComponent(consulta)}`;
   const psUri = uri.replace(/'/g, "''");
@@ -839,6 +841,24 @@ async function spotifyBuscarTocar(busca) {
   await new Promise((resolve) => setTimeout(resolve, 300));
   sendkey.sendKey("{ENTER}", "Spotify");
   return { ok: true, mensagem: `Buscando e tentando tocar "${consulta}" no Spotify.` };
+}
+
+async function spotifyTocarPorId(trackId) {
+  const id = String(trackId || "").trim().match(/(?:spotify:track:|open\.spotify\.com\/track\/)?([A-Za-z0-9]{22})$/)?.[1];
+  if (!id) return { ok: false, erro: "ID de faixa do Spotify inválido" };
+  const uri = `spotify:track:${id}`;
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath '${uri}'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+  await new Promise((resolve) => setTimeout(resolve, 2200));
+  const sendkey = require("./sendkey");
+  if (!sendkey.focusJanela("Spotify")) {
+    return { ok: false, erro: "Spotify não está com uma janela disponível" };
+  }
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  sendkey.sendKey("{ENTER}", "Spotify");
+  return { ok: true, mensagem: `Tocando a faixa do Spotify (${id}).` };
 }
 
 async function spotifyControle(acao) {
@@ -865,7 +885,7 @@ module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
   dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, criarArquivo, resumoCommits, abrirWhatsApp, abrirUrl,
-  iniciarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyControle,
+  iniciarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyTocarPorId, spotifyControle,
   moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   tamanhoTela, scroll,
