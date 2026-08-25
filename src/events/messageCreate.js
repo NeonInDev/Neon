@@ -45,6 +45,20 @@ function checkCooldown(userId) {
   return false;
 }
 
+function interpretarAbortar(message) {
+  if (!isOwner(message.author.id)) return false;
+  if (!/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:aborta|abortar|pare|parar|cancela|cancelar)\b/i.test(message.content || "")) return false;
+  const pendente = mensagensPendentes.get(message.author.id);
+  if (pendente) {
+    clearTimeout(pendente.timer);
+    mensagensPendentes.delete(message.author.id);
+  }
+  opencode.parar();
+  require("../fila").limpar(message.author.id);
+  message.reply("🛑 Parei o processamento atual da Neon e limpei a fila.").catch(() => {});
+  return true;
+}
+
 function interpretarConvidado(message) {
   if (!isOwner(message.author.id)) return false;
   const texto = message.content || "";
@@ -63,19 +77,6 @@ function interpretarConvidado(message) {
     return true;
   }
 
-  function interpretarAbortar(message) {
-    if (!isOwner(message.author.id)) return false;
-    if (!/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:aborta|abortar|pare|parar|cancela|cancelar)\b/i.test(message.content || "")) return false;
-    const pendente = mensagensPendentes.get(message.author.id);
-    if (pendente) {
-      clearTimeout(pendente.timer);
-      mensagensPendentes.delete(message.author.id);
-    }
-    opencode.parar();
-    require("../fila").limpar(message.author.id);
-    message.reply("🛑 Parei o processamento atual da Neon e limpei a fila.").catch(() => {});
-    return true;
-  }
   const mencionado = message.mentions?.users?.find((usuario) => usuario.id !== message.client.user?.id);
   const id = mencionado?.id || texto.match(/<@!?(\d+)>/)?.[1];
   if (!id) return false;
