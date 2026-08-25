@@ -844,7 +844,8 @@ async function spotifyBuscarTocar(busca) {
 }
 
 async function spotifyTocarPorId(trackId) {
-  const id = String(trackId || "").trim().match(/(?:spotify:track:|open\.spotify\.com\/track\/)?([A-Za-z0-9]{22})$/)?.[1];
+  const entrada = String(trackId || "").trim().replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const id = entrada.match(/(?:spotify:track:|open\.spotify\.com\/track\/)?([A-Za-z0-9]{22})$/)?.[1];
   if (!id) return { ok: false, erro: "ID de faixa do Spotify inválido" };
   const uri = `spotify:track:${id}`;
   await execAsync(
