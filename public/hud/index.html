@@ -135,10 +135,10 @@
 
       <!-- PROJETOS 3D -->
       <div id="viewProjetos3d" class="view">
-        <iframe id="frameProjetos" data-src="/public/hud/projetos3d.html" style="width:100%;height:100%;min-height:420px;border:0;border-radius:12px;background:#05050c"></iframe>
+        <iframe id="frameProjetos" class="hud-embed" data-src="/public/hud/projetos3d.html" title="Projetos 3D"></iframe>
       </div>
       <div id="viewHolomap" class="view">
-        <iframe id="frameHolomap" data-src="/public/hud/holomap.html" style="width:100%;height:100%;min-height:420px;border:0;border-radius:12px;background:#030811"></iframe>
+        <iframe id="frameHolomap" class="hud-embed" data-src="/public/hud/holomap.html" title="Holomap"></iframe>
       </div>
     </section>
 
@@ -162,9 +162,9 @@
           <svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="44"/><circle class="fg" id="ringDisk" cx="50" cy="50" r="44"/></svg>
           <div class="meter-label"><span>DISCO</span><strong id="diskVal">--%</strong></div>
         </div>
-        <div class="meter" data-ring="bat">
-          <svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="44"/><circle class="fg" id="ringBat" cx="50" cy="50" r="44"/></svg>
-          <div class="meter-label"><span>BATERIA</span><strong id="batVal">--%</strong></div>
+        <div class="meter" data-ring="temp">
+          <svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="44"/><circle class="fg" id="ringTemp" cx="50" cy="50" r="44"/></svg>
+          <div class="meter-label"><span>TEMPERATURA</span><strong id="tempVal">--°C</strong></div>
         </div>
       </div>
 

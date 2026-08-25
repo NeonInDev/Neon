@@ -163,13 +163,14 @@
       if (ram != null) { setRing("ringRam", ram); $("ramVal").textContent = `${Math.round(ram)}%`; }
       if (disco != null) { setRing("ringDisk", disco); $("diskVal").textContent = `${Math.round(disco)}%`; }
 
-      if (bateria?.temBateria) {
-        setRing("ringBat", bateria.pct);
-        $("batVal").textContent = `${bateria.pct}%`;
-        $("batVal").style.color = bateria.pct <= 20 ? "var(--red)" : "";
+      const temperatura = info?.temperatura ?? null;
+      if (temperatura != null) {
+        setRing("ringTemp", temperatura);
+        $("tempVal").textContent = `${Math.round(temperatura)}°C`;
+        $("tempVal").style.color = temperatura >= 80 ? "var(--red)" : "";
       } else {
-        $("batVal").textContent = "--";
-        $("batVal").style.color = "var(--dim)";
+        $("tempVal").textContent = "--°C";
+        $("tempVal").style.color = "var(--dim)";
       }
 
       const partes = [];

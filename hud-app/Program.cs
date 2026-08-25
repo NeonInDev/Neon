@@ -662,7 +662,8 @@ namespace NeonHud
                 {
                     await web.CoreWebView2.ExecuteScriptAsync("localStorage.setItem('hud_key', '" + cfg.chave.Replace("'", "\\'") + "');");
                 }
-                web.Source = new Uri(cfg.url);
+                string separador = cfg.url.IndexOf('?') >= 0 ? "&" : "?";
+                web.Source = new Uri(cfg.url + separador + "hud_refresh=" + DateTime.UtcNow.Ticks);
             }
             catch
             {
