@@ -662,9 +662,17 @@
 
   // ============ NAV MOBILE + TAB TOPS ============
   const botoes = document.querySelectorAll(".bn-item");
+  const viewsNavegaveis = [...botoes].filter((b) => b.style.display !== "none");
+  let indiceAba = Math.max(0, viewsNavegaveis.findIndex((b) => b.classList.contains("active")));
+  function selecionarAbaPorTeclado(indice) {
+    if (!viewsNavegaveis.length) return;
+    indiceAba = (indice + viewsNavegaveis.length) % viewsNavegaveis.length;
+    viewsNavegaveis[indiceAba].click();
+  }
   botoes.forEach((b) => {
     b.addEventListener("click", () => {
       const v = b.dataset.view;
+      indiceAba = viewsNavegaveis.indexOf(b);
       tabs.forEach((x) => x.classList.toggle("active", x.dataset.view === v));
       botoes.forEach((x) => x.classList.toggle("active", x === b));
       Object.entries(views).forEach(([k, el]) => el.classList.toggle("active", k === v));
@@ -675,6 +683,12 @@
       if (v === "projetos3d") { const f = $("frameProjetos"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
       if (v === "holomap") { const f = $("frameHolomap"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
     });
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab" || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+    e.preventDefault();
+    selecionarAbaPorTeclado(indiceAba + (e.shiftKey ? -1 : 1));
   });
 
   // ============ CELULAR (adb/scrcpy) ============

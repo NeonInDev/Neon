@@ -196,6 +196,10 @@ namespace NeonHud
                 web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = true;
                 web.CoreWebView2.Settings.IsStatusBarEnabled = false;
                 web.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+                web.CoreWebView2.ServerCertificateErrorDetected += (senderCert, certArgs) =>
+                {
+                    certArgs.Action = CoreWebView2ServerCertificateErrorAction.AlwaysAllow;
+                };
                 try { web.CoreWebView2.Settings.UserAgent = web.CoreWebView2.Settings.UserAgent.Replace("Edg/", "Chrome/"); } catch { }
                 try { web.ZoomFactor = 1.1; } catch { }
             };

@@ -1,4 +1,4 @@
-const CACHE = "neon-hud-v3";
+const CACHE = "neon-hud-v4";
 const CORE = [
   "/",
   "/manifest.json",
