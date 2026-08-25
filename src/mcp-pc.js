@@ -86,6 +86,26 @@ const FERRAMENTAS = [
     },
   },
   {
+    name: "pc_criar_arquivo",
+    description: "Cria um arquivo novo dentro de C:\\Users\\Pichau. Nunca sobrescreve um arquivo existente.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        caminho: { type: "string", description: "Caminho relativo a C:\\Users\\Pichau ou absoluto dentro dela" },
+        conteudo: { type: "string", description: "Conteúdo UTF-8 do arquivo" },
+      },
+      required: ["caminho"],
+    },
+  },
+  {
+    name: "pc_resumo_commits",
+    description: "Retorna um resumo dos commits recentes do repositório da Neon.",
+    inputSchema: {
+      type: "object",
+      properties: { limite: { type: "number", description: "Quantidade de commits, de 1 a 20" } },
+    },
+  },
+  {
     name: "pc_abrir_whatsapp",
     description: "Abre o WhatsApp. Só use quando o usuário pedir explicitamente para abrir o WhatsApp.",
     inputSchema: { type: "object", properties: {} },
@@ -183,6 +203,12 @@ async function chamarFerramenta(nome, args) {
       break;
     case "pc_abrir_app":
       texto = JSON.stringify(await pc.abrirAppPorNome(args.nome));
+      break;
+    case "pc_criar_arquivo":
+      texto = JSON.stringify(await pc.criarArquivo(args.caminho, args.conteudo || ""));
+      break;
+    case "pc_resumo_commits":
+      texto = JSON.stringify(await pc.resumoCommits(args.limite));
       break;
     case "pc_abrir_whatsapp":
       texto = JSON.stringify(await pc.abrirWhatsApp());

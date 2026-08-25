@@ -724,6 +724,43 @@ async function abrirAppPorNome(nome) {
   });
 }
 
+function caminhoSeguro(caminho) {
+  const bruto = String(caminho || "").trim();
+  if (!bruto || /[\r\n]/.test(bruto)) throw new Error("Caminho inválido");
+  const raiz = path.resolve(process.env.USERPROFILE || "C:\\Users\\Pichau");
+  const alvo = path.resolve(raiz, bruto);
+  const relativo = path.relative(raiz, alvo);
+  if (relativo.startsWith("..") || path.isAbsolute(relativo)) throw new Error("Caminho fora da pasta autorizada");
+  if (/(^|\\)\.whatsapp(\\|$)|(^|\\)(?:\.env|.*token.*|.*credential.*)$/i.test(relativo)) {
+    throw new Error("Arquivo protegido");
+  }
+  return alvo;
+}
+
+async function criarArquivo(caminho, conteudo = "") {
+  const alvo = caminhoSeguro(caminho);
+  const texto = String(conteudo);
+  if (Buffer.byteLength(texto, "utf8") > 5 * 1024 * 1024) {
+    return { ok: false, erro: "Arquivo excede o limite de 5 MB" };
+  }
+  if (fs.existsSync(alvo)) {
+    return { ok: false, erro: "Arquivo já existe; não sobrescrevi nada" };
+  }
+  fs.mkdirSync(path.dirname(alvo), { recursive: true });
+  fs.writeFileSync(alvo, texto, "utf8");
+  return { ok: true, caminho: alvo, bytes: Buffer.byteLength(texto, "utf8"), mensagem: `Arquivo criado em ${alvo}.` };
+}
+
+async function resumoCommits(limite = 8) {
+  const n = Math.min(Math.max(parseInt(limite, 10) || 8, 1), 20);
+  const repositorio = path.join(__dirname, "..");
+  const { stdout } = await execAsync(
+    `git -C "${repositorio}" log -${n} --pretty=format:"%h | %ad | %s" --date=format:"%d/%m/%Y %H:%M"`,
+    { timeout: 10000, windowsHide: true, maxBuffer: 100000 }
+  );
+  return { ok: true, commits: stdout.trim() || "Nenhum commit encontrado." };
+}
+
 async function abrirWhatsApp() {
   await execAsync(
     `powershell -NoProfile -Command "Start-Process -FilePath 'whatsapp:'"`,
@@ -826,7 +863,7 @@ async function spotifyControle(acao) {
 module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
-  dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, abrirWhatsApp, abrirUrl,
+  dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, criarArquivo, resumoCommits, abrirWhatsApp, abrirUrl,
   iniciarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyControle,
   moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
