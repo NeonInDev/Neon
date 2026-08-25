@@ -8,6 +8,7 @@ const { log } = require("../logger");
 const { verificarRateLimit, auditar } = require("../permissions");
 const { isOwner } = require("../perm");
 const { adicionarGuest, removerGuest, guestRecords } = require("../perm");
+const opencode = require("../../plugins/opencode");
 const { enfileirar } = require("../fila");
 const { add: addContexto } = require("../contexto");
 const axios = require("axios");
@@ -59,6 +60,20 @@ function interpretarConvidado(message) {
       }).join("\n")
       : "Nenhum convidado cadastrado.";
     message.reply(`👥 **Convidados**\n${resumo}`).catch(() => {});
+    return true;
+  }
+
+  function interpretarAbortar(message) {
+    if (!isOwner(message.author.id)) return false;
+    if (!/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:aborta|abortar|pare|parar|cancela|cancelar)\b/i.test(message.content || "")) return false;
+    const pendente = mensagensPendentes.get(message.author.id);
+    if (pendente) {
+      clearTimeout(pendente.timer);
+      mensagensPendentes.delete(message.author.id);
+    }
+    opencode.parar();
+    require("../fila").limpar(message.author.id);
+    message.reply("🛑 Parei o processamento atual da Neon e limpei a fila.").catch(() => {});
     return true;
   }
   const mencionado = message.mentions?.users?.find((usuario) => usuario.id !== message.client.user?.id);
@@ -239,6 +254,11 @@ module.exports = {
     if (await verificarChaveMestra(message)) return;
     if (processando.has(message.id)) return;
     processando.add(message.id);
+
+    if (interpretarAbortar(message)) {
+      processando.delete(message.id);
+      return;
+    }
 
     const rl = verificarRateLimit(message.author.id);
     if (!rl.permitido) {
