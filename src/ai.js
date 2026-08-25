@@ -8,6 +8,7 @@ const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, 
 const { getModo, personaDoModo } = require("./modo");
 const { isOwner } = require("./perm"); // @chefe
 const visao = require("./visao");
+const skills = require("./skills");
 
 const MAX_INPUT_LEN = 2000;
 const MAX_ITERACOES_FERRAMENTAS = 3;
@@ -137,7 +138,7 @@ FORMATAÇÃO (obrigatório no Discord):
 - Citações (>) só pra dados relevantes, raramente.
 - Não force formatação onde não precisa — resposta natural e limpa vale mais que encher de markdown.
 - Em resposta de ação (abrir, rodar, criar), vá direto ao resultado em 1 frase.
-${tratamentoChefe}`;
+${tratamentoChefe}${skills.contexto()}`;
 
   const historicoTxt = historico ? `Histórico recente:\n${historico}\n\n` : "";
 
@@ -172,6 +173,13 @@ ${tratamentoChefe}`;
     }
 
     let resposta = await chamarLLM(sistema, userMsg);
+
+    if (isOwner(userId) && skills.respostaIndicaFalta && skills.respostaIndicaFalta(resposta)) {
+      const skill = await skills.aprender(promptTruncado, resposta);
+      if (skill) {
+        resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: ${skill.instrucoes}`, userMsg);
+      }
+    }
 
     for (let iter = 0; iter < MAX_ITERACOES_FERRAMENTAS; iter++) {
       const ferramentas = toolsMod.extrairFerramentas(resposta || "");

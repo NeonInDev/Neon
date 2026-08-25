@@ -21,6 +21,7 @@ ssl/
 logs/tailscale_watch_state.json
 logs/vigilante_ram.pid
 data/opencode_server.pid
+data/skills.json
 google_credentials.json
 google_token.json
 opencode.json.chefe.bak
