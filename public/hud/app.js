@@ -24,6 +24,7 @@
   const volVal = $("volVal");
   const audio = new Audio();
   const modoBtn = $("modoBtn");
+  const btnVozAssistente = $("btnVozAssistente");
 
   function aplicarTema(modo) {
     document.documentElement.dataset.theme = modo === "ultron" ? "ultron" : "jarvis";
@@ -234,6 +235,40 @@
           if (e.results[i].isFinal) final += e.results[i][0].transcript;
           else interim += e.results[i][0].transcript;
         }
+
+        let vozAssistente = false;
+        let wakeRecognition = null;
+        function alternarAssistenteVoz() {
+          if (!suportaWebSpeech) { toast("Reconhecimento de voz não disponível"); return; }
+          if (vozAssistente) {
+            vozAssistente = false;
+            try { wakeRecognition?.stop(); } catch {}
+            btnVozAssistente.textContent = "🎙️ VOZ: DESLIGADA";
+            return;
+          }
+          vozAssistente = true;
+          btnVozAssistente.textContent = "🎙️ VOZ: ATIVA";
+          const ouvir = () => {
+            if (!vozAssistente) return;
+            wakeRecognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            wakeRecognition.lang = "pt-BR";
+            wakeRecognition.continuous = true;
+            wakeRecognition.interimResults = false;
+            wakeRecognition.onresult = (e) => {
+              for (let i = e.resultIndex; i < e.results.length; i++) {
+                if (!e.results[i].isFinal) continue;
+                const frase = e.results[i][0].transcript.trim();
+                const comando = frase.replace(/^\s*(?:ei\s+)?neon[\s,!.\-:;]*/i, "").trim();
+                if (comando) enviar(comando);
+              }
+            };
+            wakeRecognition.onend = () => { if (vozAssistente) setTimeout(ouvir, 250); };
+            wakeRecognition.onerror = () => { if (vozAssistente) setTimeout(ouvir, 500); };
+            try { wakeRecognition.start(); } catch {}
+          };
+          ouvir();
+        }
+        btnVozAssistente.addEventListener("click", alternarAssistenteVoz);
         chatInput.value = (final + interim).trim();
       };
       recognition.onend = () => {
@@ -378,7 +413,7 @@
 
   // ============ ABAS ============
   const tabs = document.querySelectorAll(".tab");
-  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode"), projetos3d: $("viewProjetos3d") };
+  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode"), projetos3d: $("viewProjetos3d"), holomap: $("viewHolomap") };
 
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -637,6 +672,7 @@
       if (v === "tela") $("viewTela").classList.add("active");
       if (v === "celular") carregarCelular();
       if (v === "projetos3d") { const f = $("frameProjetos"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
+      if (v === "holomap") { const f = $("frameHolomap"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
     });
   });
 
