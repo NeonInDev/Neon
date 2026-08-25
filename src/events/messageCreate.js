@@ -126,7 +126,7 @@ function algumaAtiva(mensagens, message) {
   if (message.mentions?.has(bot?.id)) return true;
   for (const m of mensagens) {
     const lower = m.content.toLowerCase();
-    // 2) Prefixo /neon
+    // 2) Prefixo neon (convidados também podem conversar por este caminho)
     if (/^\/neon\b/.test(lower)) return true;
     // 3) Fala "neon" no início ou no final (menção por nome)
     if (/^\s*neon[\s,!.\-:;]*\s*/i.test(lower) || /[\s,!.\-:;]*\s*neon\s*$/i.test(lower)) return true;

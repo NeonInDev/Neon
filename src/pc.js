@@ -848,17 +848,19 @@ async function spotifyTocarPorId(trackId) {
   if (!id) return { ok: false, erro: "ID de faixa do Spotify inválido" };
   const uri = `spotify:track:${id}`;
   await execAsync(
-    `powershell -NoProfile -Command "Start-Process -FilePath '${uri}'"`,
+    `powershell -NoProfile -Command "Start-Process -FilePath 'explorer.exe' -ArgumentList '${uri}'"`,
     { timeout: 10000, windowsHide: true }
   );
-  await new Promise((resolve) => setTimeout(resolve, 2200));
+  await new Promise((resolve) => setTimeout(resolve, 3000));
   const sendkey = require("./sendkey");
   if (!sendkey.focusJanela("Spotify")) {
     return { ok: false, erro: "Spotify não está com uma janela disponível" };
   }
   await new Promise((resolve) => setTimeout(resolve, 300));
-  sendkey.sendKey("{ENTER}", "Spotify");
-  return { ok: true, mensagem: `Tocando a faixa do Spotify (${id}).` };
+  const tocou = sendkey.send(sendkey.VK.PLAY_PAUSE);
+  return tocou
+    ? { ok: true, mensagem: `Tocando a faixa do Spotify (${id}).` }
+    : { ok: false, erro: "A faixa foi aberta, mas não consegui iniciar a reprodução." };
 }
 
 async function spotifyControle(acao) {
