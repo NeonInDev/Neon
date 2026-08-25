@@ -1,9 +1,11 @@
-const CACHE = "neon-hud-v1";
+const CACHE = "neon-hud-v2";
 const CORE = [
   "/",
   "/manifest.json",
   "/public/hud/style.css",
   "/public/hud/app.js",
+  "/public/hud/index.html",
+  "/public/hud/holomap.html",
   "/public/icons/icon-192.png",
   "/public/icons/icon-512.png",
 ];
