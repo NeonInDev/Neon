@@ -40,10 +40,13 @@ module.exports = {
     const command = commands.get(interaction.commandName);
     if (!command) return;
 
-    const { permitido } = require("../perm");
+    const { permitido, isGuest } = require("../perm");
     // comandos "publicos" (ex: /mod) seguem as permissoes do Discord, nao a whitelist
     if (!command.publico && !permitido(interaction.user.id)) {
       return interaction.reply({ content: "❌ Acesso negado.", ephemeral: true });
+    }
+    if (isGuest(interaction.user.id) && interaction.commandName !== "neon") {
+      return interaction.reply({ content: "👥 Convidados só podem conversar com a Neon.", ephemeral: true });
     }
 
     if (command.adminOnly) {

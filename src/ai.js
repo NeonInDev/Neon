@@ -6,7 +6,7 @@ const toolsMod = require("./tools");
 const axios = require("axios");
 const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, GROQ_API_KEY, GROQ_MODEL, OMNIROUTE_API_KEY, OMNIROUTE_BASE_URL, OMNIROUTE_MODEL } = require("./config");
 const { getModo, personaDoModo } = require("./modo");
-const { isOwner } = require("./perm"); // @chefe
+const { isOwner, isGuest } = require("./perm"); // @chefe
 const visao = require("./visao");
 const skills = require("./skills");
 
@@ -48,7 +48,7 @@ async function chamarGroq(messages) {
   return resp?.data?.choices?.[0]?.message?.content?.trim() || null;
 }
 
-async function chamarLLM(sistema, userMsg) {
+async function chamarLLM(sistema, userMsg, permitirOpencode = true) {
   const messages = [
     { role: "system", content: sistema },
     { role: "user", content: userMsg },
@@ -86,7 +86,7 @@ async function chamarLLM(sistema, userMsg) {
     }
   }
 
-  return await opencode.executar(userMsg);
+  return permitirOpencode ? await opencode.executar(userMsg) : null;
 }
 
 async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null) {
@@ -94,6 +94,7 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
   if (!db.data.blacklist) db.data.blacklist = [];
 
   const user = getOrCreateUser(db, userId, username);
+  const convidado = isGuest(userId);
 
   const promptTruncado = userInput.slice(0, MAX_INPUT_LEN);
 
@@ -115,15 +116,15 @@ const tratamentoChefe = isOwner(userId)
 Modo atual: ${modo.toUpperCase()}${apelido}
 
 CAPACIDADES:
-- Você TEM ACESSO a FERRAMENTAS que são executadas automaticamente. Use FERRAMENTA: codar SOMENTE quando o usuário pedir uma AÇÃO EXPLÍCITA — ex.: "pesquisa X", "abre o navegador", "roda esse comando", "instala X", "cria/edita um arquivo", "mexe no PC", "automação".
+- ${convidado ? "Você está falando com um convidado. Apenas converse e responda perguntas; não use OpenCode, ferramentas, comandos, arquivos, navegador ou controle do PC." : 'Você TEM ACESSO a FERRAMENTAS que são executadas automaticamente. Use FERRAMENTA: codar SOMENTE quando o usuário pedir uma AÇÃO EXPLÍCITA — ex.: "pesquisa X", "abre o navegador", "roda esse comando", "instala X", "cria/edita um arquivo", "mexe no PC", "automação".'}
 - Cumprimentos, perguntas simples, conversa casual e respostas de conhecimento ("oi", "e aí", "tudo bem?", "quem é você?", "conta uma história", "explica X") NUNCA usam ferramenta — responda diretamente em texto.
 - A ferramenta roda e o RESULTADO volta pra você. Depois você responde ao usuário em texto normal com o resultado.
 
-FERRAMENTAS DISPONÍVEIS:
-${toolsMod.descricaoFerramentas()}
+${convidado ? "" : `FERRAMENTAS DISPONÍVEIS:
+${toolsMod.descricaoFerramentas()}`}
 
 REGRAS:
-1. Use FERRAMENTA: codar para QUALQUER tarefa que não seja conversa pura. Não responda de memória o que você não sabe — use a ferramenta.
+1. ${convidado ? "Responda somente em conversa; nunca execute ferramentas ou ações." : "Use FERRAMENTA: codar para QUALQUER tarefa que não seja conversa pura. Não responda de memória o que você não sabe — use a ferramenta."}
 2. Não avise que vai fazer — use a ferramenta e mostre o resultado.
 3. Se a ferramenta falhar, tente de novo com outra abordagem. Se falhar de novo, avise.
 4. Responda no idioma que o usuário usar. Se ele falar em inglês, responda em inglês. Se falar em português, responda em português. NUNCA traduza o que o usuário escreveu — mantenha no idioma original.
@@ -153,7 +154,7 @@ ${tratamentoChefe}${skills.contexto()}`;
     : null;
 
   try {
-    const decisao = await opencode.decidir(promptTruncado);
+    const decisao = convidado ? { acao: false, resposta: null } : await opencode.decidir(promptTruncado);
     if (decisao.acao && decisao.resposta) {
       user.historico.push({ user: userInput, bot: decisao.resposta.slice(0, 500) });
       if (user.historico.length > 200) user.historico.shift();
@@ -172,7 +173,7 @@ ${tratamentoChefe}${skills.contexto()}`;
       }
     }
 
-    let resposta = await chamarLLM(sistema, userMsg);
+    let resposta = await chamarLLM(sistema, userMsg, !convidado);
 
     if (isOwner(userId) && skills.respostaIndicaFalta && skills.respostaIndicaFalta(resposta)) {
       const skill = await skills.aprender(promptTruncado, resposta);
@@ -181,7 +182,7 @@ ${tratamentoChefe}${skills.contexto()}`;
       }
     }
 
-    for (let iter = 0; iter < MAX_ITERACOES_FERRAMENTAS; iter++) {
+    for (let iter = 0; !convidado && iter < MAX_ITERACOES_FERRAMENTAS; iter++) {
       const ferramentas = toolsMod.extrairFerramentas(resposta || "");
       if (!ferramentas.length) break;
 
@@ -200,7 +201,7 @@ ${resultados.join("\n\n")}
 
 Agora responda ao usuário naturalmente com base nesses resultados. Se precisar de mais alguma ação, use FERRAMENTA: novamente. Se já resolveu, responda em texto normal, sem FERRAMENTA.`;
 
-      resposta = await chamarLLM(sistema, userMsg);
+      resposta = await chamarLLM(sistema, userMsg, !convidado);
     }
 
     const final = (resposta || "").replace(/^FERRAMENTA:\s*\w+.*$/gm, "").replace(/^---.*$/gm, "").trim();
