@@ -45,6 +45,10 @@ function todasAcoes() {
 async function iniciar(client) {
   plugins = carregarPlugins();
   for (const p of plugins) {
+    if (p.nome === "WhatsApp") {
+      log("INFO", "[WHATSAPP] Inicialização sob demanda; não abrirá no boot");
+      continue;
+    }
     try {
       if (typeof p.iniciar === "function") await p.iniciar(client);
     } catch (err) {

@@ -15,6 +15,7 @@ let client = null;
 let estado = "desconectado";
 let ultimoQr = "";
 let watchdog = null;
+let fechamento = null;
 let inicializando = false;
 const gruposConhecidos = {};
 
@@ -45,6 +46,19 @@ function agendarWatchdog() {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function agendarFechamento() {
+  if (fechamento) clearTimeout(fechamento);
+  fechamento = setTimeout(() => {
+    fechamento = null;
+    parar().catch((err) => log("WARN", "[WHATSAPP] Falha ao fechar após inatividade", { erro: err.message }));
+  }, 20000);
+}
+
+async function garantirIniciado() {
+  if (!client && !inicializando) await iniciar();
+  while (inicializando) await sleep(250);
+}
 
 async function iniciar() {
   if (client || inicializando) return;
@@ -141,6 +155,10 @@ async function iniciar() {
 
 async function parar() {
   limparWatchdog();
+  if (fechamento) {
+    clearTimeout(fechamento);
+    fechamento = null;
+  }
   if (client) {
     try { await client.destroy(); } catch {}
     client = null;
@@ -149,6 +167,7 @@ async function parar() {
 }
 
 async function enviar(destino, texto) {
+  await garantirIniciado();
   if (!client || estado !== "conectado") {
     return { ok: false, erro: `WhatsApp não conectado (estado: ${estado}). Reinicie a Neon e escaneie o QR.` };
   }
@@ -166,6 +185,7 @@ async function enviar(destino, texto) {
       if (id?._serialized) alvo = id._serialized;
     } catch {}
     await client.sendMessage(alvo, mensagem);
+    agendarFechamento();
     return { ok: true, numero, mensagem, alvo };
   } catch (err) {
     return { ok: false, erro: err.message };
@@ -257,6 +277,7 @@ module.exports = {
   },
 
   async enviarDocumento(destino, caminhoArquivo, caption) {
+    await garantirIniciado();
     if (!client || estado !== "conectado") {
       return { ok: false, erro: `WhatsApp não conectado (estado: ${estado}).` };
     }
@@ -267,6 +288,7 @@ module.exports = {
       const media = MessageMedia.fromFilePath(caminhoArquivo);
       const legenda = caption ? assinar(caption) : assinar("Documento da Neon");
       await client.sendMessage(destino, media, { caption: legenda });
+      agendarFechamento();
       return { ok: true, destino, arquivo: path.basename(caminhoArquivo), caption: legenda };
     } catch (err) {
       return { ok: false, erro: err.message };
@@ -278,6 +300,7 @@ module.exports = {
   },
 
   async enviarRaw(destino, texto) {
+    await garantirIniciado();
     if (!client || estado !== "conectado") {
       return { ok: false, erro: `WhatsApp não conectado (estado: ${estado}).` };
     }
@@ -287,6 +310,7 @@ module.exports = {
     }
     try {
       await client.sendMessage(alvo, assinar(texto));
+      agendarFechamento();
       return { ok: true, destino: alvo, mensagem: assinar(texto) };
     } catch (err) {
       return { ok: false, erro: err.message };
@@ -294,6 +318,7 @@ module.exports = {
   },
 
   async abrirConversa(termo) {
+    await garantirIniciado();
     if (!client || estado !== "conectado") {
       return { ok: false, erro: `WhatsApp não conectado (estado: ${estado}).` };
     }
@@ -355,6 +380,7 @@ module.exports = {
         if (resBusca) {
           await client.pupPage.mouse.click(resBusca.x, resBusca.y);
           await sleep(1800);
+          agendarFechamento();
           return { ok: true, via: "busca-click", termo: alvo };
         }
         await client.pupPage.keyboard.press("Escape");
@@ -362,6 +388,7 @@ module.exports = {
       }
       await client.pupPage.mouse.click(rect.x, rect.y);
       await sleep(1800);
+      agendarFechamento();
       return { ok: true, via: "mouse", titulo: rect.titulo };
     } catch (err) {
       return { ok: false, erro: err.message };
@@ -369,6 +396,7 @@ module.exports = {
   },
 
   async enviarUI(texto) {
+    await garantirIniciado();
     if (!client || estado !== "conectado") {
       return { ok: false, erro: `WhatsApp não conectado (estado: ${estado}).` };
     }
@@ -399,6 +427,7 @@ module.exports = {
       await sleep(400);
       await client.pupPage.keyboard.press("Enter");
       await sleep(600);
+      agendarFechamento();
       return { ok: true, via: "ui", texto };
     } catch (err) {
       return { ok: false, erro: err.message };
@@ -406,6 +435,7 @@ module.exports = {
   },
 
   async enviarDocUI(caminhoArquivo, legenda) {
+    await garantirIniciado();
     if (!client || estado !== "conectado") {
       return { ok: false, erro: `WhatsApp não conectado (estado: ${estado}).` };
     }
@@ -478,6 +508,7 @@ module.exports = {
       }
       await client.pupPage.keyboard.press("Enter");
       await sleep(1500);
+      agendarFechamento();
       return { ok: true, via: "ui-doc", arquivo: caminho };
     } catch (err) {
       return { ok: false, erro: err.message };

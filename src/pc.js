@@ -796,7 +796,7 @@ async function iniciarJogoSteam(appid) {
 
 async function fecharAppsExceto() {
   const script = `
-$preservar = @('medal', 'steam', 'node', 'opencode', 'explorer', 'powershell', 'conhost', 'cmd', 'dwm')
+$preservar = @('medal', 'steam', 'code', 'node', 'opencode', 'explorer', 'powershell', 'conhost', 'cmd', 'dwm')
 $alvos = Get-Process | Where-Object {
   $_.MainWindowHandle -ne 0 -and
   $_.ProcessName.ToLower() -notin $preservar -and

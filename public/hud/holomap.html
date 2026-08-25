@@ -21,12 +21,11 @@
   <canvas id="map"></canvas>
   <div class="hud"><strong>HOLOMAP · NEONWORLD</strong><small>arraste para orbitar · roda para zoom · toque nos nós</small></div>
   <div class="tools"><button id="camBtn">WEBCAM</button><button id="resetBtn">RESET</button></div>
-  <img id="remoteCam" alt="Webcam Wonder Neon" style="position:fixed;z-index:2;right:18px;bottom:18px;width:180px;border:1px solid #00f0ff88;border-radius:10px;opacity:.72;display:none">
   <video id="cam" autoplay muted playsinline></video>
   <div id="status">inicializando mapa...</div>
   <script>
     const canvas=document.getElementById("map"), ctx=canvas.getContext("2d"), status=document.getElementById("status");
-    const cam=document.getElementById("cam"), remoteCam=document.getElementById("remoteCam"), camBtn=document.getElementById("camBtn");
+    const cam=document.getElementById("cam"), camBtn=document.getElementById("camBtn");
     const nodes=[
       {name:"NEON",type:"IA",x:0,y:0,z:0,c:"#00f0ff"},
       {name:"PC LOCAL",type:"Windows",x:-3,y:1,z:1,c:"#ff9d00"},
@@ -42,8 +41,6 @@
     canvas.addEventListener("pointerdown",e=>{drag={x:e.clientX,y:e.clientY,rx,ry};canvas.setPointerCapture(e.pointerId)});
     canvas.addEventListener("pointermove",e=>{if(!drag)return;ry=drag.ry+(e.clientX-drag.x)/220;rx=Math.max(-1.3,Math.min(1.3,drag.rx+(e.clientY-drag.y)/220))});
     canvas.addEventListener("pointerup",()=>drag=null); canvas.addEventListener("wheel",e=>{e.preventDefault();zoom=Math.max(.55,Math.min(2.2,zoom*(e.deltaY<0?1.1:.9)))},{passive:false});
-    async function atualizarCamera(){try{const r=await fetch("/api/holomap/camera/frame",{headers:{"X-Hud-Key":localStorage.getItem("hud_key")||""},cache:"no-store"});if(!r.ok)return;remoteCam.src=URL.createObjectURL(await r.blob());remoteCam.style.display="block"}catch{}}
-    setInterval(atualizarCamera,700);
     document.getElementById("resetBtn").onclick=()=>{rx=-.15;ry=0;zoom=1};
     camBtn.onclick=async()=>{if(cam.srcObject){cam.srcObject.getTracks().forEach(t=>t.stop());cam.srcObject=null;cam.style.display="none";camBtn.textContent="WEBCAM";return}try{cam.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});cam.style.display="block";camBtn.textContent="DESLIGAR CAMERA";status.textContent="webcam ativa — gestos serão adicionados na próxima etapa"}catch(e){status.textContent="webcam bloqueada ou indisponível"}};
     addEventListener("resize",resize);resize();draw();status.textContent=`${nodes.length} nós holográficos ativos`;
