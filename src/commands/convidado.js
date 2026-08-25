@@ -1,5 +1,5 @@
 const { SlashCommandBuilder } = require("discord.js");
-const { isOwner, guests, adicionarGuest, removerGuest } = require("../perm");
+const { isOwner, guestRecords, adicionarGuest, removerGuest } = require("../perm");
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -24,10 +24,20 @@ module.exports = {
     const acao = interaction.options.getString("acao");
     const usuario = interaction.options.getUser("usuario");
     const duracaoTexto = interaction.options.getString("duracao");
-    const lista = guests();
+    const lista = guestRecords();
     if (acao === "listar") {
       await interaction.reply({
-        content: lista.length ? `👥 Convidados: ${lista.map((id) => `<@${id}>`).join(", ")}` : "👥 Nenhum convidado cadastrado.",
+        content: lista.length
+          ? `👥 **Convidados (${lista.length})**\n${lista.map((item) => {
+            const adicionado = item.addedAt
+              ? `<t:${Math.floor(item.addedAt / 1000)}:F>`
+              : "data não registrada";
+            const expira = item.expiresAt
+              ? `<t:${Math.floor(item.expiresAt / 1000)}:F> (<t:${Math.floor(item.expiresAt / 1000)}:R>)`
+              : "nunca";
+            return `• <@${item.id}> — adicionado: ${adicionado} — expira: ${expira}`;
+          }).join("\n")}`
+          : "👥 Nenhum convidado cadastrado.",
         ephemeral: true,
       });
       return;

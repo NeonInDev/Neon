@@ -9,6 +9,10 @@ const ALLOWED_USERS = [
 const GUESTS_FILE = path.join(__dirname, "..", "data", "guests.json");
 
 function guests() {
+  return guestRecords().map((item) => item.id);
+}
+
+function guestRecords() {
   try {
     if (!fs.existsSync(GUESTS_FILE)) return [];
     const lista = JSON.parse(fs.readFileSync(GUESTS_FILE, "utf8"));
@@ -16,8 +20,7 @@ function guests() {
     const agora = Date.now();
     return lista
       .map((item) => typeof item === "string" ? { id: item, expiresAt: null } : item)
-      .filter((item) => item && typeof item.id === "string" && (!item.expiresAt || item.expiresAt > agora))
-      .map((item) => item.id);
+      .filter((item) => item && typeof item.id === "string" && (!item.expiresAt || item.expiresAt > agora));
   } catch { return []; }
 }
 
@@ -27,15 +30,16 @@ function salvarGuests(lista) {
 }
 
 function adicionarGuest(userId, duracaoMs = null) {
-  const ids = guests().filter((id) => id !== userId);
+  const registrosAtuais = guestRecords().filter((item) => item.id !== userId);
   fs.mkdirSync(path.dirname(GUESTS_FILE), { recursive: true });
-  const registros = ids.map((id) => ({ id, expiresAt: null }));
-  registros.push({ id: userId, expiresAt: duracaoMs ? Date.now() + duracaoMs : null });
+  const registros = registrosAtuais.map((item) => ({ ...item }));
+  registros.push({ id: userId, addedAt: Date.now(), expiresAt: duracaoMs ? Date.now() + duracaoMs : null });
   fs.writeFileSync(GUESTS_FILE, JSON.stringify(registros, null, 2), "utf8");
 }
 
 function removerGuest(userId) {
-  salvarGuests(guests().filter((id) => id !== userId));
+  fs.mkdirSync(path.dirname(GUESTS_FILE), { recursive: true });
+  fs.writeFileSync(GUESTS_FILE, JSON.stringify(guestRecords().filter((item) => item.id !== userId), null, 2), "utf8");
 }
 
 function isGuest(userId) {
@@ -60,4 +64,4 @@ function bloquear(message) {
   return false;
 }
 
-module.exports = { isOwner, isGuest, guests, salvarGuests, adicionarGuest, removerGuest, permitido, bloquear, ALLOWED_USERS, OWNER };
+module.exports = { isOwner, isGuest, guests, guestRecords, salvarGuests, adicionarGuest, removerGuest, permitido, bloquear, ALLOWED_USERS, OWNER };
