@@ -728,7 +728,8 @@ function caminhoSeguro(caminho) {
   const bruto = String(caminho || "").trim();
   if (!bruto || /[\r\n]/.test(bruto)) throw new Error("Caminho inválido");
   const raiz = path.resolve(process.env.USERPROFILE || "C:\\Users\\Pichau");
-  const alvo = path.resolve(raiz, bruto);
+  const base = path.join(raiz, "Documents");
+  const alvo = path.resolve(path.isAbsolute(bruto) ? raiz : base, bruto);
   const relativo = path.relative(raiz, alvo);
   if (relativo.startsWith("..") || path.isAbsolute(relativo)) throw new Error("Caminho fora da pasta autorizada");
   if (/(^|\\)\.whatsapp(\\|$)|(^|\\)(?:\.env|.*token.*|.*credential.*)$/i.test(relativo)) {

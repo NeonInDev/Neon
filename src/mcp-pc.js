@@ -87,7 +87,7 @@ const FERRAMENTAS = [
   },
   {
     name: "pc_criar_arquivo",
-    description: "Cria um arquivo novo dentro de C:\\Users\\Pichau. Nunca sobrescreve um arquivo existente.",
+    description: "Cria um arquivo novo. Caminhos relativos vão para C:\\Users\\Pichau\\Documents; caminhos absolutos devem ficar dentro de C:\\Users\\Pichau. Nunca sobrescreve um arquivo existente.",
     inputSchema: {
       type: "object",
       properties: {
