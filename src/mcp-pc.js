@@ -1,5 +1,6 @@
 const readline = require("readline");
 const pc = require("./pc");
+const medal = require("../plugins/medal");
 
 const FERRAMENTAS = [
   {
@@ -167,6 +168,16 @@ const FERRAMENTAS = [
     description: "Lista as janelas abertas.",
     inputSchema: { type: "object", properties: {} },
   },
+  {
+    name: "medal_ultima_screenshot",
+    description: "Busca a última screenshot salva pelo Medal e retorna o caminho para envio.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "medal_ultima_gravacao",
+    description: "Busca a última gravação/clipe salvo pelo Medal e retorna o caminho para envio.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
 function responder(id, resultado) {
@@ -243,6 +254,16 @@ async function chamarFerramenta(nome, args) {
     case "pc_janelas":
       texto = JSON.stringify(await pc.listarJanelas());
       break;
+    case "medal_ultima_screenshot": {
+      const item = medal.ultimaScreenshot();
+      texto = JSON.stringify(item || { erro: "nenhuma screenshot do Medal encontrada" });
+      break;
+    }
+    case "medal_ultima_gravacao": {
+      const item = medal.ultimaGravacao();
+      texto = JSON.stringify(item || { erro: "nenhuma gravação do Medal encontrada" });
+      break;
+    }
     default:
       throw new Error(`ferramenta desconhecida: ${nome}`);
   }

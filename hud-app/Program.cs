@@ -119,7 +119,6 @@ namespace NeonHud
             try { Icon = new Icon(Path.Combine(exeDir, "neon.ico")); } catch { }
             try { KeyPreview = true; } catch { }
 
-            MontarHeader();
             MontarWeb();
             MontarTray();
 
@@ -187,6 +186,8 @@ namespace NeonHud
         {
             web = new WebView2();
             web.Dock = DockStyle.Fill;
+            web.Visible = true;
+            web.BackColor = Color.FromArgb(5, 7, 13);
             Controls.Add(web);
             web.BringToFront();
 
@@ -201,7 +202,7 @@ namespace NeonHud
                     certArgs.Action = CoreWebView2ServerCertificateErrorAction.AlwaysAllow;
                 };
                 try { web.CoreWebView2.Settings.UserAgent = web.CoreWebView2.Settings.UserAgent.Replace("Edg/", "Chrome/"); } catch { }
-                try { web.ZoomFactor = 1.1; } catch { }
+                try { web.ZoomFactor = 1.0; } catch { }
             };
             web.WebMessageReceived += Web_Mensagem;
             web.NavigationCompleted += (senderNav, navArgs) =>
@@ -470,7 +471,8 @@ namespace NeonHud
             LogLinha("ygg_debug.log", "criando environment webview2");
             try
             {
-                env = await CoreWebView2Environment.CreateAsync(null, pasta);
+                var opcoes = new CoreWebView2EnvironmentOptions("--disable-gpu");
+                env = await CoreWebView2Environment.CreateAsync(null, pasta, opcoes);
                 ok = true;
                 LogLinha("ygg_debug.log", "environment ok");
             }
@@ -675,24 +677,39 @@ namespace NeonHud
             try { File.AppendAllText(Path.Combine(botDir, arquivo), linha + Environment.NewLine); } catch { }
         }
 
-        async System.Threading.Tasks.Task NavegarHUD()
+        System.Threading.Tasks.Task NavegarHUD()
         {
             conectado = true;
             string hudUrl = UrlHud();
             LogLinha("ygg_debug.log", "navegando para HUD: " + hudUrl);
             try
             {
-                if (!string.IsNullOrEmpty(cfg.chave))
-                {
-                    await web.CoreWebView2.ExecuteScriptAsync("localStorage.setItem('hud_key', '" + cfg.chave.Replace("'", "\\'") + "');");
-                }
-                string separador = hudUrl.IndexOf('?') >= 0 ? "&" : "?";
-                web.CoreWebView2.Navigate(hudUrl + separador + "hud_refresh=" + DateTime.UtcNow.Ticks);
+                AbrirHUDNoEdge(hudUrl);
+                SairDeVerdade();
             }
             catch
             {
-                try { web.CoreWebView2.Navigate(cfg.url); } catch { }
+                try { web.Source = new Uri(hudUrl); } catch { }
             }
+            return Task.FromResult(0);
+        }
+
+        void AbrirHUDNoEdge(string hudUrl)
+        {
+            string[] candidatos = {
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Microsoft", "Edge", "Application", "msedge.exe"),
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Microsoft", "Edge", "Application", "msedge.exe"),
+            };
+            string edge = null;
+            foreach (string candidato in candidatos)
+                if (File.Exists(candidato)) { edge = candidato; break; }
+            if (edge == null) throw new FileNotFoundException("Microsoft Edge não encontrado");
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = edge,
+                Arguments = "--app=\"" + hudUrl + "\"",
+                UseShellExecute = true,
+            });
         }
 
         async System.Threading.Tasks.Task Sondar()
