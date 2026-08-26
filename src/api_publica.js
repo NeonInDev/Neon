@@ -1122,6 +1122,51 @@ function iniciar(port = 3000) {
       return;
     }
 
+    // ============ PROJETO IMAGEM (thumbnails dos projetos locais) ============
+    if (req.url.split("?")[0] === "/api/projeto-imagem" && req.method === "GET") {
+      const PROJ_IMAGENS = {
+        "webshooter": [
+          path.join("C:\\Users\\Pichau\\WebShooter", "preview_v93A.png"),
+          path.join("C:\\Users\\Pichau\\WebShooter", "preview_v93B.png"),
+          path.join("C:\\Users\\Pichau\\WebShooter", "preview_3d.png"),
+          path.join("C:\\Users\\Pichau\\WebShooter", "anotado.png"),
+        ],
+        "neon-zero-arquimedes": [
+          path.join("C:\\Users\\Pichau\\neon-zero-arquimedes", "ANOTACOES.md"),
+        ],
+        "neon": [
+          path.join(PUBLIC_DIR, "icons", "icon-192.png"),
+        ],
+        "yggdrasil": [
+          path.join(PUBLIC_DIR, "icons", "icon-192.png"),
+        ],
+        "hud": [
+          path.join(PUBLIC_DIR, "icons", "icon-192.png"),
+        ],
+        "spdr-hud": [
+          path.join("C:\\Users\\Pichau\\Documents\\Rainmeter\\Skins\\SPDR-HUD", "SysHUD", "SysHUD.ini"),
+        ],
+      };
+      try {
+        const qs = new URL(req.url, "http://x").searchParams;
+        const projeto = (qs.get("projeto") || "").toLowerCase();
+        const candidatas = PROJ_IMAGENS[projeto];
+        if (!candidatas) { responder(res, 404, { erro: "projeto desconhecido" }); return; }
+        for (const caminho of candidatas) {
+          if (fs.existsSync(caminho) && fs.statSync(caminho).isFile()) {
+            const ext = path.extname(caminho).toLowerCase();
+            const mimeMap = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".svg": "image/svg+xml", ".gif": "image/gif", ".webp": "image/webp" };
+            const mime = mimeMap[ext] || "application/octet-stream";
+            res.writeHead(200, { "Content-Type": mime, "Cache-Control": "public, max-age=3600" });
+            fs.createReadStream(caminho).pipe(res);
+            return;
+          }
+        }
+        responder(res, 404, { erro: "imagem não encontrada" });
+      } catch (err) { responder(res, 500, { erro: err.message }); }
+      return;
+    }
+
     responder(res, 404, { erro: "rota não encontrada" });
   };
 

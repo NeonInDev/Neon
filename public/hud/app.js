@@ -414,7 +414,7 @@
 
   // ============ ABAS ============
   const tabs = document.querySelectorAll(".tab");
-  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode"), projetos3d: $("viewProjetos3d"), holomap: $("viewHolomap") };
+  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode"), projetos: $("viewProjetos"), projetos3d: $("viewProjetos3d"), holomap: $("viewHolomap") };
 
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -680,7 +680,8 @@
       if (v === "historico") carregarHistorico();
       if (v === "tela") $("viewTela").classList.add("active");
       if (v === "celular") carregarCelular();
-      if (v === "projetos3d") { const f = $("frameProjetos"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
+      if (v === "projetos") { const f = $("frameProjetos"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
+      if (v === "projetos3d") { const f = $("frameProjetos3d"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
       if (v === "holomap") { const f = $("frameHolomap"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
     });
   });

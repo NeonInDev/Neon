@@ -26,7 +26,7 @@
 </head>
 <body>
   <canvas id="cena"></canvas>
-  <div class="hud-top">🧊 PROJETOS · NEONWORLD <small>— arraste pra girar · scroll pra zoom · clique num card pra abrir</small></div>
+  <div class="hud-top">🧊 PROJETOS · NEONWORLD <small>— arraste pra girar · scroll pra zoom · clique pra abrir</small></div>
   <div id="info">carregando repositórios...</div>
   <div id="carregando">⣿ SINCRONIZANDO</div>
 
@@ -38,30 +38,39 @@
     import * as THREE from "three";
     import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
-    const CORES = { JavaScript: 0xf1e05a, TypeScript: 0x3178c6, Python: 0x3572a5, C#: 0x178600, HTML: 0xe34c26, CSS: 0x563d7c, Shell: 0x89e051 };
+    const CORES = { JavaScript: 0xf1e05a, TypeScript: 0x3178c6, Python: 0x3572a5, C#: 0x178600, HTML: 0xe34c26, CSS: 0x563d7c, Shell: 0x89e051, "C++": 0xf34b7d, Arduino: 0x00979D };
+
+    const PROJETOS_LOCAIS = [
+      { nome: "WebShooter", desc: "Lancador de teia ESP32 - v9.3", lang: "C++", url: "/hud", local: true },
+      { nome: "Neon Zero", desc: "Manopla Iron Man com marshmallow", lang: "Arduino", url: "/hud", local: true },
+      { nome: "Neon AI", desc: "Assistente pessoal Discord bot", lang: "JavaScript", url: "/hud", local: true },
+      { nome: "SPDR-HUD", desc: "Rainmeter skins Peni Parker", lang: "CSS", url: "/hud", local: true },
+    ];
 
     const info = document.getElementById("info");
     const carregando = document.getElementById("carregando");
 
     async function pegarProjetos() {
+      let github = [];
       try {
         const r = await fetch("https://api.github.com/users/NeonInDev/repos?sort=updated&per_page=24");
         if (!r.ok) throw new Error();
         const j = await r.json();
-        return j.map((x) => ({ nome: x.name, desc: x.description || "", lang: x.language || "", url: x.html_url }));
+        github = j.map((x) => ({ nome: x.name, desc: x.description || "", lang: x.language || "", url: x.html_url }));
       } catch {
-        return [
+        github = [
           { nome: "Neon", desc: "Assistente pessoal", lang: "JavaScript", url: "https://github.com/NeonInDev/Neon" },
           { nome: "NEONWORLD", desc: "Mundo 3D da Neon", lang: "TypeScript", url: "https://github.com/NeonInDev" },
         ];
       }
+      return [...PROJETOS_LOCAIS, ...github];
     }
 
     function cardTexture(p) {
       const cv = document.createElement("canvas");
       cv.width = 512; cv.height = 320;
       const c = cv.getContext("2d");
-      const cor = "#" + (CORES[p.lang] || 0x6c5ce7).toString(16).padStart(6, "0");
+      const cor = "#" + (p.local ? 0x00f0ff : (CORES[p.lang] || 0x6c5ce7)).toString(16).padStart(6, "0");
       const g = c.createLinearGradient(0, 0, 512, 320);
       g.addColorStop(0, "#16162b"); g.addColorStop(1, "#0b0b18");
       c.fillStyle = g; c.fillRect(0, 0, 512, 320);
@@ -79,6 +88,10 @@
       c.beginPath(); c.arc(34, 272, 11, 0, 7); c.fill();
       c.fillStyle = "#cfc9ff"; c.font = "24px Segoe UI";
       c.fillText(p.lang || "code", 56, 280);
+      if (p.local) {
+        c.fillStyle = "#00f0ff"; c.font = "bold 16px Segoe UI";
+        c.fillText("LOCAL", 400, 280);
+      }
       const tex = new THREE.CanvasTexture(cv);
       tex.colorSpace = THREE.SRGBColorSpace;
       return tex;
@@ -121,11 +134,13 @@
 
     const projetos = await pegarProjetos();
     carregando.style.display = "none";
-    info.textContent = `${projetos.length} projetos · arraste pra girar`;
+    const locais = projetos.filter(p => p.local).length;
+    info.textContent = `${projetos.length} projetos (${locais} locais) · arraste pra girar`;
 
     const raio = Math.max(6.5, projetos.length * 0.42);
     projetos.forEach((p, i) => {
       const ang = (i / projetos.length) * Math.PI * 2;
+      const corCard = p.local ? 0x00f0ff : (CORES[p.lang] || 0x6c5ce7);
       const mat = new THREE.MeshBasicMaterial({ map: cardTexture(p), side: THREE.DoubleSide });
       const mesh = new THREE.Mesh(new THREE.PlaneGeometry(3.4, 2.1), mat);
       mesh.position.set(Math.cos(ang) * raio, (Math.random() - .5) * 2.4, Math.sin(ang) * raio);
@@ -136,7 +151,7 @@
       // pedestal luminoso
       const base = new THREE.Mesh(
         new THREE.CylinderGeometry(.06, .06, 1.2, 8),
-        new THREE.MeshBasicMaterial({ color: CORES[p.lang] || 0x6c5ce7, transparent: true, opacity: .5 })
+        new THREE.MeshBasicMaterial({ color: corCard, transparent: true, opacity: .5 })
       );
       base.position.set(mesh.position.x, mesh.position.y - 1.65, mesh.position.z);
       cena.add(base);
@@ -174,7 +189,7 @@
       const hit = raycaster.intersectObjects(cards)[0]?.object || null;
       if (hit !== hover) {
         hover = hit;
-        info.textContent = hover ? `🔗 ${hover.userData.nome} — ${hover.userData.desc}` : `${projetos.length} projetos · arraste pra girar`;
+        info.textContent = hover ? `🔗 ${hover.userData.nome} — ${hover.userData.desc}${hover.userData.local ? " [LOCAL]" : ""}` : `${projetos.length} projetos · arraste pra girar`;
         document.body.style.cursor = hover ? "pointer" : "default";
       }
 
