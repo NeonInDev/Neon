@@ -210,7 +210,7 @@ async function executar(tarefa) {
           `/session/${sessaoId}/message`,
           {
             agent: "neon",
-            model: "opencode/big-pickle",
+            model: { providerID: "opencode", modelID: "big-pickle" },
             parts: [{ type: "text", text: tarefa }],
           },
           300000
