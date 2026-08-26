@@ -140,7 +140,6 @@ function servirArquivo(urlComQuery, res) {
     let conteudo = "";
     try { conteudo = fs.readFileSync(caminho, "utf8"); } catch { return false; }
     const qKey = new URL(url, "http://x").searchParams.get("key") || "";
-    const qKey = new URL(url, "http://x").searchParams.get("key") || "";
     const chaveSessao = qKey || MASTER_KEY || "";
     conteudo = conteudo.replace("__CHAVE__", chaveSessao);
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
