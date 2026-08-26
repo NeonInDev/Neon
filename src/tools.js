@@ -2,12 +2,14 @@ const { log } = require("./logger");
 const opencode = require("../plugins/opencode");
 const notion = require("../plugins/notion");
 const whatsapp = require("../plugins/whatsapp");
+const tailscale = require("../plugins/tailscale");
 
 function descricaoFerramentas() {
   const base = `- codar: Delega QUALQUER tarefa ao opencode. Usa navegador, PC, codigo, pesquisa, arquivo, TUDO. Uso: codar | [descricao detalhada do que fazer]`;
   const not = notion.descricaoFerramentas();
   const wa = "- whatsapp_enviar: Envia mensagem no WhatsApp (assinatura _Enviado pela Neon_ automatica). Uso: whatsapp_enviar | numero=5571999999999, mensagem=texto";
-  const ferramentas = [base, not, wa].filter(Boolean).join("\n");
+  const ts = `- tailscale_status: Mostra status da Tailscale (IP, hostname, estado, se esta online).\n- tailscale_peers: Lista todos os peers da rede (quem esta online/offline).\n- tailscale_ip: Mostra o IP Tailscale desta maquina.\n- tailscale_conectar: Roda tailscale up pra conectar.\n- tailscale_desconectar: Roda tailscale down pra desconectar.\n- tailscale_watch: Mostra historico de conectividade dos peers (do watch daemon).`;
+  const ferramentas = [base, not, wa, ts].filter(Boolean).join("\n");
   return ferramentas;
 }
 
@@ -32,6 +34,11 @@ async function executarFerramenta(ferramenta, userId = null) {
   // Ferramenta nativa do WhatsApp (via plugin, sem opencode)
   if (nome.startsWith("whatsapp_")) {
     return executarWhatsapp(nome, args);
+  }
+
+  // Ferramentas nativas do Tailscale (via plugin, sem opencode)
+  if (nome.startsWith("tailscale_")) {
+    return executarTailscale(nome, args);
   }
 
   log("INFO", "[TOOLS] Delegando pro opencode", { nome, args: args?.slice(0, 100) });
@@ -65,6 +72,52 @@ async function executarWhatsapp(nome, args) {
   } catch (err) {
     log("ERROR", "[TOOLS][WHATSAPP] erro", { erro: err.message?.slice(0, 150) });
     return `❌ Erro na ferramenta WhatsApp: ${err.message?.slice(0, 150)}`;
+  }
+}
+
+async function executarTailscale(nome, args) {
+  log("INFO", "[TOOLS][TAILSCALE]", { nome });
+  try {
+    switch (nome) {
+      case "tailscale_status": {
+        const s = tailscale.status();
+        if (!s.ok) return `❌ ${s.erro}`;
+        const saude = s.healthy ? `\n⚠️ Saúde: ${s.healthy}` : "";
+        return `🟢 Tailscale: ${s.estado}\nIP: ${s.ip}\nHostname: ${s.hostname}\nOnline: ${s.online ? "sim" : "não"}${saude}`;
+      }
+      case "tailscale_peers": {
+        const r = tailscale.listarPeers();
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.peers.length) return "Nenhum peer na rede.";
+        const linhas = r.peers.map(p => `${p.online ? "🟢" : "🔴"} ${p.nome} (${p.ip}) [${p.tipo}]`);
+        return `📡 ${r.peers.length} peer(s):\n${linhas.join("\n")}`;
+      }
+      case "tailscale_ip": {
+        const r = tailscale.ip();
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `IP Tailscale: ${r.ip}${r.todos.length > 1 ? `\nTodos: ${r.todos.join(", ")}` : ""}`;
+      }
+      case "tailscale_conectar": {
+        const r = tailscale.conectar();
+        return `🔌 ${r.resultado}`;
+      }
+      case "tailscale_desconectar": {
+        const r = tailscale.desconectar();
+        return `🔌 ${r.resultado}`;
+      }
+      case "tailscale_watch": {
+        const r = tailscale.watch();
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.peers.length) return "Sem dados do watch.";
+        const linhas = r.peers.map(p => `${p.online ? "🟢" : "🔴"} ${p.nome}`);
+        return `👁️ Watch (${r.peers.length} peer(s)):\n${linhas.join("\n")}`;
+      }
+      default:
+        return `❌ Ferramenta Tailscale desconhecida: ${nome}`;
+    }
+  } catch (err) {
+    log("ERROR", "[TOOLS][TAILSCALE] erro", { erro: err.message?.slice(0, 150) });
+    return `❌ Erro na ferramenta Tailscale: ${err.message?.slice(0, 150)}`;
   }
 }
 
