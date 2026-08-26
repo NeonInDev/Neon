@@ -159,7 +159,7 @@ function iniciarServer() {
         serverProcess = null;
         serverPort = null;
         log("INFO", "[OPENCODE] Servidor encerrou", { code });
-        if (foiServer && !desligando && tentativasRestart < 2) {
+        if (foiServer && !desligando && tentativasRestart < 5) {
           tentativasRestart += 1;
           log("INFO", `[OPENCODE] Reiniciando em 3s (tentativa ${tentativasRestart})...`);
           reiniciador = setTimeout(() => iniciarServer(), 3000);
@@ -185,9 +185,8 @@ function iniciarServer() {
 
 async function executar(tarefa) {
   if (!tarefa || !String(tarefa).trim()) return null;
-  const maxAttempts = 1;
+  const maxAttempts = 2;
   let tentativa = 0;
-  let fallbackPermitido = true;
 
   while (tentativa < maxAttempts) {
     tentativa += 1;
@@ -201,7 +200,7 @@ async function executar(tarefa) {
     if (serverPort) {
       try {
         const port = serverPort;
-        const sessao = await httpReq("POST", port, "/session", { title: "neon-codar" }, 20000);
+        const sessao = await httpReq("POST", port, "/session", { title: "neon-codar" }, 30000);
         const sessaoId = sessao?.id;
         if (!sessaoId) throw new Error("sem id de sessao");
 
@@ -211,7 +210,7 @@ async function executar(tarefa) {
           `/session/${sessaoId}/message`,
           {
             agent: "neon",
-            model: { providerID: "opencode", modelID: "big-pickle" },
+            model: "opencode/big-pickle",
             parts: [{ type: "text", text: tarefa }],
           },
           300000
@@ -223,46 +222,32 @@ async function executar(tarefa) {
 
         const partes = msg?.parts || [];
         const texto = partes.filter((p) => p.type === "text").map((p) => p.text).join("\n").trim();
-        if (texto && texto.length > 2) return texto.slice(0, 4000);
+        if (texto && texto.length > 2) {
+          tentativasRestart = 0;
+          return texto.slice(0, 4000);
+        }
         throw new Error("resposta vazia do opencode serve");
       } catch (err) {
-        log("WARN", `[OPENCODE] HTTP falhou (tentativa ${tentativa})`, { erro: err.message?.slice(0, 120) });
-        if (tentativa >= maxAttempts) fallbackPermitido = false;
-        else {
+        const isConnErr = err.message?.includes("ECONNREFUSED") || err.message?.includes("ECONNRESET") || err.message?.includes("ENOTFOUND");
+        log("WARN", `[OPENCODE] HTTP falhou (tentativa ${tentativa})`, { erro: err.message?.slice(0, 120), conn: isConnErr });
+        if (tentativa >= maxAttempts) {
+          if (isConnErr) parar();
+          break;
+        }
+        if (isConnErr) {
           parar();
-          await new Promise((r) => setTimeout(r, 2500));
+          await new Promise((r) => setTimeout(r, 3000));
+        } else {
+          await new Promise((r) => setTimeout(r, 1000));
         }
       }
-    } else if (tentativa >= maxAttempts) {
-      fallbackPermitido = false;
+    } else {
       break;
     }
   }
 
-  if (!fallbackPermitido) {
-    log("WARN", "[OPENCODE] Servidor falhou; pulando fallback CLI para nao abrir outro opencode");
-    return null;
-  }
-
-  try {
-    const safe = tarefa.replace(/"/g, '\\"').replace(/\n/g, " ").slice(0, 2000);
-    log("INFO", "[OPENCODE] Fallback CLI run", { tamTarefa: safe.length });
-    const { exec: execCb } = require("child_process");
-    const { promisify } = require("util");
-    const execAsync = promisify(execCb);
-    const { stdout } = await execAsync(`opencode run "${safe}"`, {
-      cwd: CONFIG_DIR,
-      timeout: 90000,
-      windowsHide: true,
-      maxBuffer: 10 * 1024 * 1024,
-      env: envSeguro(),
-    });
-    const result = stdout?.trim();
-    return result?.length > 10 ? result.slice(0, 4000) : null;
-  } catch (err) {
-    log("WARN", "[OPENCODE] CLI falhou", { erro: err.message.slice(0, 100) });
-    return null;
-  }
+  log("WARN", "[OPENCODE] Servidor falhou; sem fallback CLI");
+  return null;
 }
 
 async function decidir(tarefa) {
