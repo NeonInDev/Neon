@@ -12,6 +12,8 @@ const opencode = require("../../plugins/opencode");
 const { enfileirar } = require("../fila");
 const { add: addContexto } = require("../contexto");
 const axios = require("axios");
+const { PermissionFlagsBits } = require("discord.js");
+const { ativaLockdown, desativaLockdown } = require("../lockdown");
 
 const processando = new Set();
 const cooldowns = new Map();
@@ -100,6 +102,100 @@ function interpretarConvidado(message) {
   }
   adicionarGuest(id, duracaoMs);
   message.reply(`✅ <@${id}> agora é convidado ${resumo}, podendo apenas conversar com a Neon.`).catch(() => {});
+  return true;
+}
+
+// "protocolo lockdown" / "neon protocolo lockdown @user por 5 horas" por PREFIXO (mensagem)
+// tbm aceita "unlockdown @user" simples (sem "protocolo") pra facilitar o release
+async function interpretarLockdown(message) {
+  const texto = message.content || "";
+  const temMention = /<@!?\d+>/.test(texto);
+  const protocolo = texto.match(/^\s*(?:neon[\s,!.\-:;]+)?protocolo\s+(lockdown|unlockdown)\b/i);
+  const unlockSimples = temMention && /^\s*(?:neon[\s,!.\-:;]+)?unlockdown\b/i.test(texto);
+  const acao = protocolo ? protocolo[1].toLowerCase() : unlockSimples ? "unlockdown" : null;
+  if (!acao) return false;
+  // string usada na msg, p/ tirar do motivo depois (ex.: "neon protocolo unlockdown")
+  const acionadoPor = protocolo ? protocolo[0].trim() : (texto.match(/^\s*(?:neon[\s,!.\-:;]+)?unlockdown\b/i) || [])[0]?.trim() || "unlockdown";
+  if (message.channel.type === ChannelType.DM) {
+    message.reply("❌ Isso só funciona em servidores.").catch(() => {});
+    return true;
+  }
+
+  const ehMod =
+    message.member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+    message.member.permissions.has(PermissionFlagsBits.ManageRoles);
+  if (!ehMod && !isOwner(message.author.id)) {
+    message.reply("🔒 Você não tem permissão de moderação pra usar isso.").catch(() => {});
+    return true;
+  }
+
+  const alvo = message.mentions?.users?.find((u) => u.id !== message.client.user?.id);
+  const idMencionado = alvo?.id || texto.match(/<@!?(\d+)>/)?.[1];
+  if (!idMencionado) {
+    message.reply(`❌ Uso: \`protocolo ${acao} @usuario\`${acao === "lockdown" ? " — opcional \`por N horas\` e um motivo" : ""}`).catch(() => {});
+    return true;
+  }
+
+  const membro = await message.guild.members.fetch(idMencionado).catch(() => null);
+
+  if (acao === "unlockdown") {
+    const r = await desativaLockdown(message.guild, idMencionado);
+    if (!r.ok) {
+      await message.reply(`❌ ${r.erro}`).catch(() => {});
+      return true;
+    }
+    let txt = `✅ ${alvo ? alvo.username : idMencionado} liberado do lockdown.\n• Cargos devolvidos: **${r.cargosRestaurados}**`;
+    if (r.cargosRecriados > 0) txt += `\n• Cargos recriados (tinham sido deletados): **${r.cargosRecriados}**`;
+    if (r.falhas?.length) txt += `\n⚠️ ${r.falhas.length} cargo(s) não puderam ser devolvidos: chame um admin.`;
+    txt += "\n• Permissões dos cargos restauradas junto.";
+    await message.reply(txt).catch(() => {});
+    return true;
+  }
+
+  if (!membro) {
+    await message.reply("❌ Esse usuário não está no servidor.").catch(() => {});
+    return true;
+  }
+  if (membro.id === message.author.id) {
+    await message.reply("❌ Você não pode dar lockdown em si mesmo 😅").catch(() => {});
+    return true;
+  }
+  if (membro.id === message.guild.ownerId) {
+    await message.reply("❌ Não posso dar lockdown no dono do servidor.").catch(() => {});
+    return true;
+  }
+  if (!ehMod && membro.roles.highest.comparePositionTo(message.member.roles.highest) >= 0) {
+    await message.reply("❌ O cargo dele é igual ou maior que o seu.").catch(() => {});
+    return true;
+  }
+
+  const dur = texto.match(/\bpor\s+(\d+(?:[.,]\d+)?)\s*(minutos?|mins?|horas?|dias?|d)\b/i);
+  let expiraEm = null;
+  let resumoDur = "até /unlockdown";
+  if (dur) {
+    const valor = Number(dur[1].replace(",", "."));
+    const unidade = dur[2].toLowerCase();
+    const multiplicador = /^min/.test(unidade) ? 60000 : /^hor/.test(unidade) ? 3600000 : 86400000;
+    expiraEm = Date.now() + Math.round(valor * multiplicador);
+    resumoDur = `por ${dur[1]} ${unidade} (libera automaticamente)`;
+  }
+
+  const motivo = texto
+    .replace(acionadoPor, "")
+    .replace(new RegExp(`<@!?${membro.id}>`), "")
+    .replace(/\bpor\s+\d+(?:[.,]\d+)?\s*(?:minutos?|mins?|horas?|dias?|d)\b/i, "")
+    .trim() || null;
+
+  const r = await ativaLockdown(membro, motivo, expiraEm);
+  if (!r.ok) {
+    await message.reply(`❌ ${r.erro}`).catch(() => {});
+    return true;
+  }
+
+  let txt = `🔒 **${membro.user.username}** está em lockdown (cargos removidos temporariamente ${resumoDur}).\n• Cargos removidos: ${r.cargosSalvos}\n• Canais bloqueados: ${r.canaisAfetados}`;
+  if (motivo) txt += `\n• Motivo: ${motivo}`;
+  await message.reply(txt).catch(() => {});
+  log("INFO", "[LOCKDOWN] Protocolo lockdown por prefixo", { autor: message.author.tag, alvo: membro.user.tag, dur: resumoDur, motivo });
   return true;
 }
 
@@ -271,6 +367,10 @@ module.exports = {
       return;
     }
     if (interpretarConvidado(message)) {
+      processando.delete(message.id);
+      return;
+    }
+    if (await interpretarLockdown(message)) {
       processando.delete(message.id);
       return;
     }

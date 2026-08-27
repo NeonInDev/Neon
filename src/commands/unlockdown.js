@@ -1,4 +1,4 @@
-// Desfazer um lockdown: restaurar os cargos e liberar a visão dos chats
+// Unlockdown: desfazer um lockdown - restaurar os cargos e liberar a visão dos chats
 const {
   SlashCommandBuilder,
   PermissionFlagsBits,
@@ -18,7 +18,7 @@ function ehMod(interaction) {
 module.exports = {
   publico: true, // permissão controlada pelo Discord (ModerateMembers) + checagem aqui
   data: new SlashCommandBuilder()
-    .setName("deslockdown")
+    .setName("unlockdown")
     .setDescription("Liberar um usuário do lockdown e restaurar os cargos")
     .setContexts(InteractionContextType.Guild)
     .setIntegrationTypes(ApplicationIntegrationType.GuildInstall)
@@ -42,7 +42,14 @@ module.exports = {
       return interaction.editReply(`❌ ${r.erro}`);
     }
 
-    log("INFO", "[LOCKDOWN] Deslockdown", { autor: interaction.user.tag, alvo: alvo.tag });
-    await interaction.editReply(`✅ **${alvo.username}** liberado do lockdown. Cargos restaurados.`);
+    log("INFO", "[LOCKDOWN] Unlockdown", { autor: interaction.user.tag, alvo: alvo.tag });
+    let texto = `✅ **${alvo.username}** liberado do lockdown.`;
+    texto += `\n• Cargos devolvidos: **${r.cargosRestaurados}**`;
+    if (r.cargosRecriados > 0) texto += `\n• Cargos que tinham sido deletados e foram recriados: **${r.cargosRecriados}**`;
+    if (r.falhas && r.falhas.length) {
+      texto += `\n⚠️ Alguns cargos não puderam ser devolvidos (${r.falhas.length}): converse com o admin.`;
+    }
+    texto += "\n• Permissões dos cargos restauradas junto.";
+    await interaction.editReply(texto);
   },
 };

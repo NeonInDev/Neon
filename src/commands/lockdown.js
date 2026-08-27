@@ -40,7 +40,7 @@ module.exports = {
     .addNumberOption((o) =>
       o
         .setName("horas")
-        .setDescription("Duração em horas (opcional). Sem isso, espera /deslockdown.")
+        .setDescription("Duração em horas (opcional). Sem isso, espera /unlockdown.")
         .setMinValue(0.1)
         .setMaxValue(168)
     )
@@ -75,12 +75,12 @@ module.exports = {
       motivo,
     });
 
-    let texto = `🔒 **${alvo.username}** está em lockdown.\n• Cargos removidos: ${r.cargosSalvos}\n• Canais bloqueados: ${r.canaisAfetados}`;
+    let texto = `🔒 **${alvo.username}** está em lockdown (removidos temporariamente).\n• Cargos removidos: ${r.cargosSalvos} (serão devolvidos no release)\n• Canais bloqueados: ${r.canaisAfetados}`;
     if (expiraEm) {
       const quando = new Date(expiraEm).toLocaleString("pt-BR");
       texto += `\n• Libera automaticamente em: **${quando}**`;
     } else {
-      texto += "\n• Soltura manual com `/deslockdown`.";
+      texto += "\n• Soltura manual com `/unlockdown` (devolve os cargos).";
     }
     await interaction.editReply(texto);
   },

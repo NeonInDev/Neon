@@ -53,19 +53,57 @@ function normalizar(s) {
     .trim();
 }
 
+// converte o bloco de simbolos alfanumericos matematicos (negrito/mono/etc)
+// para a letra/digito ASCII equivalente; ex.: 𝙴 -> A
+function decodificarMath(s) {
+  const INICIO_LETRA = 0x1d400;
+  const INICIO_DIGITOS = 0x1d7ce;
+  const ESTILOS = [0, 0x34, 0x68, 0x9c, 0xd0, 0x104, 0x138, 0x16c, 0x1a0, 0x1d4, 0x208, 0x23c, 0x270];
+  let out = "";
+  for (const ch of String(s)) {
+    const cp = ch.codePointAt(0);
+    if (cp >= INICIO_LETRA && cp < INICIO_DIGITOS) {
+      const idx = cp - INICIO_LETRA;
+      for (let e = 0; e < ESTILOS.length; e++) {
+        let base = ESTILOS[e];
+        if (idx >= base && idx < base + 52) {
+          let off = idx - base;
+          if (off < 26) out += String.fromCharCode(0x41 + off);
+          else out += String.fromCharCode(0x61 + off - 26);
+          break;
+        }
+      }
+    } else if (cp >= INICIO_DIGITOS && cp <= 0x1d7ff) {
+      const d = (cp - INICIO_DIGITOS) % 10;
+      out += String.fromCharCode(0x30 + d);
+    } else {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+// nucleo: so letras/digitos, sem acento, tudo minusculo
+function nucleo(s) {
+  return normalizar(decodificarMath(s)).replace(/[^a-z0-9]+/g, "");
+}
+
 function acharGuild(client) {
   const d = carregar();
-  let guild = client.guilds.cache.find((g) => normalizar(g.name) === normalizar(d.config.guildName));
-  if (!guild) {
-    guild = client.guilds.cache.find((g) => normalizar(g.name).includes(normalizar(d.config.guildName)));
-  }
+  const alvo = nucleo(d.config.guildName);
+  const guild =
+    client.guilds.cache.find((g) => nucleo(g.name) === alvo) ||
+    client.guilds.cache.find((g) => nucleo(g.name).includes(alvo)) ||
+    null;
   return guild || null;
 }
 
 function acharCategorias(guild) {
   const d = carregar();
-  const nomes = d.config.categorias.map(normalizar);
-  const cats = guild.channels.cache.filter((c) => c.type === 4 && nomes.includes(normalizar(c.name)));
+  const nucleos = d.config.categorias.map(nucleo).filter(Boolean);
+  const cats = guild.channels.cache.filter(
+    (c) => c.type === 4 && nucleos.some((n) => nucleo(c.name).includes(n))
+  );
   return Array.from(cats.values());
 }
 
@@ -199,4 +237,4 @@ function resumo() {
   return { categorias, canais, atualizadoEm: d.atualizadoEm, guildId: d.guildId, config: d.config };
 }
 
-module.exports = { carregar, persistir, atualizar, buscar, resumo, acharGuild, normalizar };
+module.exports = { carregar, persistir, atualizar, buscar, resumo, acharGuild, normalizar, nucleo };
