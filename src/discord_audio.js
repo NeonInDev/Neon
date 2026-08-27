@@ -160,7 +160,8 @@ async function processarAudioMessage(msg) {
 
   const authorId = msg.author.id
   const authorName = msg.author.username
-  log("INFO", "[AUDIO] Voice message detectada", { autor: authorName, nome: att.name, tamanho: att.size })
+  const isDM = msg.channel.type === 1
+  log("INFO", "[AUDIO] Voice message detectada", { autor: authorName, nome: att.name, tamanho: att.size, isDM })
   await msg.channel.sendTyping()
 
   let caminhoAudio
@@ -189,7 +190,7 @@ async function processarAudioMessage(msg) {
     const { add: addContexto } = require("./contexto")
     addContexto(authorId, authorName, texto, acao)
     await msg.reply(acao)
-    try { await pc.tts(acao.replace(/[*_~`]/g, "").slice(0, 200)) } catch {}
+    if (!isDM) { try { await pc.tts(acao.replace(/[*_~`]/g, "").slice(0, 200)) } catch {} }
     return true
   }
 
@@ -198,7 +199,7 @@ async function processarAudioMessage(msg) {
   const { add: addContexto } = require("./contexto")
   addContexto(authorId, authorName, texto, reply)
   await msg.reply(reply)
-  try { await pc.tts(reply.replace(/[*_~`]/g, "").slice(0, 200)) } catch {}
+  if (!isDM) { try { await pc.tts(reply.replace(/[*_~`]/g, "").slice(0, 200)) } catch {} }
   return true
 }
 

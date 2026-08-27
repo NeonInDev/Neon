@@ -5,7 +5,7 @@ const fs = require("fs");
 const { exec: execCb } = require("child_process");
 const { promisify } = require("util");
 const execAsync = promisify(execCb);
-const { OWNER } = require("./perm");
+const { OWNER, permitido, isOwner, isGuest } = require("./perm");
 const { EdgeTTS } = require("edge-tts-universal");
 const { vozPorModo } = require("./modo");
 const { client } = require("./client");
@@ -55,8 +55,10 @@ function limparEco(texto) {
   return resto.length >= 3 ? resto : a;
 }
 
-async function processarVoz(guildId, texto) {
-  log("INFO", "[VOZ] Transcricao", { texto: texto.slice(0, 100) });
+async function processarVoz(guildId, texto, falanteId) {
+  const isDono = isOwner(falanteId || OWNER);
+  const label = isDono ? "Dono" : "Convidado";
+  log("INFO", `[VOZ] ${label} falou`, { usuario: falanteId, texto: texto.slice(0, 100) });
   let pergunta = texto;
   const ativou = ATIVACAO_RE.test(pergunta);
   if (ativou) pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
@@ -66,19 +68,24 @@ async function processarVoz(guildId, texto) {
 
     const { executarAcao } = require("./actions");
     const { askNeon } = require("./ai");
+    const falante = falanteId || OWNER;
 
-    // Tenta ação direta primeiro (abrir apps, comandos PC, etc)
+    // Convidados: só transcrevem, sem ações nem resposta por voz
+    if (!isDono) {
+      log("INFO", `[VOZ] ${label} transcrito (sem resposta)`, { usuario: falante, texto: pergunta.slice(0, 80) });
+      return;
+    }
+
+    // Dono: fluxo normal (ação + fala)
     const resultadoAcao = await executarAcao(pergunta, true, OWNER, null);
     if (resultadoAcao && !resultadoAcao.startsWith("❌")) {
       await falar(guildId, resultadoAcao.replace(/[*_`~|#\[\]]/g, "").replace(EMOJIS, "").slice(0, 200));
       return;
     }
 
-    // Fala resposta direto (SEM DM de processando toda hora)
     const reply = await askNeon(OWNER, "dono", pergunta, null, true);
     if (!reply) return;
 
-    // Comando de escrita/criação → envia tudo por DM
     if (COMANDOS_TEXTO.test(pergunta)) {
       try {
         const user = await client.users.fetch(OWNER);
@@ -108,7 +115,6 @@ async function processarVoz(guildId, texto) {
       return;
     }
 
-    // Respostas de ação (comando executado) → só confirmação curta por voz
     const acoesSilenciosas = /^[\s]*(❌|✅|🖥️|📁|📎|🔧|⚙️|🌐|📂|🗑️|🔒|🔊|🔇|🎨|🔍|📊|⚡|🛑|💀|🎵|🎤|📸|✉️|🚀|⏰|🔔|🎮|💡)/;
     const ehAcao = acoesSilenciosas.test(reply) && reply.length > 100;
 
@@ -300,84 +306,97 @@ async function iniciarEscuta(guildId, connection) {
   if (!receiver || !connections.has(guildId)) return;
 
   escutas.add(guildId);
-  log("INFO", "[VOZ] Ouvindo o dono (diga 'Neon' para ativar)", { guildId });
 
+  // Pega todos os membros no canal de voz (exceto bots)
+  const canal = connection.joinConfig.channelId;
+  const guild = connection.joinConfig.guildId;
+  const clientRef = require("./client").client;
+  let membrosPermitidos = [];
   try {
-    const audioStream = receiver.subscribe(OWNER, {
-      end: { behavior: EndBehaviorType.AfterSilence, duration: 1100 },
-    });
-
-    const OpusScript = require("opusscript");
-    const decoder = new OpusScript(48000, 2, OpusScript.Application.AUDIO);
-
-    const chunks = [];
-    audioStream.on("data", (chunk) => {
-      try {
-        const pcm = decoder.decode(chunk);
-        chunks.push(pcm);
-      } catch {}
-    });
-    audioStream.on("end", async () => {
-      if (chunks.length === 0) {
-        escutas.delete(guildId);
-        setTimeout(() => iniciarEscuta(guildId, connection), 1000);
-        return;
+    const guildObj = clientRef.guilds.cache.get(guild);
+    if (guildObj) {
+      const canalObj = guildObj.channels.cache.get(canal);
+      if (canalObj && canalObj.members) {
+        membrosPermitidos = canalObj.members
+          .filter(m => !m.user.bot && permitido(m.id))
+          .map(m => m.id);
       }
+    }
+  } catch {}
 
-      const ts = Date.now();
-      const tmp = process.env.TEMP || "C:\\Temp";
-      const pcmFile = path.join(tmp, `neon_in_${ts}.pcm`);
-      const wavFile = path.join(tmp, `neon_in_${ts}.wav`);
+  if (membrosPermitidos.length === 0) membrosPermitidos = [OWNER];
+  log("INFO", "[VOZ] Ouvindo membros permitidos", { guildId, membros: membrosPermitidos.length });
 
-      try {
-        const buf = Buffer.concat(chunks);
-        fs.writeFileSync(pcmFile, buf);
+  for (const userId of membrosPermitidos) {
+    try {
+      const audioStream = receiver.subscribe(userId, {
+        end: { behavior: EndBehaviorType.AfterSilence, duration: 1100 },
+      });
 
-        const ffmpegPath = require("ffmpeg-static");
-        await execAsync(`"${ffmpegPath}" -f s16le -ar 48000 -ac 2 -i "${pcmFile}" -ar 16000 -ac 1 "${wavFile}" -y`, { timeout: 10000, windowsHide: true });
+      const OpusScript = require("opusscript");
+      const decoder = new OpusScript(48000, 2, OpusScript.Application.AUDIO);
 
-        if (!wavValido(wavFile)) {
-          log("WARN", "[VOZ] Audio invalido ignorado", { kb: (fs.existsSync(wavFile) ? Math.round(fs.statSync(wavFile).size / 1024) : 0) });
-        } else {
-          const texto = await transcreverAudio(wavFile);
-          try { fs.unlinkSync(pcmFile); } catch {}
-          try { fs.unlinkSync(wavFile); } catch {}
+      const chunks = [];
+      audioStream.on("data", (chunk) => {
+        try {
+          const pcm = decoder.decode(chunk);
+          chunks.push(pcm);
+        } catch {}
+      });
+      audioStream.on("end", async () => {
+        if (chunks.length === 0) return;
 
-          if (texto && texto.length > 1) {
-            const player = players.get(guildId);
-            const falando = player?.state?.status === AudioPlayerStatus.Playing;
+        const ts = Date.now();
+        const tmp = process.env.TEMP || "C:\\Temp";
+        const pcmFile = path.join(tmp, `neon_in_${ts}.pcm`);
+        const wavFile = path.join(tmp, `neon_in_${ts}.wav`);
 
-            if (falando && !somenteEco(texto)) {
-              player.stop();
-              log("INFO", "[VOZ] Dono falou, interrompido", { texto: texto.slice(0, 80) });
-              await processarVoz(guildId, limparEco(texto));
-            } else if (ehEco(texto) || somenteEco(texto)) {
-              log("INFO", "[VOZ] Eco ignorado", { texto: texto.slice(0, 80) });
-            } else if (Date.now() < mudoAte) {
-              log("INFO", "[VOZ] Eco pos-fala ignorado", { texto: texto.slice(0, 80) });
-            } else {
-              await processarVoz(guildId, texto);
+        try {
+          const buf = Buffer.concat(chunks);
+          fs.writeFileSync(pcmFile, buf);
+
+          const ffmpegPath = require("ffmpeg-static");
+          await execAsync(`"${ffmpegPath}" -f s16le -ar 48000 -ac 2 -i "${pcmFile}" -ar 16000 -ac 1 "${wavFile}" -y`, { timeout: 10000, windowsHide: true });
+
+          if (!wavValido(wavFile)) {
+            log("WARN", "[VOZ] Audio invalido ignorado", { kb: (fs.existsSync(wavFile) ? Math.round(fs.statSync(wavFile).size / 1024) : 0) });
+          } else {
+            const texto = await transcreverAudio(wavFile);
+            try { fs.unlinkSync(pcmFile); } catch {}
+            try { fs.unlinkSync(wavFile); } catch {}
+
+            if (texto && texto.length > 1) {
+              const player = players.get(guildId);
+              const falando = player?.state?.status === AudioPlayerStatus.Playing;
+              const isDono = isOwner(userId);
+
+              if (falando && !somenteEco(texto)) {
+                player.stop();
+                log("INFO", "[VOZ] Alguem falou, interrompido", { usuario: userId, texto: texto.slice(0, 80) });
+                await processarVoz(guildId, limparEco(texto), userId);
+              } else if (ehEco(texto) || somenteEco(texto)) {
+                log("INFO", "[VOZ] Eco ignorado", { usuario: userId, texto: texto.slice(0, 80) });
+              } else if (Date.now() < mudoAte) {
+                log("INFO", "[VOZ] Eco pos-fala ignorado", { usuario: userId, texto: texto.slice(0, 80) });
+              } else {
+                await processarVoz(guildId, texto, userId);
+              }
             }
           }
+        } catch (err) {
+          log("WARN", "[VOZ] Erro no audio", { erro: err.message });
+          try { fs.unlinkSync(pcmFile); } catch {}
+          try { fs.unlinkSync(wavFile) } catch {}
         }
-      } catch (err) {
-        log("WARN", "[VOZ] Erro no audio", { erro: err.message });
-        try { fs.unlinkSync(pcmFile); } catch {}
-        try { fs.unlinkSync(wavFile); } catch {}
-      }
+      });
 
-      escutas.delete(guildId);
-      setTimeout(() => iniciarEscuta(guildId, connection), 1000);
-    });
-
-    audioStream.on("error", (err) => {
-      log("WARN", "[VOZ] Erro no stream de audio", { erro: err.message });
-      escutas.delete(guildId);
-      setTimeout(() => iniciarEscuta(guildId, connection), 2000);
-    });
-  } catch (err) {
-    log("WARN", "[VOZ] Erro ao iniciar escuta", { erro: err.message });
+      audioStream.on("error", () => {});
+    } catch (err) {
+      log("WARN", "[VOZ] Erro ao escutar membro", { userId, erro: err.message });
+    }
   }
+
+  setTimeout(() => { escutas.delete(guildId); }, 30000);
 }
 
 function lerWavSamples(wavBuf) {
