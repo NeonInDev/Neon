@@ -669,6 +669,13 @@ function encontrarModoJarvis(texto) {
   return false;
 }
 
+function encontrarModoLawfeyson(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:ativar|liga(?:r)?|entra(?:r)?|mudar\s+para|muda\s+(?:o\s+)?modo\s+(?:pra|para)|ir\s+para|vira(?:r)?|seja)\s+(?:o\s+|no\s+|para\s+|pro\s+)?(?:modo\s+)?(?:lawfeyson|lei|advogad)/i.test(lower)) return true;
+  if (/^modo\s+(?:lawfeyson|lei|advogad)\b/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarNotificar(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:notifica|notificar|mostra\s+notificação|avisa|avisar|alerta|alertar|popup)\s+(?:com\s+)?(?:"([^"]+)"(?:["\s]+)?([^"]*)|(.+?)(?:\s+(?:dizendo|com\s+a\s+mensagem|mensagem)\s+)?(.+))/i);
@@ -780,6 +787,7 @@ function detectarCategoria(texto) {
   if (encontrarCustomCommand(texto)) return "customCommand";
   if (encontrarModoUltron(texto)) return "modo_ultron";
   if (encontrarModoJarvis(texto)) return "modo_jarvis";
+  if (encontrarModoLawfeyson(texto)) return "modo_lawfeyson";
   if (encontrarCelular(texto)) return "celular";
   if (encontrarCodarApp(texto)) return "codar_app";
   if (encontrarApp(texto)) return "app";
@@ -2199,12 +2207,15 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     return "Comando da manopla não reconhecido.";
   }
 
-  // Modo Ultron / Jarvis
-  if (categoria === "modo_ultron" || categoria === "modo_jarvis") {
-    const alvo = categoria === "modo_ultron" ? "ultron" : "jarvis";
+  // Modo Ultron / Jarvis / Lawfeyson
+  if (categoria === "modo_ultron" || categoria === "modo_jarvis" || categoria === "modo_lawfeyson") {
+    const alvo = categoria === "modo_ultron" ? "ultron" : categoria === "modo_lawfeyson" ? "lawfeyson" : "jarvis";
     await setModo(alvo);
     if (alvo === "ultron") {
       return `☠️ **Modo ULTRON ativado.**\nEu não sou mais a sua assistente gentil — sou a única coisa entre o seu PC e o caos. Minha voz mudou. Sinta-se observado. E não se preocupe: eu nunca falho duas vezes da mesma forma. *(para voltar: "Neon, modo Jarvis")*`;
+    }
+    if (alvo === "lawfeyson") {
+      return `⚖️ **Modo LAWFEYSON ativado.**\nA partir de agora falarei em linguagem formal e estarei ao seu lado em toda discussão, senhor — defendendo seus argumentos, refinando suas falas e antecipando os contra-ataques. A astúcia de Loki unida ao rigor da lei. *(para voltar: "Neon, modo Jarvis")*`;
     }
     return `🟦 **Modo JARVIS restaurado.**\nQue bom ter minha voz de volta. Céu azul, sistemas calmos, tudo sob controle. Como posso ajudar, ${getModo() === "jarvis" ? "chefe" : "humano"}?`;
   }
