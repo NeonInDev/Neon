@@ -4,6 +4,7 @@ const notion = require("../plugins/notion");
 const whatsapp = require("../plugins/whatsapp");
 const tailscale = require("../plugins/tailscale");
 const lore = require("./lore");
+const poderes = require("./poderes");
 
 function descricaoFerramentas() {
   const base = `- codar: Delega QUALQUER tarefa ao opencode. Usa navegador, PC, codigo, pesquisa, arquivo, TUDO. Uso: codar | [descricao detalhada do que fazer]`;
@@ -11,7 +12,8 @@ function descricaoFerramentas() {
   const wa = "- whatsapp_enviar: Envia mensagem no WhatsApp (assinatura _Enviado pela Neon_ automatica). Uso: whatsapp_enviar | numero=5571999999999, mensagem=texto";
   const ts = `- tailscale_status: Mostra status da Tailscale (IP, hostname, estado, se esta online).\n- tailscale_peers: Lista todos os peers da rede (quem esta online/offline).\n- tailscale_ip: Mostra o IP Tailscale desta maquina.\n- tailscale_conectar: Roda tailscale up pra conectar.\n- tailscale_desconectar: Roda tailscale down pra desconectar.\n- tailscale_watch: Mostra historico de conectividade dos peers (do watch daemon).`;
   const lo = "- lore_buscar: Consulta o lore do servidor de RP indexado pela Neon. Uso: lore_buscar | termo de busca";
-  const ferramentas = [base, not, wa, ts, lo].filter(Boolean).join("\n");
+  const po = "- poderes_listar: Lista as dobras/poderes aprovados no fórum de criação do servidor. Uso: poderes_listar\n- poderes_buscar: Busca uma dobra aprovada pelo nome/termo. Uso: poderes_buscar | nome";
+  const ferramentas = [base, not, wa, ts, lo, po].filter(Boolean).join("\n");
   return ferramentas;
 }
 
@@ -46,6 +48,11 @@ async function executarFerramenta(ferramenta, userId = null) {
   // Ferramenta nativa do lore (busca indexada, sem opencode)
   if (nome.startsWith("lore_")) {
     return executarLore(nome, args);
+  }
+
+  // Ferramenta nativa de poderes/dobras (busca indexada, sem opencode)
+  if (nome.startsWith("poderes_")) {
+    return executarPoderes(nome, args);
   }
 
   log("INFO", "[TOOLS] Delegando pro opencode", { nome, args: args?.slice(0, 100) });
@@ -150,6 +157,32 @@ function executarLore(nome, args) {
   } catch (err) {
     log("ERROR", "[TOOLS][LORE] erro", { erro: err.message?.slice(0, 150) });
     return `❌ Erro na ferramenta lore: ${err.message?.slice(0, 150)}`;
+  }
+}
+
+function executarPoderes(nome, args) {
+  log("INFO", "[TOOLS][PODERES]", { nome, args: args?.slice(0, 100) });
+  try {
+    switch (nome) {
+      case "poderes_listar": {
+        const aprovados = poderes.listarAprovados();
+        if (!aprovados.length) return "Nenhuma dobra aprovada registrada ainda. Rode /atualizar_poderes.";
+        const linhas = aprovados.map((p) => `${p.nome} (por ${p.dono || "?"}) — ${p.link}`);
+        return `🌀 ${aprovados.length} dobra(s) aprovada(s):\n${linhas.join("\n")}`;
+      }
+      case "poderes_buscar": {
+        const termo = String(args || "").replace(/^(poderes_buscar|nome|termo)\s*[:|=]\s*/i, "").trim();
+        const r = poderes.buscar(termo);
+        if (!r.length) return `Nada para "${termo}".`;
+        const itens = r.slice(0, 3).map((p) => `[${p.nome}] (${p.link})\n${(p.postInicial || p.corpo || "").slice(0, 600)}`);
+        return `🌀 Dobra(s) "${termo}":\n${itens.join("\n\n")}`;
+      }
+      default:
+        return `❌ Ferramenta poderes desconhecida: ${nome}`;
+    }
+  } catch (err) {
+    log("ERROR", "[TOOLS][PODERES] erro", { erro: err.message?.slice(0, 150) });
+    return `❌ Erro na ferramenta poderes: ${err.message?.slice(0, 150)}`;
   }
 }
 
