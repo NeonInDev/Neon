@@ -5,140 +5,20 @@ const fs = require("fs");
 const { exec: execCb } = require("child_process");
 const { promisify } = require("util");
 const execAsync = promisify(execCb);
-const { OWNER, permitido, isOwner, isGuest } = require("./perm");
+const { OWNER } = require("./perm");
 const { EdgeTTS } = require("edge-tts-universal");
 const { vozPorModo } = require("./modo");
-const { client } = require("./client");
 
-// Comandos que devem responder em TEXTO no chat, não por voz
-const COMANDOS_TEXTO = /(?:escreve|escrever|cria|criar|gera|gerar|faz|monta|faz pra mim|pega|transcreve|transcrever|resume|resumir|traduz|traduzir)\s+(?:um\s+)?(?:arquivo|texto|script|codigo|receita|lista|nota|documento|relatorio|trabalho|projeto|descricao|resumo|paragrafo|parágrafo)?/i;
-
-const EMOJIS = /[\p{Extended_Pictographic}\u200d\uFE0F]/gu;
 const ATIVACAO_RE = /^\s*(neon|néon)([,\s:!.\-–—]|$)/i;
-
-function normalizar(t) {
-  return t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
-}
-
-function wavValido(caminho) {
-  try {
-    const buf = Buffer.alloc(12);
-    const fd = fs.openSync(caminho, "r");
-    fs.readSync(fd, buf, 0, 12, 0);
-    fs.closeSync(fd);
-    return buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WAVE" && fs.statSync(caminho).size > 44;
-  } catch {
-    return false;
-  }
-}
-
-function ehEco(texto) {
-  const a = normalizar(texto);
-  const b = normalizar(ultimaFala.texto);
-  return !!(a && b && a.length > 2 && (a.includes(b) || b.includes(a)));
-}
-
-function somenteEco(texto) {
-  const a = normalizar(texto);
-  const b = normalizar(ultimaFala.texto);
-  if (!b || a.length < 3) return false;
-  if (b.includes(a) || a === b) return true;
-  const semEco = a.split(b).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-  return semEco.length < 3;
-}
-
-function limparEco(texto) {
-  const b = normalizar(ultimaFala.texto);
-  if (!b) return texto;
-  const a = normalizar(texto);
-  const resto = a.split(b).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
-  return resto.length >= 3 ? resto : a;
-}
-
-async function processarVoz(guildId, texto, falanteId) {
-  const isDono = isOwner(falanteId || OWNER);
-  const label = isDono ? "Dono" : "Convidado";
-  log("INFO", `[VOZ] ${label} falou`, { usuario: falanteId, texto: texto.slice(0, 100) });
-  let pergunta = texto;
-  const ativou = ATIVACAO_RE.test(pergunta);
-  if (ativou) pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
-
-  if (conversasAtivas.has(guildId) || ativou) {
-    conversasAtivas.set(guildId, Date.now());
-
-    const { executarAcao } = require("./actions");
-    const { askNeon } = require("./ai");
-    const falante = falanteId || OWNER;
-
-    // Convidado: só transcreve, sem resposta por voz
-    if (!isDono) {
-      log("INFO", "[VOZ] Convidado transcrito (sem resposta)", { usuario: falante, texto: pergunta.slice(0, 80) });
-      return;
-    }
-
-    // Dono: fluxo normal (ação + fala + DM)
-    const resultadoAcao = await executarAcao(pergunta, true, OWNER, null);
-    if (resultadoAcao && !resultadoAcao.startsWith("❌")) {
-      await falar(guildId, resultadoAcao.replace(/[*_`~|#\[\]]/g, "").replace(EMOJIS, "").slice(0, 200));
-      return;
-    }
-
-    const reply = await askNeon(OWNER, "dono", pergunta, null, true);
-    if (!reply) return;
-
-    if (COMANDOS_TEXTO.test(pergunta)) {
-      try {
-        const user = await client.users.fetch(OWNER);
-        if (user) {
-          const MAX = 2000;
-          if (reply.length > MAX) {
-            const partes = [];
-            let restante = reply;
-            while (restante.length > MAX) {
-              let corte = restante.lastIndexOf("\n", MAX);
-              if (corte <= 0) corte = MAX;
-              partes.push(restante.slice(0, corte));
-              restante = restante.slice(corte);
-            }
-            partes.push(restante);
-            for (const parte of partes) {
-              await user.send(parte);
-            }
-          } else {
-            await user.send(reply);
-          }
-        }
-      } catch (err) {
-        log("WARN", "[VOZ] Falha ao enviar DM", { erro: err.message });
-      }
-      await falar(guildId, "Arquivo criado, chefe! Te mandei na DM.");
-      return;
-    }
-
-    const acoesSilenciosas = /^[\s]*(❌|✅|🖥️|📁|📎|🔧|⚙️|🌐|📂|🗑️|🔒|🔊|🔇|🎨|🔍|📊|⚡|🛑|💀|🎵|🎤|📸|✉️|🚀|⏰|🔔|🎮|💡)/;
-    const ehAcao = acoesSilenciosas.test(reply) && reply.length > 100;
-
-    if (ehAcao) {
-      await falar(guildId, "Feito, chefe!");
-    } else {
-      await falar(guildId, reply);
-    }
-  }
-}
+const INATIVIDADE_MS = 90_000;
 
 let connections = new Map();
 let players = new Map();
 let receivers = new Map();
 let conversasAtivas = new Map();
-let escutas = new Set();
-let entrando = new Set();
-
-let ultimaFala = { texto: "", quando: 0 };
-let mudoAte = 0;
 
 async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
-  if (connections.has(guildId) || entrando.has(guildId)) return true;
-  entrando.add(guildId);
+  if (connections.has(guildId)) return true;
 
   const connection = joinVoiceChannel({
     channelId, guildId, adapterCreator: adapter,
@@ -173,14 +53,7 @@ async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
 
     log("INFO", "[VOZ] Conectado", { guildId });
 
-    // DM automática quando entra no canal de voz
-    try {
-      const user = await client.users.fetch(OWNER);
-      if (user) await user.send("🔌 Conectada no canal de voz! Pode falar, chefe.");
-    } catch {}
-
     if (autoConversa) {
-      conversasAtivas.set(guildId, Date.now());
       iniciarEscuta(guildId, connection);
     }
 
@@ -190,8 +63,6 @@ async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
     connection.destroy();
     limpar(guildId);
     return false;
-  } finally {
-    entrando.delete(guildId);
   }
 }
 
@@ -200,8 +71,6 @@ function limpar(guildId) {
   players.delete(guildId);
   receivers.delete(guildId);
   conversasAtivas.delete(guildId);
-  escutas.delete(guildId);
-  entrando.delete(guildId);
 }
 
 async function sairVoz(guildId) {
@@ -219,61 +88,26 @@ async function falar(guildId, texto) {
   const player = players.get(guildId);
   if (!connection || !player) return false;
 
-  const limpo = texto.replace(/[*_`~|#\[\]]/g, "").replace(EMOJIS, "");
-  // Corta em limite maior, mas respeitando pontuação
-  const MAX_FALA = 1500;
-  let textoFinal = limpo;
-  if (limpo.length > MAX_FALA) {
-    const corte = limpo.lastIndexOf(".", MAX_FALA);
-    textoFinal = corte > 200 ? limpo.slice(0, corte + 1) : limpo.slice(0, MAX_FALA);
-  }
-  if (!textoFinal) return false;
+  const limpo = texto.replace(/[*_`~|#\[\]]/g, "").slice(0, 500);
+  if (!limpo) return false;
 
   const ts = Date.now();
   const tmp = process.env.TEMP || "C:\\Temp";
   const arquivo = path.join(tmp, `neon_vc_${ts}.mp3`);
 
   try {
-    // Tenta Gemini TTS primeiro (voz natural feminina estilo ChatGPT)
-    try {
-      const { geminiTTS, temApiKey } = require("./gemini_tts");
-      if (temApiKey()) {
-        const wavGemini = await geminiTTS(limpo, "auto");
-        if (wavGemini && wavValido(wavGemini)) {
-          const resource = createAudioResource(wavGemini, { inlineVolume: true, inputType: StreamType.Arbitrary });
-          resource.volume?.setVolume(1);
-          player.play(resource);
-          ultimaFala = { texto: limpo, quando: Date.now() };
-          player.once(AudioPlayerStatus.Idle, () => {
-            mudoAte = Date.now() + 1200;
-            try { fs.unlinkSync(wavGemini); } catch {}
-          });
-          return true;
-        }
-      }
-    } catch (e) {
-      log("WARN", "[VOZ] Gemini TTS falhou, tentando edge", { erro: e.message });
-    }
-
-    const tts = new EdgeTTS(limpo, vozPorModo());
-    const resultado = await tts.synthesize();
-    fs.writeFileSync(arquivo, Buffer.from(await resultado.audio.arrayBuffer()));
-
-    if (!fs.existsSync(arquivo) || fs.statSync(arquivo).size === 0) {
-      throw new Error("audio vazio");
-    }
-
+    const tts = require('./tts');
+    const vozModo = vozPorModo();
+    const mp3 = await tts.gerarAudio(limpo, vozModo);
+    if (!mp3 || mp3.length === 0) throw new Error('TTS vazio');
+    fs.writeFileSync(arquivo, mp3);
     const resource = createAudioResource(arquivo, { inlineVolume: true, inputType: StreamType.Arbitrary });
     resource.volume?.setVolume(1);
     player.play(resource);
-    ultimaFala = { texto: limpo, quando: Date.now() };
-    player.once(AudioPlayerStatus.Idle, () => {
-      mudoAte = Date.now() + 1200;
-      try { fs.unlinkSync(arquivo); } catch {}
-    });
+    player.once(AudioPlayerStatus.Idle, () => { try { fs.unlinkSync(arquivo); } catch {} });
     return true;
   } catch (err) {
-    log("WARN", "[VOZ] TTS edge falhou, fallback SAPI", { erro: err.message });
+    log('WARN', '[VOZ] TTS falhou, fallback SAPI', { erro: err.message });
     try { fs.unlinkSync(arquivo); } catch {}
     return falarSapi(connection, player, limpo);
   }
@@ -301,105 +135,106 @@ async function falarSapi(connection, player, limpo) {
 }
 
 async function iniciarEscuta(guildId, connection) {
-  if (escutas.has(guildId)) return;
   const receiver = receivers.get(guildId);
   if (!receiver || !connections.has(guildId)) return;
 
-  escutas.add(guildId);
+  log("INFO", "[VOZ] Ouvindo o dono (diga 'Neon' para ativar)", { guildId });
 
-  // Pega todos os membros no canal de voz (exceto bots)
-  const canal = connection.joinConfig.channelId;
-  const guild = connection.joinConfig.guildId;
-  const clientRef = require("./client").client;
-  let membrosPermitidos = [];
   try {
-    const guildObj = clientRef.guilds.cache.get(guild);
-    if (guildObj) {
-      const canalObj = guildObj.channels.cache.get(canal);
-      if (canalObj && canalObj.members) {
-        membrosPermitidos = canalObj.members
-          .filter(m => !m.user.bot && permitido(m.id))
-          .map(m => m.id);
-      }
-    }
-  } catch {}
+    const audioStream = receiver.subscribe(OWNER, {
+      end: { behavior: EndBehaviorType.AfterSilence, duration: 1500 },
+    });
 
-  if (membrosPermitidos.length === 0) membrosPermitidos = [OWNER];
-  log("INFO", "[VOZ] Ouvindo membros permitidos", { guildId, membros: membrosPermitidos.length });
+    const chunks = [];
+    audioStream.on("data", (chunk) => chunks.push(chunk));
+    audioStream.on("end", async () => {
+      const temConversa = conversasAtivas.has(guildId);
 
-  for (const userId of membrosPermitidos) {
-    try {
-      const audioStream = receiver.subscribe(userId, {
-        end: { behavior: EndBehaviorType.AfterSilence, duration: 1100 },
-      });
-
-      const OpusScript = require("opusscript");
-      const decoder = new OpusScript(48000, 2, OpusScript.Application.AUDIO);
-
-      const chunks = [];
-      audioStream.on("data", (chunk) => {
-        try {
-          const pcm = decoder.decode(chunk);
-          chunks.push(pcm);
-        } catch {}
-      });
-      audioStream.on("end", async () => {
-        if (chunks.length === 0) return;
-
-        const ts = Date.now();
-        const tmp = process.env.TEMP || "C:\\Temp";
-        const pcmFile = path.join(tmp, `neon_in_${ts}.pcm`);
-        const wavFile = path.join(tmp, `neon_in_${ts}.wav`);
-
-        try {
-          const buf = Buffer.concat(chunks);
-          fs.writeFileSync(pcmFile, buf);
-
-          const ffmpegPath = require("ffmpeg-static");
-          await execAsync(`"${ffmpegPath}" -f s16le -ar 48000 -ac 2 -i "${pcmFile}" -ar 16000 -ac 1 "${wavFile}" -y`, { timeout: 10000, windowsHide: true });
-
-          if (!wavValido(wavFile)) {
-            log("WARN", "[VOZ] Audio invalido ignorado", { kb: (fs.existsSync(wavFile) ? Math.round(fs.statSync(wavFile).size / 1024) : 0) });
-          } else {
-            const texto = await transcreverAudio(wavFile);
-            try { fs.unlinkSync(pcmFile); } catch {}
-            try { fs.unlinkSync(wavFile); } catch {}
-
-            if (texto && texto.length > 1) {
-              const player = players.get(guildId);
-              const falando = player?.state?.status === AudioPlayerStatus.Playing;
-              const isDono = isOwner(userId);
-
-              if (falando && !somenteEco(texto)) {
-                player.stop();
-                log("INFO", "[VOZ] Alguem falou, interrompido", { usuario: userId, texto: texto.slice(0, 80) });
-                await processarVoz(guildId, limparEco(texto), userId);
-              } else if (ehEco(texto) || somenteEco(texto)) {
-                log("INFO", "[VOZ] Eco ignorado", { usuario: userId, texto: texto.slice(0, 80) });
-              } else if (Date.now() < mudoAte) {
-                log("INFO", "[VOZ] Eco pos-fala ignorado", { usuario: userId, texto: texto.slice(0, 80) });
-              } else {
-                await processarVoz(guildId, texto, userId);
-              }
-            }
-          }
-        } catch (err) {
-          log("WARN", "[VOZ] Erro no audio", { erro: err.message });
-          try { fs.unlinkSync(pcmFile); } catch {}
-          try { fs.unlinkSync(wavFile) } catch {}
+      if (chunks.length === 0) {
+        if (temConversa && Date.now() - conversasAtivas.get(guildId) > INATIVIDADE_MS) {
+          pararConversa(guildId);
+          log("INFO", "[VOZ] Conversa encerrada por inatividade", { guildId });
         }
-      });
+        setTimeout(() => iniciarEscuta(guildId, connection), 1000);
+        return;
+      }
 
-      audioStream.on("error", () => {});
-    } catch (err) {
-      log("WARN", "[VOZ] Erro ao escutar membro", { userId, erro: err.message });
-    }
+      const ts = Date.now();
+      const tmp = process.env.TEMP || "C:\\Temp";
+      const pcmFile = path.join(tmp, `neon_in_${ts}.pcm`);
+      const wavFile = path.join(tmp, `neon_in_${ts}.wav`);
+
+      try {
+        const buf = Buffer.concat(chunks);
+        fs.writeFileSync(pcmFile, buf);
+
+        const ffmpegPath = require("ffmpeg-static");
+        const { stderr } = await execAsync(`"${ffmpegPath}" -f s16le -ar 48000 -ac 2 -i "${pcmFile}" -ar 16000 -ac 1 "${wavFile}" -y`, { timeout: 10000, windowsHide: true });
+
+        if (!ehWavValido(wavFile)) {
+          log("WARN", "[VOZ] Conversao ffmpeg invalida", { stderr: stderr?.slice(0, 300) });
+          throw new Error("WAV invalido apos conversao");
+        }
+
+        const texto = await transcreverAudio(wavFile);
+        try { fs.unlinkSync(pcmFile); } catch {}
+        try { fs.unlinkSync(wavFile); } catch {}
+
+        if (texto && texto.length > 1) {
+          log("INFO", "[VOZ] Transcricao", { texto: texto.slice(0, 100) });
+          let pergunta = texto;
+          const ativou = ATIVACAO_RE.test(pergunta);
+
+          if (ativou) {
+            pergunta = pergunta.replace(ATIVACAO_RE, "").trim() || "oi";
+            conversasAtivas.set(guildId, Date.now());
+          } else if (temConversa) {
+            conversasAtivas.set(guildId, Date.now());
+          }
+
+          if (conversasAtivas.has(guildId)) {
+            const { askNeon } = require("./ai");
+            const reply = await askNeon(OWNER, "dono", pergunta);
+            if (reply) await falar(guildId, reply);
+          }
+        }
+      } catch (err) {
+        log("WARN", "[VOZ] Erro no audio", { erro: err.message });
+        try { fs.unlinkSync(pcmFile); } catch {}
+        try { fs.unlinkSync(wavFile); } catch {}
+      }
+
+      setTimeout(() => iniciarEscuta(guildId, connection), 1000);
+    });
+
+    audioStream.on("error", (err) => {
+      const benigno = /Failed to decrypt|UnencryptedWhenPassthroughDisabled/i.test(err.message || "");
+      if (benigno) {
+        if (!audioStream.destroyed && audioStream.readable) return;
+        log("DEBUG", "[VOZ] Erro benigno de decrypt, reiniciando escuta", { erro: err.message });
+      } else {
+        log("WARN", "[VOZ] Erro no stream de audio", { erro: err.message });
+      }
+      setTimeout(() => iniciarEscuta(guildId, connection), 2000);
+    });
+  } catch (err) {
+    log("WARN", "[VOZ] Erro ao iniciar escuta", { erro: err.message });
   }
+}
 
-  setTimeout(() => { escutas.delete(guildId); }, 30000);
+function ehWavValido(caminho) {
+  try {
+    const buf = fs.readFileSync(caminho);
+    return buf.length > 44 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WAVE";
+  } catch {
+    return false;
+  }
 }
 
 function lerWavSamples(wavBuf) {
+  if (wavBuf.length < 44 || wavBuf.toString("ascii", 0, 4) !== "RIFF" || wavBuf.toString("ascii", 8, 12) !== "WAVE") {
+    throw new Error("Arquivo nao e um WAV valido (sem header RIFF)");
+  }
   let dataOffset = 12;
   while (dataOffset + 8 <= wavBuf.length) {
     const chunkId = wavBuf.toString("ascii", dataOffset, dataOffset + 4);
@@ -418,101 +253,15 @@ function lerWavSamples(wavBuf) {
   throw new Error("Chunk data nao encontrado no WAV");
 }
 
-let whisperPipeline = null;
-
-async function transcreverLocal(wavPath) {
-  try {
-    if (!whisperPipeline) {
-      const { pipeline, env } = require("@xenova/transformers");
-      const modelo = process.env.WHISPER_MODEL || "Xenova/whisper-small";
-      if (!fs.existsSync(path.join(env.cacheDir, modelo, "onnx"))) {
-        log("WARN", "[VOZ] Whisper local nao baixado, pulando fallback", { modelo });
-        return null;
-      }
-      log("INFO", "[VOZ] Carregando Whisper local");
-      whisperPipeline = await pipeline("automatic-speech-recognition", modelo, { quantized: true });
-      log("INFO", "[VOZ] Whisper local pronto");
-    }
-    const result = await whisperPipeline(lerWavSamples(fs.readFileSync(wavPath)), {
-      language: process.env.WHISPER_LANGUAGE || "pt",
-      task: "transcribe",
-      sampling_rate: 16000,
-    });
-    return result?.text?.trim() || null;
-  } catch (err) {
-    log("WARN", "[VOZ] Whisper local falhou", { erro: err.message?.slice(0, 100) });
-    return null;
-  }
-}
-
 async function transcreverAudio(wavPath) {
-  const { GROQ_API_KEY, DEEPSEEK_API_KEY } = require("./config");
-  const { geminiSTT, temApiKey: temGeminiKey } = require("./gemini_tts");
-
-  // Tenta Gemini STT primeiro (qualidade superior)
-  if (temGeminiKey()) {
-    try {
-      const texto = await geminiSTT(wavPath);
-      if (texto) return texto;
-    } catch (err) {
-      log("WARN", "[VOZ] Gemini STT falhou, tentando Groq", { erro: err.message?.slice(0, 100) });
-    }
-  }
-
-  // Fallback: Groq Whisper
-  if (GROQ_API_KEY) {
-    for (let tent = 0; tent < 2; tent++) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-      try {
-        const wavBuf = fs.readFileSync(wavPath);
-        if (wavBuf.length < 44) throw new Error("wav pequeno demais");
-        const blob = new Blob([wavBuf], { type: "audio/wav" });
-        const form = new FormData();
-        form.append("file", blob, "audio.wav");
-        form.append("model", "whisper-large-v3-turbo");
-        form.append("language", "pt");
-        form.append("response_format", "json");
-        const resp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
-          body: form,
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (resp.ok) {
-          const data = await resp.json();
-          const texto = data?.text?.trim();
-          if (texto) return texto;
-        }
-        log("WARN", "[VOZ] Groq HTTP", { status: resp.status, tentativa: tent + 1, bytes: wavBuf.length });
-      } catch (err) {
-        clearTimeout(timeout);
-        log("WARN", "[VOZ] Groq falhou", { erro: err.message?.slice(0, 100), tentativa: tent + 1 });
-      }
-      if (tent === 0) await new Promise((r) => setTimeout(r, 700));
-    }
-  }
-
-  const local = await transcreverLocal(wavPath);
-  if (local) return local;
-
   try {
-    const axios = require("axios");
-    const fs2 = require("fs");
-    const FormData = require("form-data");
-
-    const form = new FormData();
-    form.append("file", fs2.createReadStream(wavPath), "audio.wav");
-    form.append("model", "whisper-1");
-
-    const resp = await axios.post("https://api.deepseek.com/v1/audio/transcriptions", form, {
-      headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, ...form.getHeaders() },
-      timeout: 30000,
-    });
-    return resp?.data?.text?.trim();
+    const stt = require('./stt');
+    const timeout = parseInt(process.env.STT_TIMEOUT_MS, 10) || 30000;
+    const res = await stt.transcribeFile(wavPath, { language: process.env.WHISPER_LANGUAGE || 'pt', timeout });
+    if (res && res.text) return res.text;
+    return null;
   } catch (err) {
-    log("WARN", "[VOZ] STT falhou", { erro: err.message?.slice(0, 100) });
+    log('WARN', '[VOZ] STT falhou', { erro: err.message?.slice(0, 100) });
     return null;
   }
 }
@@ -545,4 +294,4 @@ function status() {
   return guilds;
 }
 
-module.exports = { entrarVoz, sairVoz, falar, iniciarConversa, pararConversa, estaEmConversa, status, transcreverAudio, transcreverLocal };
+module.exports = { entrarVoz, sairVoz, falar, iniciarConversa, pararConversa, estaEmConversa, status };

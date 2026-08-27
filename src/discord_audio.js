@@ -58,8 +58,8 @@ async function converterParaWav(inputPath) {
     execSync(`"${require("ffmpeg-static")}" -i "${inputPath}" -ar 16000 -ac 1 -sample_fmt s16 "${outputPath}" -y`, {
       timeout: 30000, windowsHide: true, stdio: "pipe"
     })
-    if (fs.existsSync(outputPath)) return outputPath
-    log("WARN", "[AUDIO] ffmpeg nao gerou arquivo de saida")
+    if (fs.existsSync(outputPath) && ehWavValido(outputPath)) return outputPath
+    log("WARN", "[AUDIO] ffmpeg nao gerou WAV valido")
     return null
   } catch (err) {
     log("WARN", "[AUDIO] ffmpeg falhou na conversao", { erro: err.message?.slice(0, 100) })
@@ -67,8 +67,20 @@ async function converterParaWav(inputPath) {
   }
 }
 
+function ehWavValido(caminho) {
+  try {
+    const buf = fs.readFileSync(caminho)
+    return buf.length > 44 && buf.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WAVE'
+  } catch {
+    return false
+  }
+}
+
 function lerWavSamples(wavBuf) {
   // Encontra o chunk "data" no WAV (nao assume header de 44 bytes)
+  if (wavBuf.length < 44 || wavBuf.toString('ascii', 0, 4) !== 'RIFF' || wavBuf.toString('ascii', 8, 12) !== 'WAVE') {
+    throw new Error('Arquivo nao e um WAV valido (sem header RIFF)')
+  }
   let dataOffset = 12 // pula RIFF header + size + WAVE
   while (dataOffset + 8 <= wavBuf.length) {
     const chunkId = wavBuf.toString("ascii", dataOffset, dataOffset + 4)
