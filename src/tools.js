@@ -3,13 +3,15 @@ const opencode = require("../plugins/opencode");
 const notion = require("../plugins/notion");
 const whatsapp = require("../plugins/whatsapp");
 const tailscale = require("../plugins/tailscale");
+const lore = require("./lore");
 
 function descricaoFerramentas() {
   const base = `- codar: Delega QUALQUER tarefa ao opencode. Usa navegador, PC, codigo, pesquisa, arquivo, TUDO. Uso: codar | [descricao detalhada do que fazer]`;
   const not = notion.descricaoFerramentas();
   const wa = "- whatsapp_enviar: Envia mensagem no WhatsApp (assinatura _Enviado pela Neon_ automatica). Uso: whatsapp_enviar | numero=5571999999999, mensagem=texto";
   const ts = `- tailscale_status: Mostra status da Tailscale (IP, hostname, estado, se esta online).\n- tailscale_peers: Lista todos os peers da rede (quem esta online/offline).\n- tailscale_ip: Mostra o IP Tailscale desta maquina.\n- tailscale_conectar: Roda tailscale up pra conectar.\n- tailscale_desconectar: Roda tailscale down pra desconectar.\n- tailscale_watch: Mostra historico de conectividade dos peers (do watch daemon).`;
-  const ferramentas = [base, not, wa, ts].filter(Boolean).join("\n");
+  const lo = "- lore_buscar: Consulta o lore do servidor de RP indexado pela Neon. Uso: lore_buscar | termo de busca";
+  const ferramentas = [base, not, wa, ts, lo].filter(Boolean).join("\n");
   return ferramentas;
 }
 
@@ -39,6 +41,11 @@ async function executarFerramenta(ferramenta, userId = null) {
   // Ferramentas nativas do Tailscale (via plugin, sem opencode)
   if (nome.startsWith("tailscale_")) {
     return executarTailscale(nome, args);
+  }
+
+  // Ferramenta nativa do lore (busca indexada, sem opencode)
+  if (nome.startsWith("lore_")) {
+    return executarLore(nome, args);
   }
 
   log("INFO", "[TOOLS] Delegando pro opencode", { nome, args: args?.slice(0, 100) });
@@ -118,6 +125,31 @@ async function executarTailscale(nome, args) {
   } catch (err) {
     log("ERROR", "[TOOLS][TAILSCALE] erro", { erro: err.message?.slice(0, 150) });
     return `❌ Erro na ferramenta Tailscale: ${err.message?.slice(0, 150)}`;
+  }
+}
+
+function executarLore(nome, args) {
+  log("INFO", "[TOOLS][LORE]", { nome, args: args?.slice(0, 100) });
+  try {
+    switch (nome) {
+      case "lore_buscar": {
+        const termo = String(args || "").replace(/^(lore_buscar|termo|busca)\s*[:|=]\s*/i, "").trim();
+        if (!termo) return "❌ Uso: lore_buscar | termo de busca";
+        const r = lore.buscar(termo);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.resultados.length) return `Nada no lore para "${termo}".`;
+        const itens = r.resultados
+          .slice(0, 3)
+          .map((x) => `[${x.categoria}/${x.canal}] ${x.autor}: ${x.trecho}`)
+          .join("\n\n");
+        return `📖 Lore — "${termo}" (${r.total} ref.):\n${itens}`;
+      }
+      default:
+        return `❌ Ferramenta lore desconhecida: ${nome}`;
+    }
+  } catch (err) {
+    log("ERROR", "[TOOLS][LORE] erro", { erro: err.message?.slice(0, 150) });
+    return `❌ Erro na ferramenta lore: ${err.message?.slice(0, 150)}`;
   }
 }
 
