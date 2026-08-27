@@ -70,12 +70,9 @@ async function processarVoz(guildId, texto, falanteId) {
     const { askNeon } = require("./ai");
     const falante = falanteId || OWNER;
 
-    // Convidado: transcreve e responde só por voz no canal (sem DM, sem ações)
+    // Convidado: só transcreve, sem resposta por voz
     if (!isDono) {
-      const reply = await askNeon(falante, "convidado", pergunta, null, true);
-      if (!reply) return;
-      const limpo = reply.replace(/[*_`~|#\[\]]/g, "").replace(EMOJIS, "").slice(0, 1500);
-      if (limpo) await falar(guildId, limpo);
+      log("INFO", "[VOZ] Convidado transcrito (sem resposta)", { usuario: falante, texto: pergunta.slice(0, 80) });
       return;
     }
 
