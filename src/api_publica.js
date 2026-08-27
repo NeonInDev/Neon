@@ -639,6 +639,16 @@ function iniciar(port = 3000) {
             responder(res, 200, { ok: true });
             return;
           }
+          case "segurar": {
+            await pc.segurarBotao(botao === "right" ? "right" : "left");
+            responder(res, 200, { ok: true });
+            return;
+          }
+          case "soltar": {
+            await pc.soltarBotao(botao === "right" ? "right" : "left");
+            responder(res, 200, { ok: true });
+            return;
+          }
           case "tecla": {
             if (!tecla) { responder(res, 400, { erro: "tecla é obrigatória" }); return; }
             await pc.tecla(String(tecla));

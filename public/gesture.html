@@ -57,7 +57,7 @@
     <button id="btnCam">Ligar câmera</button>
   </div>
   <div class="row">
-    <label>Sensibilidade <input type="range" id="ganho" min="0.2" max="1.6" step="0.05" value="0.8"></label>
+    <label>Sensibilidade <input type="range" id="ganho" min="0.2" max="2.2" step="0.05" value="1.0"></label>
   </div>
   <div class="hint" id="hint"></div>
 </div>
@@ -70,7 +70,7 @@
   const chaveInput = $("chave");
   const ganhoInput = $("ganho");
   chaveInput.value = localStorage.getItem("neon_key") || "TESEU";
-  ganhoInput.value = localStorage.getItem("neon_ganho") || 0.8;
+  ganhoInput.value = localStorage.getItem("neon_ganho") || 1.0;
   ganhoInput.onchange = () => localStorage.setItem("neon_ganho", ganhoInput.value);
 
   let key = () => chaveInput.value.trim() || "TESEU";
@@ -127,7 +127,7 @@
         numHands: 1,
       });
       setChip("chModel", "modelo: ok", "on");
-      $("hint").textContent = "Aponte a câmera pra sua mão. Indicador esticado = move o mouse. Pinça (dedão+indicador) = clique. Pinça (dedão+médio) = botão direito. Indicador+médio = rolar. Mão aberta = volume +. Punho = volume -. Sinal de OK (dedão+indicador encostados) = segura o botão do meio: no Blender, mova a mão pra orbitar o modelo!";
+      $("hint").textContent = "Aponte a câmera pra sua mão. Indicador esticado (ou mão aberta) = move o cursor. Mão FECHADA (punho) = segura o esquerdo e ARRASTA. Abrir a mão = solta/clique. Mão ABERTA (5 dedos) = clique direito.";
     } catch (e) {
       setChip("chModel", "modelo: falhou", "err");
       $("hint").textContent = "Sem internet pro modelo do MediaPipe? " + e.message;
@@ -151,11 +151,14 @@
   // ---- estado do gesto ----
   let centro = { x: 0.5, y: 0.5 };
   let lm = { x: 0.5, y: 0.5 };
+  let suave = { x: 0.5, y: 0.5 };
+  let estado = "";
   let estadoAnt = "";
-  let ultimoClique = 0;
+  let estadoBruto = "";
+  let framesBruto = 0;
+  const HISTERESE = 3;
   let ultimaMover = 0;
-  let ultimaMao = null;
-  let arrastandoOk = false;
+  let segurandoEsq = false;
 
   function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
 
@@ -173,71 +176,53 @@
     const l = landmarks;
     const est = dedosEstendidos(l);
     const n = est.filter(Boolean).length;
-    const pinIndex = dist(l[4], l[8]) < 0.06;
-    const pinMid = dist(l[4], l[12]) < 0.06;
-    const pinOk = !pinIndex && !pinMid && est[0] && dist(l[4], l[6]) < 0.07;
-    lm = { x: l[8].x, y: l[8].y };
 
-    let estado;
-    if (pinIndex) estado = "clique";
-    else if (pinMid) estado = "clique_dir";
-    else if (pinOk) estado = "ok";
-    else if (n === 4) estado = "mao_aberta";
-    else if (n === 0) estado = "punho";
-    else if (est[0] && est[1]) estado = "scroll";
-    else if (est[0]) estado = "move";
-    else estado = "move";
+    // suavizacao do cursor (média exponencial) -> mais precisão, menos salto
+    const alvo = { x: l[8].x, y: l[8].y };
+    const a = 0.5;
+    suave.x += (alvo.x - suave.x) * a;
+    suave.y += (alvo.y - suave.y) * a;
+    lm = suave;
 
-    const novidade = estado !== estadoAnt;
+    // classificacao bruta (histerese evita gestos "piscando")
+    const bruto = n === 0 ? "punho" : (n >= 4 ? "mao_aberta" : "move");
+    if (bruto === estadoBruto) {
+      framesBruto++;
+      if (framesBruto >= HISTERESE) estado = bruto;
+    } else {
+      estadoBruto = bruto;
+      framesBruto = 1;
+    }
+
+    const mudou = estado !== estadoAnt;
     estadoAnt = estado;
 
-    if (novidade) {
-      if (arrastandoOk && estado !== "ok") {
-        api({ tipo: "soltar_meio" });
-        arrastandoOk = false;
-        setChip("chGest", "soltou orbitar", "on");
+    // punho = segura o esquerdo e arrasta; abre a mao = solta (clique)
+    if (estado === "punho") {
+      if (!segurandoEsq) {
+        segurandoEsq = true;
+        api({ tipo: "segurar", botao: "left" });
+        setChip("chGest", "segurando (arraste)", "on");
       }
-      if (estado === "clique") {
-        const agora = Date.now();
-        if (agora - ultimoClique < 600) {
-          api({ tipo: "duplo", x: xNorm(), y: yNorm() });
-          setChip("chGest", "duplo clique", "on");
-          ultimoClique = 0;
-        } else {
-          api({ tipo: "clique", x: xNorm(), y: yNorm() });
-          setChip("chGest", "clique", "on");
-          ultimoClique = agora;
-        }
-      } else if (estado === "clique_dir") {
-        api({ tipo: "clique", x: xNorm(), y: yNorm(), botao: "right" });
-        setChip("chGest", "clique direito", "on");
-      } else if (estado === "ok") {
-        api({ tipo: "arrastar_meio" });
-        arrastandoOk = true;
-        setChip("chGest", "orbitar (arraste a mão)", "on");
-      } else if (estado === "punho") {
-        api({ tipo: "volume", acao: "down", valor: 3 });
-        setChip("chGest", "volume -", "on");
-      } else if (estado === "mao_aberta") {
-        api({ tipo: "volume", acao: "up", valor: 3 });
-        setChip("chGest", "volume +", "on");
-      }
+    } else if (segurandoEsq) {
+      segurandoEsq = false;
+      api({ tipo: "soltar", botao: "left" });
+      setChip("chGest", "soltou", "on");
     }
 
-    // move contínuo
-    if (ativo && (estado === "move" || estado === "ok")) {
-      const agora = Date.now();
-      if (agora - ultimaMover > 60) {
-        ultimaMover = agora;
-        api({ tipo: "mover", x: xNorm(), y: yNorm() }).catch(() => {});
-        setChip("chGest", "move", "on");
-      }
-    } else if (ativo && estado === "scroll" && ultimaMao) {
-      const delta = (ultimaMao.y - l[12].y) * 900;
-      if (Math.abs(delta) > 6) api({ tipo: "scroll", delta: Math.round(delta) }).catch(() => {});
-      setChip("chGest", "scroll", "on");
+    // mao aberta = clique direito (curto, uma vez por transicao)
+    if (mudou && estado === "mao_aberta") {
+      api({ tipo: "clique", x: xNorm(), y: yNorm(), botao: "right" });
+      setChip("chGest", "clique direito", "on");
     }
-    ultimaMao = { y: l[12].y };
+
+    // move continuo (cursor livre; arrasta quando punho)
+    const agora = Date.now();
+    if (agora - ultimaMover > 40) {
+      ultimaMover = agora;
+      api({ tipo: "mover", x: xNorm(), y: yNorm() }).catch(() => {});
+      setChip("chGest", estado === "punho" ? "arrastando" : estado === "mao_aberta" ? "mão aberta" : "move", "on");
+    }
   }
 
   function xNorm() {
@@ -265,8 +250,14 @@
       if (ativo) detectarGestos(l);
     } else {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (ativo && segurandoEsq) {
+        segurandoEsq = false;
+        api({ tipo: "soltar", botao: "left" }).catch(() => {});
+      }
+      estado = "";
       estadoAnt = "";
-      ultimaMao = null;
+      estadoBruto = "";
+      framesBruto = 0;
     }
   };
 

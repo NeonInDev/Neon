@@ -233,6 +233,38 @@ Write-Output "ok"`;
   return await ps(script, "midUp");
 }
 
+async function segurarBotao(botao = "left") {
+  const flag = botao === "right" ? 0x08 : 0x02;
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class NeonBtn {
+  [DllImport("user32.dll")]
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+}
+"@
+[NeonBtn]::mouse_event(${flag}, 0, 0, 0, [UIntPtr]::Zero)
+Write-Output "ok"`;
+  return await ps(script, "btnDown");
+}
+
+async function soltarBotao(botao = "left") {
+  const flag = botao === "right" ? 0x10 : 0x04;
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class NeonBtn {
+  [DllImport("user32.dll")]
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+}
+"@
+[NeonBtn]::mouse_event(${flag}, 0, 0, 0, [UIntPtr]::Zero)
+Write-Output "ok"`;
+  return await ps(script, "btnUp");
+}
+
 // ===================== COMPUTER USE: TECLADO =====================
 
 async function digitarTexto(texto) {
@@ -865,7 +897,7 @@ module.exports = {
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
   dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, criarArquivo, resumoCommits, abrirWhatsApp, abrirUrl,
   iniciarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyTocarPorId, spotifyControle,
-  moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, digitarTexto, tecla,
+  moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, segurarBotao, soltarBotao, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   tamanhoTela, scroll,
   verTela, analisarImagem,
