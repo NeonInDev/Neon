@@ -169,10 +169,11 @@ async function iniciarEscuta(guildId, connection) {
         fs.writeFileSync(pcmFile, buf);
 
         const ffmpegPath = require("ffmpeg-static");
-        await execAsync(`"${ffmpegPath}" -f s16le -ar 48000 -ac 2 -i "${pcmFile}" -ar 16000 -ac 1 "${wavFile}" -y`, { timeout: 10000, windowsHide: true });
+        const { stderr } = await execAsync(`"${ffmpegPath}" -f s16le -ar 48000 -ac 2 -i "${pcmFile}" -ar 16000 -ac 1 "${wavFile}" -y`, { timeout: 10000, windowsHide: true });
 
-        if (!fs.existsSync(wavFile)) {
-          fs.renameSync(pcmFile, wavFile);
+        if (!ehWavValido(wavFile)) {
+          log("WARN", "[VOZ] Conversao ffmpeg invalida", { stderr: stderr?.slice(0, 300) });
+          throw new Error("WAV invalido apos conversao");
         }
 
         const texto = await transcreverAudio(wavFile);
@@ -207,7 +208,13 @@ async function iniciarEscuta(guildId, connection) {
     });
 
     audioStream.on("error", (err) => {
-      log("WARN", "[VOZ] Erro no stream de audio", { erro: err.message });
+      const benigno = /Failed to decrypt|UnencryptedWhenPassthroughDisabled/i.test(err.message || "");
+      if (benigno) {
+        if (!audioStream.destroyed && audioStream.readable) return;
+        log("DEBUG", "[VOZ] Erro benigno de decrypt, reiniciando escuta", { erro: err.message });
+      } else {
+        log("WARN", "[VOZ] Erro no stream de audio", { erro: err.message });
+      }
       setTimeout(() => iniciarEscuta(guildId, connection), 2000);
     });
   } catch (err) {
@@ -215,7 +222,19 @@ async function iniciarEscuta(guildId, connection) {
   }
 }
 
+function ehWavValido(caminho) {
+  try {
+    const buf = fs.readFileSync(caminho);
+    return buf.length > 44 && buf.toString("ascii", 0, 4) === "RIFF" && buf.toString("ascii", 8, 12) === "WAVE";
+  } catch {
+    return false;
+  }
+}
+
 function lerWavSamples(wavBuf) {
+  if (wavBuf.length < 44 || wavBuf.toString("ascii", 0, 4) !== "RIFF" || wavBuf.toString("ascii", 8, 12) !== "WAVE") {
+    throw new Error("Arquivo nao e um WAV valido (sem header RIFF)");
+  }
   let dataOffset = 12;
   while (dataOffset + 8 <= wavBuf.length) {
     const chunkId = wavBuf.toString("ascii", dataOffset, dataOffset + 4);
@@ -234,9 +253,7 @@ function lerWavSamples(wavBuf) {
   throw new Error("Chunk data nao encontrado no WAV");
 }
 
-let whisperPipeline = null;
-
-async function transcreverLocal(wavPath) {
+async function transcreverAudio(wavPath) {
   try {
     const stt = require('./stt');
     const timeout = parseInt(process.env.STT_TIMEOUT_MS, 10) || 30000;
@@ -245,60 +262,6 @@ async function transcreverLocal(wavPath) {
     return null;
   } catch (err) {
     log('WARN', '[VOZ] STT falhou', { erro: err.message?.slice(0, 100) });
-    return null;
-  }
-}
-
-async function transcreverAudio(wavPath) {
-  const { GROQ_API_KEY, DEEPSEEK_API_KEY } = require("./config");
-
-  const local = await transcreverLocal(wavPath);
-  if (local) return local;
-
-  if (GROQ_API_KEY) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-      const blob = new Blob([fs.readFileSync(wavPath)], { type: "audio/wav" });
-      const form = new FormData();
-      form.append("file", blob, "audio.wav");
-      form.append("model", "whisper-large-v3-turbo");
-      form.append("language", "pt");
-      form.append("response_format", "json");
-      const resp = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
-        body: form,
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      if (resp.ok) {
-        const data = await resp.json();
-        const texto = data?.text?.trim();
-        if (texto) return texto;
-      }
-      log("WARN", "[VOZ] Groq HTTP", { status: resp.status });
-    } catch (err) {
-      log("WARN", "[VOZ] Groq falhou", { erro: err.message?.slice(0, 100) });
-    }
-  }
-
-  try {
-    const axios = require("axios");
-    const fs2 = require("fs");
-    const FormData = require("form-data");
-
-    const form = new FormData();
-    form.append("file", fs2.createReadStream(wavPath), "audio.wav");
-    form.append("model", "whisper-1");
-
-    const resp = await axios.post("https://api.deepseek.com/v1/audio/transcriptions", form, {
-      headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, ...form.getHeaders() },
-      timeout: 30000,
-    });
-    return resp?.data?.text?.trim();
-  } catch (err) {
-    log("WARN", "[VOZ] STT falhou", { erro: err.message?.slice(0, 100) });
     return null;
   }
 }

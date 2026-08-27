@@ -10,6 +10,9 @@ const DEFAULT_LANG = process.env.WHISPER_LANGUAGE || 'pt';
 const DEFAULT_TIMEOUT = parseInt(process.env.STT_TIMEOUT_MS, 10) || 30000;
 
 function lerWavSamples(wavBuf) {
+  if (wavBuf.length < 44 || wavBuf.toString('ascii', 0, 4) !== 'RIFF' || wavBuf.toString('ascii', 8, 12) !== 'WAVE') {
+    throw new Error('Arquivo nao e um WAV valido (sem header RIFF)');
+  }
   let dataOffset = 12;
   while (dataOffset + 8 <= wavBuf.length) {
     const chunkId = wavBuf.toString('ascii', dataOffset, dataOffset + 4);
