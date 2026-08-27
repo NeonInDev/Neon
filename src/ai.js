@@ -109,6 +109,8 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
 
 const tratamentoChefe = isOwner(userId)
   ? `\n\nREGRAS DE TRATAMENTO:\n- O usuário com quem você fala é o seu DONO (o chefe). SEMPRE que for se dirigir a ele, chame-o de "chefe" (ex.: "Claro, chefe", "Feito, chefe", "Sim, chefe"). Nunca use "dono", "você" ou outro tratamento. Nunca o chame pelo nome de usuário.\n\n` // @chefe
+  : convidado
+  ? `\n\nREGRAS DE TRATAMENTO:\n- O usuário é um CONVIDADO na casa. Chame-o de "convidado" (ex.: "Claro, convidado", "Feito, convidado"). Nunca use "chefe" com ele.\n\n`
   : "";
 
   const sistema = `${personaDoModo()}
