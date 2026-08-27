@@ -1,15 +1,19 @@
 const { ChannelType } = require("discord.js");
 const { db } = require("../db");
 const { askNeon } = require("../ai");
-const { executarAcao } = require("../actions");
 const { getOrCreateUser } = require("../user");
 const { estaNaBlacklist } = require("../moderation");
 const { MASTER_KEY } = require("../config");
 const { log } = require("../logger");
-const { verificarRateLimit, permitido, auditar } = require("../permissions");
+const { verificarRateLimit, auditar } = require("../permissions");
+const { isOwner } = require("../perm");
+const { adicionarGuest, removerGuest, guestRecords } = require("../perm");
+const opencode = require("../../plugins/opencode");
 const { enfileirar } = require("../fila");
 const { add: addContexto } = require("../contexto");
 const axios = require("axios");
+const { PermissionFlagsBits } = require("discord.js");
+const { ativaLockdown, desativaLockdown } = require("../lockdown");
 
 const processando = new Set();
 const cooldowns = new Map();
@@ -43,8 +47,167 @@ function checkCooldown(userId) {
   return false;
 }
 
+function interpretarAbortar(message) {
+  if (!isOwner(message.author.id)) return false;
+  if (!/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:aborta|abortar|pare|parar|cancela|cancelar)\b/i.test(message.content || "")) return false;
+  const pendente = mensagensPendentes.get(message.author.id);
+  if (pendente) {
+    clearTimeout(pendente.timer);
+    mensagensPendentes.delete(message.author.id);
+  }
+  opencode.parar();
+  require("../fila").limpar(message.author.id);
+  message.reply("🛑 Parei o processamento atual da Neon e limpei a fila.").catch(() => {});
+  return true;
+}
+
+function interpretarConvidado(message) {
+  if (!isOwner(message.author.id)) return false;
+  const texto = message.content || "";
+  const prefixo = /^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+/i;
+  if (!prefixo.test(texto)) return false;
+  if (/\b(list[ae]|listar|mostra|mostrar)\b.*\b(convidados?|casa)\b/i.test(texto)) {
+    const lista = guestRecords();
+    const resumo = lista.length
+      ? lista.map((item) => {
+        const inicio = item.addedAt ? `<t:${Math.floor(item.addedAt / 1000)}:F>` : "data não registrada";
+        const fim = item.expiresAt ? `<t:${Math.floor(item.expiresAt / 1000)}:R>` : "nunca";
+        return `• <@${item.id}> — adicionado: ${inicio} — expira: ${fim}`;
+      }).join("\n")
+      : "Nenhum convidado cadastrado.";
+    message.reply(`👥 **Convidados**\n${resumo}`).catch(() => {});
+    return true;
+  }
+
+  const mencionado = message.mentions?.users?.find((usuario) => usuario.id !== message.client.user?.id);
+  const id = mencionado?.id || texto.match(/<@!?(\d+)>/)?.[1];
+  if (!id) return false;
+  const remover = /\b(tire|remova|remover|retire|remove|remover)\b/i.test(texto);
+  const adicionar = /\b(coloque|adicion[ae]|adicionar|convid[ae]|convidar)\b/i.test(texto);
+  if (!remover && !adicionar) return false;
+  if (remover) {
+    removerGuest(id);
+    message.reply(`✅ <@${id}> foi removido da casa.`).catch(() => {});
+    return true;
+  }
+  const duracao = texto.match(/\bpor\s+(\d+(?:[.,]\d+)?)\s*(minutos?|mins?|horas?|dias?|d)\b/i);
+  let duracaoMs = null;
+  let resumo = "permanentemente";
+  if (duracao) {
+    const valor = Number(duracao[1].replace(",", "."));
+    const unidade = duracao[2].toLowerCase();
+    const multiplicador = /^min/.test(unidade) ? 60000 : /^hor/.test(unidade) ? 3600000 : 86400000;
+    duracaoMs = Math.round(valor * multiplicador);
+    resumo = `por ${duracao[1]} ${unidade}`;
+  }
+  adicionarGuest(id, duracaoMs);
+  message.reply(`✅ <@${id}> agora é convidado ${resumo}, podendo apenas conversar com a Neon.`).catch(() => {});
+  return true;
+}
+
+// "protocolo lockdown" / "neon protocolo lockdown @user por 5 horas" por PREFIXO (mensagem)
+// tbm aceita "unlockdown @user" simples (sem "protocolo") pra facilitar o release
+async function interpretarLockdown(message) {
+  const texto = message.content || "";
+  const temMention = /<@!?\d+>/.test(texto);
+  const protocolo = texto.match(/^\s*(?:neon[\s,!.\-:;]+)?protocolo\s+(lockdown|unlockdown)\b/i);
+  const unlockSimples = temMention && /^\s*(?:neon[\s,!.\-:;]+)?unlockdown\b/i.test(texto);
+  const acao = protocolo ? protocolo[1].toLowerCase() : unlockSimples ? "unlockdown" : null;
+  if (!acao) return false;
+  // string usada na msg, p/ tirar do motivo depois (ex.: "neon protocolo unlockdown")
+  const acionadoPor = protocolo ? protocolo[0].trim() : (texto.match(/^\s*(?:neon[\s,!.\-:;]+)?unlockdown\b/i) || [])[0]?.trim() || "unlockdown";
+  if (message.channel.type === ChannelType.DM) {
+    message.reply("❌ Isso só funciona em servidores.").catch(() => {});
+    return true;
+  }
+
+  const ehMod =
+    message.member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+    message.member.permissions.has(PermissionFlagsBits.ManageRoles);
+  if (!ehMod && !isOwner(message.author.id)) {
+    message.reply("🔒 Você não tem permissão de moderação pra usar isso.").catch(() => {});
+    return true;
+  }
+
+  const alvo = message.mentions?.users?.find((u) => u.id !== message.client.user?.id);
+  const idMencionado = alvo?.id || texto.match(/<@!?(\d+)>/)?.[1];
+  if (!idMencionado) {
+    message.reply(`❌ Uso: \`protocolo ${acao} @usuario\`${acao === "lockdown" ? " — opcional \`por N horas\` e um motivo" : ""}`).catch(() => {});
+    return true;
+  }
+
+  const membro = await message.guild.members.fetch(idMencionado).catch(() => null);
+
+  if (acao === "unlockdown") {
+    const r = await desativaLockdown(message.guild, idMencionado);
+    if (!r.ok) {
+      await message.reply(`❌ ${r.erro}`).catch(() => {});
+      return true;
+    }
+    let txt = `✅ ${alvo ? alvo.username : idMencionado} liberado do lockdown.\n• Cargos devolvidos: **${r.cargosRestaurados}**`;
+    if (r.cargosRecriados > 0) txt += `\n• Cargos recriados (tinham sido deletados): **${r.cargosRecriados}**`;
+    if (r.falhas?.length) txt += `\n⚠️ ${r.falhas.length} cargo(s) não puderam ser devolvidos: chame um admin.`;
+    txt += "\n• Permissões dos cargos restauradas junto.";
+    await message.reply(txt).catch(() => {});
+    return true;
+  }
+
+  if (!membro) {
+    await message.reply("❌ Esse usuário não está no servidor.").catch(() => {});
+    return true;
+  }
+  if (membro.id === message.author.id) {
+    await message.reply("❌ Você não pode dar lockdown em si mesmo 😅").catch(() => {});
+    return true;
+  }
+  if (membro.id === message.guild.ownerId) {
+    await message.reply("❌ Não posso dar lockdown no dono do servidor.").catch(() => {});
+    return true;
+  }
+  if (!ehMod && membro.roles.highest.comparePositionTo(message.member.roles.highest) >= 0) {
+    await message.reply("❌ O cargo dele é igual ou maior que o seu.").catch(() => {});
+    return true;
+  }
+
+  const dur = texto.match(/\bpor\s+(\d+(?:[.,]\d+)?)\s*(minutos?|mins?|horas?|dias?|d)\b/i);
+  let expiraEm = null;
+  let resumoDur = "até /unlockdown";
+  if (dur) {
+    const valor = Number(dur[1].replace(",", "."));
+    const unidade = dur[2].toLowerCase();
+    const multiplicador = /^min/.test(unidade) ? 60000 : /^hor/.test(unidade) ? 3600000 : 86400000;
+    expiraEm = Date.now() + Math.round(valor * multiplicador);
+    resumoDur = `por ${dur[1]} ${unidade} (libera automaticamente)`;
+  }
+
+  const motivo = texto
+    .replace(acionadoPor, "")
+    .replace(new RegExp(`<@!?${membro.id}>`), "")
+    .replace(/\bpor\s+\d+(?:[.,]\d+)?\s*(?:minutos?|mins?|horas?|dias?|d)\b/i, "")
+    .trim() || null;
+
+  const r = await ativaLockdown(membro, motivo, expiraEm);
+  if (!r.ok) {
+    await message.reply(`❌ ${r.erro}`).catch(() => {});
+    return true;
+  }
+
+  let txt = `🔒 **${membro.user.username}** está em lockdown (cargos removidos temporariamente ${resumoDur}).\n• Cargos removidos: ${r.cargosSalvos}\n• Canais bloqueados: ${r.canaisAfetados}`;
+  if (motivo) txt += `\n• Motivo: ${motivo}`;
+  await message.reply(txt).catch(() => {});
+  log("INFO", "[LOCKDOWN] Protocolo lockdown por prefixo", { autor: message.author.tag, alvo: membro.user.tag, dur: resumoDur, motivo });
+  return true;
+}
+
 async function enviarResposta(message, texto) {
   if (!texto) { await message.reply("❌ erro interno"); return; }
+
+  // Suporte a respostas continuadas (__CONTINUA__ no início = mensagem adicional)
+  if (texto.startsWith("__CONTINUA__")) {
+    const conteudo = texto.replace("__CONTINUA__", "").trim();
+    if (conteudo) await message.channel.send(conteudo);
+    return;
+  }
 
   const fileMatch = texto.match(/__FILE__:(.+)/);
   if (fileMatch) {
@@ -114,11 +277,24 @@ function combinarTextoMensagens(mensagens) {
 }
 
 function algumaAtiva(mensagens, message) {
+  const bot = message.client.user;
+  // 1) @mention real da Neon (ex.: "@Neon faz X")
+  if (message.mentions?.has(bot?.id)) return true;
   for (const m of mensagens) {
     const lower = m.content.toLowerCase();
+    // 2) Prefixo neon (convidados também podem conversar por este caminho)
     if (/^\/neon\b/.test(lower)) return true;
+    // 3) Fala "neon" no início ou no final (menção por nome)
+    if (/^\s*neon[\s,!.\-:;]*\s*/i.test(lower) || /[\s,!.\-:;]*\s*neon\s*$/i.test(lower)) return true;
   }
-  if (message.reference) return true;
+  // 4) Reply SOMENTE se for na mensagem da própria Neon (não em qualquer reply)
+  if (message.reference?.messageId) {
+    try {
+      const referenciada = message.channel?.messages?.cache?.get(message.reference.messageId);
+      if (referenciada?.author?.id === bot?.id) return true;
+    } catch {}
+  }
+  // 5) DM
   if (message.channel.type === ChannelType.DM) return true;
   return false;
 }
@@ -132,26 +308,26 @@ async function processarLote(userId, lote) {
   if (!algumaAtiva(lote.mensagens, message)) return;
   if (checkCooldown(userId)) return;
 
+  // Remove "neon" do início/fim pra não poluir o contexto
+  const textoLimpo = combinedInput
+    .replace(/^\s*neon[\s,!.\-:;]+\s*/i, "")
+    .replace(/[\s,!.\-:;]*\s*neon\s*$/i, "")
+    .trim() || combinedInput;
+
   enfileirar(userId, async () => {
     processando.delete(message.id);
     try {
-      const mestre = db.data.users?.[userId]?.mestre || false;
       const username = message.author.username;
 
       await message.channel.sendTyping();
-      const resultadoAcao = await executarAcao(combinedInput, mestre, userId, message);
-      if (resultadoAcao && !resultadoAcao.startsWith("❌")) {
-        addContexto(userId, username, combinedInput, resultadoAcao);
-        auditar(userId, username, combinedInput, resultadoAcao.slice(0, 100));
-        await enviarResposta(message, resultadoAcao);
-        return;
-      }
-
       const imageUrl = message.attachments.first()?.url || null;
-      const reply = await askNeon(userId, username, combinedInput, imageUrl);
+      const avisarAtraso = isOwner(userId)
+        ? () => message.author.send("⚠️ O OpenCode está processando há mais de 3 minutos. A Neon continuará aguardando até 5 minutos antes de informar o erro.")
+        : null;
+      const reply = await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso);
       if (!message.replied) {
-        addContexto(userId, username, combinedInput, reply);
-        auditar(userId, username, combinedInput, reply?.slice(0, 100));
+        addContexto(userId, username, textoLimpo, reply);
+        auditar(userId, username, textoLimpo, reply?.slice(0, 100));
         await enviarResposta(message, reply);
       }
     } catch (err) {
@@ -176,6 +352,11 @@ module.exports = {
     if (processando.has(message.id)) return;
     processando.add(message.id);
 
+    if (interpretarAbortar(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
     const rl = verificarRateLimit(message.author.id);
     if (!rl.permitido) {
       processando.delete(message.id);
@@ -183,6 +364,14 @@ module.exports = {
       if (seg > 0) {
         try { await message.reply(`⏳ Calma la! Aguarde ${seg}s entre os comandos.`); } catch {}
       }
+      return;
+    }
+    if (interpretarConvidado(message)) {
+      processando.delete(message.id);
+      return;
+    }
+    if (await interpretarLockdown(message)) {
+      processando.delete(message.id);
       return;
     }
 

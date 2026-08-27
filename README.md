@@ -71,6 +71,11 @@ TOKEN=seu_token_do_discord
 CLIENT_ID=id_do_seu_bot
 OPENROUTER_API_KEY=sk-or-v1-sua_chave
 MASTER_KEY=senha_secreta_mestra
+# API local; para acesso pelo celular, use apenas o IP Tailscale desta máquina
+API_HOST=127.0.0.1
+API_PORT=3000
+# Necessário somente se houver ssl/neon.pfx
+SSL_PASS=senha_do_certificado
 ```
 
 | Variável | Obrigatório | Descrição |
@@ -80,8 +85,23 @@ MASTER_KEY=senha_secreta_mestra
 | `OPENROUTER_API_KEY` | Sim | Chave da API OpenRouter |
 | `MASTER_KEY` | Sim | Senha para ativar modo administrador |
 | `DOCS_PORT` | Não | Porta do servidor de documentação (default: 3000) |
+| `API_HOST` | Não | Interface da API; padrão seguro: `127.0.0.1` |
+| `API_PORT` | Não | Porta da API/HUD (default: 3000) |
+| `SSL_PASS` | Condicional | Senha do `ssl/neon.pfx`; necessária para iniciar HTTPS |
 
-**Segurança:** A chave mestra só funciona em DM, nunca em canais públicos.
+**Segurança:** A chave mestra só funciona em DM, nunca em canais públicos. Não publique o `.env`, certificados nem a `MASTER_KEY`.
+
+### Acesso pelo celular via Tailscale
+
+Por padrão, a API aceita conexões apenas no próprio PC (`127.0.0.1`). Para usar o HUD no celular, instale e conecte o Tailscale nos dois dispositivos e defina o IP Tailscale do PC no `.env`:
+
+```env
+API_HOST=100.x.y.z
+API_PORT=3000
+SSL_PASS=senha_do_certificado
+```
+
+Reinicie a Neon e abra `https://100.x.y.z:3443/hud` no celular. Use somente o IP Tailscale — não configure `0.0.0.0`, não exponha portas no roteador e mantenha a `MASTER_KEY` exclusiva.
 
 ### 4. Registrar comandos
 
@@ -109,6 +129,7 @@ Ao iniciar, o bot sobe um servidor HTTP com a documentação interativa dos coma
 |---|---|
 | `/neon <mensagem>` | Conversar com a Neon |
 | `/convidar` | Link para adicionar a Neon em servidores ou no perfil |
+| `/google` | Integração Google: calendário, tarefas, gmail e drive |
 
 ### Admin (requer chave mestra)
 
@@ -143,6 +164,35 @@ https://discord.com/oauth2/authorize?client_id=SEU_CLIENT_ID&integration_type=1&
 Após autorizar, o comando `/neon` aparece no menu de slash commands de **qualquer DM**.
 
 > **Nota:** Comandos admin (`/blacklist`, `/afinidade`, etc.) só funcionam no PV do bot e em servidores, não em DMs de outros usuários.
+
+## Integração Google
+
+A Neon conversa com Google Calendar, Tasks, Gmail e Drive — por slash command ou por linguagem natural no `/neon` (ex.: "quais emails não li", "adiciona tarefa comprar pão", "cria evento amanhã às 14h").
+
+### Setup (1 vez, na máquina da Neon)
+
+1. Crie as credenciais em [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → **Create OAuth client ID** → tipo **Desktop app** (ou Web com redirect `http://localhost:8787`). Baixe o JSON.
+2. Salve como `google_credentials.json` na raiz do projeto.
+3. Rode:
+   ```
+   node google_oauth_setup.js
+   ```
+   Abra a URL impressa, autorize e o token será salvo em `google_token.json` (não commite este arquivo).
+4. Reinicie a Neon e rode `/google status` para confirmar.
+
+> Escopos pedidos: `calendar`, `tasks`, `gmail.readonly`, `drive`. Variáveis de ambiente opcionais: `GOOGLE_CREDENTIALS_PATH`, `GOOGLE_TOKEN_PATH`, `GOOGLE_OAUTH_PORT`, `GOOGLE_REDIRECT_URI`.
+
+### Exemplos de uso
+
+| Frase | Efeito |
+|---|---|
+| "o que tem hoje na agenda?" | Eventos de hoje |
+| "próximos eventos" | Próximos 5 eventos |
+| "cria evento almoço amanhã às 12h" | Cria evento no Calendar |
+| "quais tarefas tenho pra fazer?" | Lista tarefas do Tasks |
+| "adiciona tarefa pagar o aluguel" | Cria tarefa |
+| "quais emails não li?" | Conta não lidos no Gmail |
+| "procura arquivo relatório no drive" | Busca no Drive |
 
 ## Arquitetura
 

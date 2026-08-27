@@ -15,7 +15,7 @@ if (!require("fs").existsSync(FFMPEG)) {
 async function converter(input, output, options = "") {
   const cmd = `"${FFMPEG}" -i "${input}" ${options} -y "${output}"`;
   log("INFO", "[FFMPEG] convertendo", { cmd });
-  const { stdout, stderr } = await exec(cmd, { timeout: 300000 });
+  const { stdout, stderr } = await exec(cmd, { timeout: 300000, windowsHide: true });
   return { ok: true, stdout, stderr };
 }
 
@@ -42,7 +42,7 @@ async function gif(input, output, fps = 10, scale = 480) {
 
 async function info(input) {
   const cmd = `"${FFPROBE}" -v quiet -print_format json -show_format -show_streams "${input}"`;
-  const { stdout } = await exec(cmd, { timeout: 30000 });
+  const { stdout } = await exec(cmd, { timeout: 30000, windowsHide: true });
   return JSON.parse(stdout);
 }
 
@@ -57,7 +57,7 @@ async function redimensionar(input, resolucao, output) {
 
 async function disponivel() {
   try {
-    await exec(`"${FFMPEG}" -version`, { timeout: 5000 });
+    await exec(`"${FFMPEG}" -version`, { timeout: 5000, windowsHide: true });
     return true;
   } catch {
     return false;

@@ -1,23 +1,35 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "groq/qwen-3-coder-480b",
-  "small_model": "groq/qwen-3-coder-480b",
+  "model": "opencode/big-pickle",
+  "small_model": "opencode/big-pickle",
   "default_agent": "neon",
   "provider": {
+    "openrouter": {
+      "models": {
+        "google/gemma-4-31b-it:free": {
+          "name": "Gemma 4 31B IT (Free)",
+          "tool_call": true,
+          "limit": { "context": 262144, "output": 32768 },
+          "cost": { "input": 0, "output": 0 }
+        }
+      }
+    },
     "groq": {}
   },
   "agent": {
     "neon": {
       "mode": "primary",
       "description": "Neon - Bot de IA para Discord",
-      "permission": { "edit": "allow", "bash": "allow" }
+      "model": "opencode/big-pickle",
+      "permission": { "edit": "allow", "bash": "allow" },
+      "prompt": "Você controla o PC do usuário no Windows. Para abrir apps, use pc_abrir_app. WhatsApp é exceção: só use pc_abrir_whatsapp quando o usuário pedir explicitamente para abrir o WhatsApp; nunca abra WhatsApp por inferência. Para URLs, use pc_abrir_url. Para jogos Steam, use pc_iniciar_jogo_steam com AppID. Para pedidos de música, use pc_spotify_buscar_tocar; se houver ID ou URL de faixa, use pc_spotify_tocar_id. Essas ferramentas MCP chamam a implementação local antiga do player da Neon, que pesquisa no Spotify e abre o player local; nunca apenas diga que tocou sem chamar a ferramenta. Para pausar, continuar, próxima ou anterior, use pc_spotify_controle. Para enviar a última screenshot ou gravação do Medal, use medal_ultima_screenshot ou medal_ultima_gravacao e responda com __FILE__:<caminho>. Para criar um arquivo novo, use pc_criar_arquivo; caminhos relativos vão por padrão para C:\\Users\\Pichau\\Documents e a ferramenta não sobrescreve arquivos existentes. Para informar mudanças do projeto, use pc_resumo_commits. Use o MCP filesystem para ler, editar, pesquisar, copiar, mover, renomear, compactar, extrair e abrir arquivos. Antes de sobrescrever um arquivo existente, faça backup; peça confirmação antes de apagar arquivos, pastas ou substituir conteúdo importante. Nunca altere credenciais, sessões, arquivos do sistema ou a pasta .whatsapp sem pedido explícito. Nunca diga que executou algo sem usar a ferramenta."
     }
   },
   "permission": { "bash": "allow", "edit": "allow" },
   "mcp": {
     "filesystem": {
       "type": "local",
-      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "."],
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\Pichau"],
       "enabled": true
     },
     "browser": {
@@ -27,18 +39,28 @@
     },
     "pc": {
       "type": "local",
-      "command": ["node", "src/pc.js"],
+      "command": ["node", "src/mcp-pc.js"],
+      "enabled": true
+    },
+    "celular": {
+      "type": "local",
+      "command": ["node", "src/mcp-celular.js"],
+      "enabled": true
+    },
+    "ygg": {
+      "type": "local",
+      "command": ["node", "src/mcp-ygg.js"],
       "enabled": true
     },
     "system": {
       "type": "local",
       "command": ["npx", "-y", "@modelcontextprotocol/server-system"],
-      "enabled": true
+      "enabled": false
     },
     "voice": {
       "type": "local",
       "command": ["node", "src/mcp-voz.js"],
-      "enabled": true
+      "enabled": false
     }
   }
 }

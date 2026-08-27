@@ -1,19 +1,38 @@
 require("dotenv").config();
+const dns = require("dns");
+try { dns.setDefaultResultOrder("ipv4first"); } catch {}
 
 const { client } = require("./src/client");
 const { db } = require("./src/db");
-const { TOKEN } = require("./src/config");
+const { TOKEN, PROATIVO } = require("./src/config");
 const { log, fechar: fecharLogger } = require("./src/logger");
 const { fechar: fecharBrowser } = require("./src/browser");
-const opencode = require("./src/opencode");
+const opencode = require("./plugins/opencode");
 const apiPublica = require("./src/api_publica");
 const monitor = require("./src/monitor");
 const proativo = require("./src/proativo");
 const agendados = require("./src/agendados");
 const alarmes = require("./src/lembrete_alarme");
+const plugins = require("./plugins/gerenciador");
+const { execFileSync } = require("child_process");
+
+function resumoBoot() {
+  try {
+    const commits = execFileSync(
+      "git",
+      ["log", "-5", "--pretty=format:%h — %s"],
+      { cwd: __dirname, timeout: 5000, windowsHide: true, encoding: "utf8" }
+    ).trim();
+    if (commits) return commits;
+  } catch (err) {
+    log("WARN", "[BOOT] Não foi possível obter resumo do Git", { erro: err.message });
+  }
+  return "Nenhuma alteração recente disponível.";
+}
 
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
+  await plugins.parar();
   agendados.parar();
   proativo.parar();
   monitor.parar();
@@ -30,18 +49,48 @@ async function desligar(sinal) {
   process.exit(0);
 }
 
-client.once("clientReady", async () => {
-  monitor.iniciar(client);
-  proativo.iniciar(client);
-  agendados.verificarCadaMinuto();
-  alarmes.iniciar();
-  opencode.iniciarServer().then(port => {
-    if (port) log("INFO", `[OPENCODE] Servidor rodando na porta ${port}`);
-    else log("INFO", "[OPENCODE] Servidor nao iniciado (opencode run continua disponivel)");
-  });
-  const apiPort = parseInt(process.env.API_PORT, 10) || 3000;
-  apiPublica.iniciar(apiPort);
+function iniciarAPI() {
+  try {
+    const apiPort = parseInt(process.env.PORT || process.env.API_PORT, 10) || 3000;
+    apiPublica.iniciar(apiPort);
+  } catch (err) { log("ERROR", "[API] Falha ao iniciar", { erro: err.message }); }
+}
+
+function iniciarModulos() {
+  try { monitor.iniciar(client); } catch (err) { log("ERROR", "[MONITOR] Falha ao iniciar", { erro: err.message }); }
+  if (PROATIVO) {
+    try { proativo.iniciar(client).catch(err => log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message })); } catch (err) { log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message }); }
+  } else {
+    log("INFO", "[PROATIVO] Modo autonomo desativado (PROATIVO=0)");
+  }
+  try { agendados.verificarCadaMinuto(); } catch (err) { log("ERROR", "[AGENDADOS] Falha ao iniciar", { erro: err.message }); }
+  try { alarmes.iniciar(); } catch (err) { log("ERROR", "[ALARME] Falha ao iniciar", { erro: err.message }); }
+  try { opencode.iniciarServer().then(port => port ? log("INFO", "[OPENCODE] Pronto", { port }) : log("WARN", "[OPENCODE] Servidor nao iniciou")); } catch (err) { log("ERROR", "[OPENCODE] Falha ao iniciar", { erro: err.message }); }
+  try { plugins.iniciar(client); } catch (err) { log("ERROR", "[PLUGINS] Falha ao iniciar", { erro: err.message }); }
+}
+
+client.once("ready", () => {
+  log("INFO", "Discord pronto");
+  iniciarModulos();
+  // efeito sonoro de boot quando roda no PC local
+  try { require("./src/som").tocar("online"); } catch {}
+  // Regra: toda inicialização envia ao dono um resumo das mudanças recentes.
+  try {
+    const { OWNER } = require("./src/perm");
+    client.users
+      .fetch(OWNER)
+      .then((u) => u.send([
+        "⚡ **Neon online!**",
+        "Estou ligada e pronta para os serviços.",
+        "",
+        "**Mudanças recentes:**",
+        `\`\`\`\n${resumoBoot().slice(0, 1500)}\n\`\`\``,
+      ].join("\n")))
+      .catch((err) => log("WARN", "[BOOT] DM pro dono falhou", { erro: err.message }));
+  } catch {}
 });
+
+iniciarAPI();
 
 process.on("SIGINT", () => desligar("SIGINT"));
 process.on("SIGTERM", () => desligar("SIGTERM"));
@@ -56,4 +105,24 @@ process.on("uncaughtException", (err) => {
   process.exit(1);
 });
 
-client.login(TOKEN);
+if (TOKEN) {
+  async function tentarLogin() {
+    try {
+      log("INFO", "[BOOT] Conectando no Discord...");
+      await client.login(TOKEN);
+    } catch (err) {
+      log("ERROR", "[BOOT] Falha ao conectar no Discord", { erro: err.message });
+      if (!process.env.RENDER) process.exit(1);
+      log("WARN", "[BOOT] Tentando de novo em 30s (Render)...");
+      setTimeout(tentarLogin, 30000);
+    }
+  }
+  const loginTimeout = setTimeout(() => {
+    log("WARN", "[BOOT] Login no Discord ainda pendente (60s). API segue rodando; reconexao automatica do discord.js cuida disso.");
+  }, 60000);
+  client.once("ready", () => clearTimeout(loginTimeout));
+  tentarLogin();
+} else {
+  log("WARN", "[BOOT] TOKEN ausente — iniciando modulos sem Discord.");
+  iniciarModulos();
+}

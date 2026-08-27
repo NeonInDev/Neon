@@ -27,7 +27,7 @@ async function pesquisarOnline(consulta) {
 
 async function gerarPorPrompt(prompt) {
   const blender = require("./blender");
-  const { gerarBlenderScript } = require("./opencode");
+  const { gerarBlenderScript } = require("../plugins/opencode");
   const scriptPython = await gerarBlenderScript(`que: ${prompt}. Crie um arquivo .blend salvo em temp/modelo3d.blend. Use bpy.ops.wm.save_mainfile() no final.`);
   if (!scriptPython || scriptPython.startsWith("Erro OpenCode")) {
     return { ok: false, msg: `Erro ao gerar script: ${scriptPython}` };

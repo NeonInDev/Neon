@@ -1,18 +1,74 @@
-const { exec } = require("child_process");
+const { exec, spawn, execSync } = require("child_process");
 const { promisify } = require("util");
 const fs = require("fs");
 const path = require("path");
 const execAsync = promisify(exec);
 
+const POINTER_DIR = path.join(process.env.TEMP || "C:\\Temp", "neon_pointer");
+const POINTER_CS = path.join(POINTER_DIR, "NeonPointer.cs");
+const POINTER_EXE = path.join(POINTER_DIR, "NeonPointer.exe");
+const C_POINTER = `
+using System;
+using System.Globalization;
+using System.Runtime.InteropServices;
+public class NeonPointer {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
+  public static void Main() {
+    string line;
+    while ((line = Console.ReadLine()) != null) {
+      if (string.IsNullOrWhiteSpace(line)) continue;
+      string[] p = line.Trim().Split(' ');
+      int x, y;
+      if (p.Length >= 2 &&
+          int.TryParse(p[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out x) &&
+          int.TryParse(p[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out y))
+        SetCursorPos(x, y);
+    }
+  }
+}`;
+let pointerProc = null;
+
+function compilarPointer() {
+  if (fs.existsSync(POINTER_EXE)) return;
+  fs.mkdirSync(POINTER_DIR, { recursive: true });
+  fs.writeFileSync(POINTER_CS, C_POINTER, "utf8");
+  const cands = [
+    path.join(process.env.windir, "Microsoft.NET", "Framework64", "v4.0.30319", "csc.exe"),
+    path.join(process.env.windir, "Microsoft.NET", "Framework", "v4.0.30319", "csc.exe"),
+  ];
+  const csc = cands.find((c) => fs.existsSync(c));
+  if (!csc) throw new Error("csc.exe nao encontrado");
+  execSync(`"${csc}" /nologo /target:exe /out:"${POINTER_EXE}" "${POINTER_CS}"`, { timeout: 30000, windowsHide: true });
+}
+
+function garantirPointer() {
+  try {
+    compilarPointer();
+    if (!pointerProc || pointerProc.exitCode !== null) {
+      pointerProc = spawn(POINTER_EXE, [], { stdio: ["pipe", "ignore", "ignore"], windowsHide: true });
+    }
+  } catch (e) {
+    pointerProc = null;
+  }
+}
+
 const TMP = process.env.TEMP || "C:\\Temp";
 const SCRIPTS_DIR = path.join(__dirname, "scripts");
 if (!fs.existsSync(SCRIPTS_DIR)) fs.mkdirSync(SCRIPTS_DIR, { recursive: true });
+
+function psEsc(s) {
+  return String(s).replace(/['\r\n]/g, (c) => (c === "'" ? "''" : " "));
+}
+
+function cmdEsc(s) {
+  return String(s).replace(/['"`$&|<>;(){}\\]/g, " ").trim();
+}
 
 async function ps(script, label) {
   const tmpFile = path.join(TMP, `neon_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.ps1`);
   fs.writeFileSync(tmpFile, script, "utf8");
   try {
-    const { stdout, stderr } = await execAsync(`powershell -NoProfile -File "${tmpFile}"`, { timeout: 15000 });
+    const { stdout, stderr } = await execAsync(`powershell -NoProfile -File "${tmpFile}"`, { timeout: 15000, windowsHide: true });
     if (stderr && !stdout) throw new Error(stderr.trim());
     return stdout.trim() || stderr.trim();
   } finally {
@@ -59,18 +115,29 @@ try {
 // ===================== COMPUTER USE: MOUSE =====================
 
 async function moverMouse(x, y) {
+  const xi = Math.floor(Number(x)) || 0;
+  const yi = Math.floor(Number(y)) || 0;
+  garantirPointer();
+  if (pointerProc && pointerProc.stdin && pointerProc.stdin.writable) {
+    try {
+      pointerProc.stdin.write(`${xi} ${yi}\n`);
+      return "ok";
+    } catch (e) {}
+  }
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point($x, $y)
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${xi}, ${yi})
 Write-Output "ok"`;
-  return await ps(script.replace("$x", x).replace("$y", y), "moveMouse");
+  return await ps(script, "moveMouse");
 }
 
 async function clicarMouse(x, y, botao = "left") {
   const btn = botao === "right" ? "Right" : "Left";
+  const xi = Math.floor(Number(x)) || 0;
+  const yi = Math.floor(Number(y)) || 0;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x}, ${y})
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${xi}, ${yi})
 [System.Windows.Forms.SendKeys]::SendWait("{${btn}}")
 Start-Sleep -Milliseconds 100
 [System.Windows.Forms.SendKeys]::SendWait("{${btn}}")
@@ -80,9 +147,11 @@ Write-Output "ok"`;
 
 async function duploClique(x, y) {
   await moverMouse(x, y);
+  const xi = Math.floor(Number(x)) || 0;
+  const yi = Math.floor(Number(y)) || 0;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x}, ${y})
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${xi}, ${yi})
 [System.Windows.Forms.SendKeys]::SendWait("{Left}")
 Start-Sleep -Milliseconds 50
 [System.Windows.Forms.SendKeys]::SendWait("{Left}")
@@ -91,16 +160,77 @@ Write-Output "ok"`;
 }
 
 async function arrastar(x1, y1, x2, y2) {
+  const a = Math.floor(Number(x1)) || 0;
+  const b = Math.floor(Number(y1)) || 0;
+  const c = Math.floor(Number(x2)) || 0;
+  const d = Math.floor(Number(y2)) || 0;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing
-[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x1}, ${y1})
+[System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${a}, ${b})
 Start-Sleep -Milliseconds 100
 [System.Windows.Forms.SendKeys]::SendWait("{Left}")
-$null = [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${x2}, ${y2})
+$null = [System.Windows.Forms.Cursor]::Position = New-Object System.Drawing.Point(${c}, ${d})
 Start-Sleep -Milliseconds 100
 [System.Windows.Forms.SendKeys]::SendWait("{Left}")
 Write-Output "ok"`;
   return await ps(script, "drag");
+}
+
+async function tamanhoTela() {
+  const script = `
+Add-Type -AssemblyName System.Windows.Forms
+$b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+Write-Output "$($b.Width) $($b.Height)"`;
+  const saida = await ps(script, "telaTamanho");
+  const [w, h] = (saida || "").split(/\s+/).map(Number);
+  return { largura: w || 1920, altura: h || 1080 };
+}
+
+async function scroll(delta) {
+  const d = Math.floor(Number(delta)) || 0;
+  if (d === 0) return "ok";
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class NeonWheel {
+  [DllImport("user32.dll")]
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+}
+"@
+[NeonWheel]::mouse_event(0x0800, 0, 0, ${d}, [UIntPtr]::Zero)
+Write-Output "ok"`;
+  return await ps(script, "scrollWheel");
+}
+
+async function arrastarMeio() {
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class NeonMid {
+  [DllImport("user32.dll")]
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+}
+"@
+[NeonMid]::mouse_event(0x20, 0, 0, 0, [UIntPtr]::Zero)
+Write-Output "ok"`;
+  return await ps(script, "midDown");
+}
+
+async function soltarMeio() {
+  const script = `
+Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public class NeonMid {
+  [DllImport("user32.dll")]
+  public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+}
+"@
+[NeonMid]::mouse_event(0x40, 0, 0, 0, [UIntPtr]::Zero)
+Write-Output "ok"`;
+  return await ps(script, "midUp");
 }
 
 // ===================== COMPUTER USE: TECLADO =====================
@@ -109,7 +239,7 @@ async function digitarTexto(texto) {
   const safe = texto.replace(/[<>{}()&^%$#@!~`"'|\\\/;:.,?+\-*=\[\] ]/g, ' ').trim();
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.SendKeys]::SendWait("${texto.replace(/"/g, '""')}")
+[System.Windows.Forms.SendKeys]::SendWait('${psEsc(safe)}')
 Write-Output "ok"`;
   return await ps(script, "typeText");
 }
@@ -129,7 +259,7 @@ async function tecla(tecla) {
   const cmd = mapa[tecla.toLowerCase()] || tecla;
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
-[System.Windows.Forms.SendKeys]::SendWait("${cmd}")
+[System.Windows.Forms.SendKeys]::SendWait('${psEsc(cmd)}')
 Write-Output "ok"`;
   return await ps(script, "keyPress");
 }
@@ -137,8 +267,9 @@ Write-Output "ok"`;
 // ===================== COMPUTER USE: JANELAS =====================
 
 async function acharJanela(titulo) {
+  const t = psEsc(titulo);
   const script = `
-$w = Get-Process | Where-Object { $_.MainWindowTitle -match "${titulo.replace(/"/g, '""')}" } | Select-Object -First 1
+$w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1
 if ($w) {
   Add-Type @"
     using System;
@@ -165,8 +296,9 @@ Format-Table -AutoSize -HideTableHeaders | Out-String | ForEach-Object { $_.Trim
 }
 
 async function minimizarJanela(titulo) {
+  const t = psEsc(titulo);
   const script = `
-$w = Get-Process | Where-Object { $_.MainWindowTitle -match "${titulo.replace(/"/g, '""')}" } | Select-Object -First 1
+$w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1
 if ($w) {
   Add-Type @"
     using System;
@@ -182,8 +314,9 @@ if ($w) {
 }
 
 async function maximizarJanela(titulo) {
+  const t = psEsc(titulo);
   const script = `
-$w = Get-Process | Where-Object { $_.MainWindowTitle -match "${titulo.replace(/"/g, '""')}" } | Select-Object -First 1
+$w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1
 if ($w) {
   Add-Type @"
     using System;
@@ -199,8 +332,9 @@ if ($w) {
 }
 
 async function fecharJanela(titulo) {
+  const t = psEsc(titulo);
   const script = `
-$w = Get-Process | Where-Object { $_.MainWindowTitle -match "${titulo.replace(/"/g, '""')}" } | Select-Object -First 1
+$w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1
 if ($w) {
   Add-Type @"
     using System;
@@ -220,64 +354,21 @@ if ($w) {
 async function verTela(objetivo = "") {
   const caminho = await screenshot();
   if (!require("fs").existsSync(caminho)) return { erro: "Falha ao capturar tela" };
-  const axios = require("axios");
   const fs2 = require("fs");
   const imgBase64 = fs2.readFileSync(caminho, { encoding: "base64" });
   const prompt = objetivo
     ? `Descreva o que você vê nesta imagem da tela do computador. Foco em: ${objetivo}. Responda em português, seja detalhado sobre posições de elementos, botões, textos.`
     : `Descreva detalhadamente o que você vê nesta imagem da tela do computador. Inclua todos os textos, botões, janelas e elementos visíveis. Responda em português.`;
 
-  const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL } = require("./config");
-
-  try {
-    const resp = await axios.post(
-      "https://api.deepseek.com/v1/chat/completions",
-      {
-        model: DEEPSEEK_MODEL,
-        max_tokens: 1024,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: `data:image/png;base64,${imgBase64}` } }
-          ]
-        }]
-      },
-      { timeout: 30000, headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" } }
-    );
-    const descricao = resp?.data?.choices?.[0]?.message?.content;
-    if (descricao) return { descricao, caminho };
-  } catch {}
-
-  return { erro: "DeepSeek não conseguiu analisar a tela", caminho };
+  const visao = require("./visao");
+  const resultado = await visao.analisarImagem(imgBase64, prompt);
+  if (resultado?.erro) return { erro: resultado.erro, caminho };
+  return { descricao: resultado.descricao, caminho, modelo: resultado.modelo };
 }
 
 async function analisarImagem(base64, prompt = "Descreva detalhadamente o que você vê nesta imagem. Responda em português.") {
-  const axios = require("axios");
-  const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL } = require("./config");
-
-  try {
-    const resp = await axios.post(
-      "https://api.deepseek.com/v1/chat/completions",
-      {
-        model: DEEPSEEK_MODEL,
-        max_tokens: 1024,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: base64.startsWith("data:") ? base64 : `data:image/png;base64,${base64}` } }
-          ]
-        }]
-      },
-      { timeout: 30000, headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, "Content-Type": "application/json" } }
-    );
-    const descricao = resp?.data?.choices?.[0]?.message?.content;
-    if (descricao) return { descricao };
-  } catch (err) {
-    return { erro: err.message };
-  }
-  return { erro: "DeepSeek não respondeu" };
+  const visao = require("./visao");
+  return visao.analisarImagem(base64, prompt);
 }
 
 // ===================== FUNÇÕES EXISTENTES (MANTIDAS) =====================
@@ -370,8 +461,78 @@ async function pcInfoJson() {
     '  discoLivre = if ($disk) { [math]::Round($disk.Free / 1GB, 1) } else { $null }',
     '  discoUso = if ($disk -and ($disk.Used + $disk.Free) -gt 0) { [math]::Round($disk.Used / ($disk.Used + $disk.Free) * 100, 1) } else { $null }',
     '  temperatura = $null',
+    '  temperaturaGpu = $null',
     '  temperaturaDisponivel = $false',
     '}',
+    'try {',
+    '  # 1) Tenta MSI Afterburner (shared memory MAHMSharedMemory) - sem driver extra',
+    '  $mmf = $null; $stream = $null; $reader = $null',
+    '  try {',
+    '    $mmf = [System.IO.MemoryMappedFiles.MemoryMappedFile]::OpenExisting("MAHMSharedMemory")',
+    '    $stream = $mmf.CreateViewStream()',
+    '    $reader = New-Object System.IO.BinaryReader($stream)',
+    '    $null = $reader.ReadUInt32() # sig',
+    '    $null = $reader.ReadUInt32() # version',
+    '    $hdrSize = $reader.ReadUInt32()',
+    '    $numEntries = $reader.ReadUInt32()',
+    '    $entrySize = $reader.ReadUInt32()',
+    '    if ($hdrSize -eq 0) { $hdrSize = 32 }',
+    '    if ($entrySize -eq 0) { $entrySize = 1324 }',
+    '    $cpuT = $null; $gpuT = $null',
+    '    for ($i = 0; $i -lt $numEntries; $i++) {',
+    '      $stream.Position = $hdrSize + ($i * $entrySize)',
+    '      $null = $reader.ReadBytes(1300) # pula nomes (5 x 260)',
+    '      $data = $reader.ReadSingle()',
+    '      $null = $reader.ReadSingle() # minLimit',
+    '      $null = $reader.ReadSingle() # maxLimit',
+    '      $null = $reader.ReadUInt32() # flags',
+    '      $null = $reader.ReadUInt32() # gpu idx',
+    '      $srcId = $reader.ReadUInt32()',
+    '      if ($data -eq [float]::MaxValue) { continue }',
+    '      if ($srcId -eq 0x00000080 -and $null -eq $cpuT) { $cpuT = $data }',
+    '      if ($srcId -eq 0x00000000 -and $null -eq $gpuT) { $gpuT = $data }',
+    '    }',
+    '    if ($null -ne $cpuT) { $json.temperatura = [math]::Round($cpuT, 1); $json.temperaturaDisponivel = $true }',
+    '    if ($null -ne $gpuT) { $json.temperaturaGpu = [math]::Round($gpuT, 1) }',
+    '    if ($null -ne $reader) { $reader.Close() }',
+    '    if ($null -ne $stream) { $stream.Dispose() }',
+    '    if ($null -ne $mmf) { $mmf.Dispose() }',
+    '  } catch {}',
+    '  # 2) Fallback: LibreHardwareMonitor',
+    '  $lhm = "C:\\Users\\Pichau\\neon\\libs\\librehardwaremonitor\\LibreHardwareMonitorLib.dll"',
+    '  if (Test-Path $lhm) {',
+    '    Add-Type -Path $lhm -ErrorAction Stop',
+    '    $comp = New-Object LibreHardwareMonitor.Hardware.Computer',
+    '    $comp.IsCpuEnabled = $true',
+    '    $comp.IsGpuEnabled = $true',
+    '    $comp.IsMotherboardEnabled = $true',
+    '    $comp.IsMemoryEnabled = $false',
+    '    $comp.Open()',
+    '    $comp.Accept([LibreHardwareMonitor.Hardware.SensorVisitor]::new())',
+    '    $temps = @()',
+    '    foreach ($hw in $comp.Hardware) {',
+    '      $hw.Update()',
+    '      $hw.Hardware | ForEach-Object { $_.Update() }',
+    '      foreach ($s in $hw.Sensors) {',
+    '        if ($s.SensorType -eq [LibreHardwareMonitor.Hardware.SensorType]::Temperature -and $s.Value.HasValue) {',
+    '          $temps += [pscustomobject]@{ Nome = $s.Name; Valor = [math]::Round($s.Value.Value, 1) }',
+    '        }',
+    '      }',
+    '      foreach ($sub in $hw.Hardware) {',
+    '        foreach ($s in $sub.Sensors) {',
+    '          if ($s.SensorType -eq [LibreHardwareMonitor.Hardware.SensorType]::Temperature -and $s.Value.HasValue) {',
+    '            $temps += [pscustomobject]@{ Nome = $s.Name; Valor = [math]::Round($s.Value.Value, 1) }',
+    '          }',
+    '        }',
+    '      }',
+    '    }',
+    '    $comp.Close()',
+    '    if ($temps.Count -gt 0) {',
+    '      $json.temperatura = ($temps | Sort-Object Valor -Descending | Select-Object -First 1).Valor',
+    '      $json.temperaturaDisponivel = $true',
+    '    }',
+    '  }',
+    '} catch {}',
     '$json | ConvertTo-Json -Compress',
   ].join("\n");
   const raw = await ps(script, "pcInfoJson");
@@ -389,11 +550,11 @@ async function volume(acao, valor) {
 
 async function clipboard(acao, texto) {
   if (acao === "copiar") {
-    await execAsync(`powershell -NoProfile -Command "Set-Clipboard -Value '${texto.replace(/'/g, "''")}'"`, { timeout: 5000 });
+    await execAsync(`powershell -NoProfile -Command "Set-Clipboard -Value '${cmdEsc(texto)}'"`, { timeout: 5000, windowsHide: true });
     return `📋 Copiado: "${texto.slice(0, 100)}"`;
   }
   if (acao === "colar") {
-    const { stdout } = await execAsync(`powershell -NoProfile -Command "Get-Clipboard"`, { timeout: 5000 });
+    const { stdout } = await execAsync(`powershell -NoProfile -Command "Get-Clipboard"`, { timeout: 5000, windowsHide: true });
     const conteudo = stdout.trim();
     if (conteudo) return `📋 Clipboard: "${conteudo.slice(0, 500)}"`;
     return "📋 Clipboard vazio.";
@@ -406,8 +567,8 @@ async function tts(texto, voz = "auto") {
     const { falar } = require("./tts");
     await falar(texto, voz);
   } catch {
-    const safe = texto.replace(/'/g, "''").replace(/"/g, '""');
-    await execAsync(`powershell -NoProfile -Command "(New-Object -ComObject Sapi.SpVoice).Speak('${safe}')"`, { timeout: 15000 }).catch(() => {});
+    const safe = cmdEsc(texto);
+    await execAsync(`powershell -NoProfile -Command "(New-Object -ComObject Sapi.SpVoice).Speak('${safe}')"`, { timeout: 15000, windowsHide: true }).catch(() => {});
   }
   return `🗣️ Falei: "${texto.slice(0, 100)}"`;
 }
@@ -420,7 +581,7 @@ async function listarProcessos() {
 }
 
 async function matarProcesso(nome) {
-  await ps(`Stop-Process -Name "${nome}" -Force -ErrorAction Stop; Write-Output "ok"`, "killProcess");
+  await ps(`Stop-Process -Name '${psEsc(nome)}' -Force -ErrorAction Stop; Write-Output "ok"`, "killProcess");
   return `✅ Processo "${nome}" finalizado.`;
 }
 
@@ -465,18 +626,20 @@ if ([int]$ps.BatteryChargeStatus -eq 128 -or $ps.BatteryLifePercent -lt 0) {
 }
 
 async function notificarToast(titulo, mensagem) {
+  const t = psEsc(titulo);
+  const m = psEsc(mensagem);
   const script = `
 Add-Type -AssemblyName System.Windows.Forms
 $n = New-Object System.Windows.Forms.NotifyIcon
 $n.Icon = [System.Drawing.Icon]::ExtractAssociatedIcon("$env:windir\\System32\\WindowsPowerShell\\v1.0\\powershell.exe")
-$n.BalloonTipTitle = "${titulo.replace(/"/g,'""')}"
-$n.BalloonTipText = "${mensagem.replace(/"/g,'""')}"
+$n.BalloonTipTitle = '${t}'
+$n.BalloonTipText = '${m}'
 $n.Visible = $true
 $n.ShowBalloonTip(5000)
 Start-Sleep -Seconds 6
 $n.Dispose()`;
   try { await ps(script, "toast"); } catch {
-    const fallback = `$popup = New-Object -ComObject wscript.shell; $popup.Popup("${mensagem.replace(/"/g,'""')}", 5, "${titulo.replace(/"/g,'""')}", 64) | Out-Null`;
+    const fallback = `$popup = New-Object -ComObject wscript.shell; $popup.Popup('${m}', 5, '${t}', 64) | Out-Null`;
     await ps(fallback, "notify").catch(() => {});
   }
   return `🔔 Notificação enviada: "${titulo}"`;
@@ -488,21 +651,222 @@ async function notificar(titulo, mensagem) {
 
 async function enviarEmail(para, assunto, corpo) {
   try {
-    await ps(`Send-MailMessage -To "${para}" -Subject "${assunto}" -Body "${corpo}" -SmtpServer "localhost" -From "neon@localhost" -ErrorAction Stop; Write-Output "ok"`, "email");
+    await ps(`Send-MailMessage -To '${psEsc(para)}' -Subject '${psEsc(assunto)}' -Body '${psEsc(corpo)}' -SmtpServer "localhost" -From "neon@localhost" -ErrorAction Stop; Write-Output "ok"`, "email");
     return `📧 Email enviado para ${para}.`;
   } catch {
     try {
-      const fallback = `powershell -NoProfile -Command "$o = New-Object -ComObject Outlook.Application; $m = $o.CreateItem(0); $m.To = '${para}'; $m.Subject = '${assunto}'; $m.Body = '${corpo}'; $m.Send()"`;
-      await execAsync(fallback, { timeout: 10000 });
+      const fallback = `powershell -NoProfile -Command "$o = New-Object -ComObject Outlook.Application; $m = $o.CreateItem(0); $m.To = '${cmdEsc(para)}'; $m.Subject = '${cmdEsc(assunto)}'; $m.Body = '${cmdEsc(corpo)}'; $m.Send()"`;
+      await execAsync(fallback, { timeout: 10000, windowsHide: true });
       return `📧 Email enviado via Outlook para ${para}.`;
     } catch { throw new Error("Não foi possível enviar email. Configure um servidor SMTP ou Outlook."); }
   }
 }
 
+// ===================== CONTROLES RÁPIDOS =====================
+
+async function dormir() {
+  try {
+    await execAsync(`powershell -NoProfile -Command "(Add-Type -AssemblyName System.Windows.Forms -PassThru).Wait()"`, { timeout: 5000, windowsHide: true });
+  } catch {}
+  await execAsync(`rundll32.exe powrprof.dll,SetSuspendState 0,1,0`, { timeout: 5000, windowsHide: true }).catch(() => {});
+  return "💤 Coloquei o PC pra dormir.";
+}
+
+async function bloquear() {
+  try {
+    await execAsync(`powershell -NoProfile -Command "(New-Object -ComObject Shell.Application).Windows() | Out-Null"`, { timeout: 5000, windowsHide: true });
+  } catch {}
+  await execAsync(`rundll32.exe user32.dll,LockWorkStation`, { timeout: 5000, windowsHide: true }).catch(() => {});
+  return "🔒 PC bloqueado.";
+}
+
+async function desligar() {
+  await execAsync(`shutdown /s /t 5 /c "Neon desligou o PC"`, { timeout: 5000, windowsHide: true }).catch(() => {});
+  return "🔌 Desligando o PC em 5 segundos...";
+}
+
+async function cancelarDesligar() {
+  await execAsync(`shutdown /a`, { timeout: 5000, windowsHide: true }).catch(() => {});
+  return "✅ Desligamento cancelado.";
+}
+
+async function abrirAppPorNome(nome) {
+  const alvo = String(nome || "").trim();
+  if (!alvo || /[\r\n]/.test(alvo)) {
+    return { ok: false, erro: `Nome de aplicativo inválido` };
+  }
+  if (/^(?:whatsapp|whats|zap|zapzap)$/i.test(alvo)) {
+    return { ok: false, erro: "WhatsApp só pode ser aberto pelo comando explícito do WhatsApp." };
+  }
+
+  const psAlvo = alvo.replace(/'/g, "''");
+  return new Promise((resolve) => {
+    const child = spawn("powershell.exe", [
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      `$ErrorActionPreference = 'Stop'; Start-Process -FilePath '${psAlvo}'`,
+    ], {
+      windowsHide: true,
+      shell: false,
+      stdio: ["ignore", "ignore", "pipe"],
+    });
+    let erro = "";
+    child.stderr.on("data", (data) => { erro += data.toString(); });
+    child.on("error", () => resolve({ ok: false, erro: `Não consegui abrir ${alvo}` }));
+    child.on("close", (codigo) => {
+      if (codigo === 0) {
+        resolve({ ok: true, mensagem: `Abrindo ${alvo}.` });
+      } else {
+        resolve({ ok: false, erro: erro.trim().slice(0, 250) || `Não consegui abrir ${alvo}` });
+      }
+    });
+  });
+}
+
+function caminhoSeguro(caminho) {
+  const bruto = String(caminho || "").trim();
+  if (!bruto || /[\r\n]/.test(bruto)) throw new Error("Caminho inválido");
+  const raiz = path.resolve(process.env.USERPROFILE || "C:\\Users\\Pichau");
+  const base = path.join(raiz, "Documents");
+  const alvo = path.resolve(path.isAbsolute(bruto) ? raiz : base, bruto);
+  const relativo = path.relative(raiz, alvo);
+  if (relativo.startsWith("..") || path.isAbsolute(relativo)) throw new Error("Caminho fora da pasta autorizada");
+  if (/(^|\\)\.whatsapp(\\|$)|(^|\\)(?:\.env|.*token.*|.*credential.*)$/i.test(relativo)) {
+    throw new Error("Arquivo protegido");
+  }
+  return alvo;
+}
+
+async function criarArquivo(caminho, conteudo = "") {
+  const alvo = caminhoSeguro(caminho);
+  const texto = String(conteudo);
+  if (Buffer.byteLength(texto, "utf8") > 5 * 1024 * 1024) {
+    return { ok: false, erro: "Arquivo excede o limite de 5 MB" };
+  }
+  if (fs.existsSync(alvo)) {
+    return { ok: false, erro: "Arquivo já existe; não sobrescrevi nada" };
+  }
+  fs.mkdirSync(path.dirname(alvo), { recursive: true });
+  fs.writeFileSync(alvo, texto, "utf8");
+  return { ok: true, caminho: alvo, bytes: Buffer.byteLength(texto, "utf8"), mensagem: `Arquivo criado em ${alvo}.` };
+}
+
+async function resumoCommits(limite = 8) {
+  const n = Math.min(Math.max(parseInt(limite, 10) || 8, 1), 20);
+  const repositorio = path.join(__dirname, "..");
+  const { stdout } = await execAsync(
+    `git -C "${repositorio}" log -${n} --pretty=format:"%h | %ad | %s" --date=format:"%d/%m/%Y %H:%M"`,
+    { timeout: 10000, windowsHide: true, maxBuffer: 100000 }
+  );
+  return { ok: true, commits: stdout.trim() || "Nenhum commit encontrado." };
+}
+
+async function abrirWhatsApp() {
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath 'whatsapp:'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+  return { ok: true, mensagem: "Abrindo o WhatsApp porque você pediu." };
+}
+
+async function abrirUrl(url) {
+  const alvo = String(url || "").trim();
+  if (!/^https?:\/\/\S+$/i.test(alvo) || /[\r\n]/.test(alvo)) {
+    return { ok: false, erro: "URL inválida" };
+  }
+  const psUrl = alvo.replace(/'/g, "''");
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath '${psUrl}'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+  return { ok: true, mensagem: `Abrindo ${alvo} no navegador.` };
+}
+
+async function iniciarJogoSteam(appid) {
+  const id = String(appid || "").trim();
+  if (!/^\d+$/.test(id)) return { ok: false, erro: "AppID da Steam inválido" };
+  const uri = `steam://rungameid/${id}`;
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath '${uri}'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+  return { ok: true, mensagem: `Iniciando o jogo da Steam (AppID ${id}).` };
+}
+
+async function fecharAppsExceto() {
+  const script = `
+$preservar = @('medal', 'steam', 'code', 'node', 'opencode', 'explorer', 'powershell', 'conhost', 'cmd', 'dwm')
+$alvos = Get-Process | Where-Object {
+  $_.MainWindowHandle -ne 0 -and
+  $_.ProcessName.ToLower() -notin $preservar -and
+  $_.Id -ne $PID
+}
+$fechados = @()
+foreach ($p in $alvos) {
+  try {
+    if ($p.CloseMainWindow()) {
+      $fechados += $p.ProcessName
+    }
+  } catch {}
+}
+Start-Sleep -Milliseconds 1200
+($fechados | Sort-Object -Unique) -join ','
+`;
+  const resultado = await ps(script, "closeAppsExcept");
+  return {
+    ok: true,
+    mensagem: resultado ? `Fechei: ${resultado}.` : "Não havia outros aplicativos com janela para fechar.",
+  };
+}
+
+async function spotifyBuscarTocar(busca) {
+  const consulta = String(busca || "").trim();
+  if (!consulta || /[\r\n]/.test(consulta)) {
+    return { ok: false, erro: "Busca do Spotify inválida" };
+  }
+  const id = consulta.match(/(?:spotify:track:|open\.spotify\.com\/track\/)([A-Za-z0-9]{22})/)?.[1] || ( /^[A-Za-z0-9]{22}$/.test(consulta) ? consulta : null);
+  if (id) return spotifyTocarPorId(id);
+  const { tocarSpotify } = require("./browser");
+  return { ok: true, mensagem: await tocarSpotify(consulta) };
+}
+
+async function spotifyTocarPorId(trackId) {
+  const entrada = String(trackId || "").trim().replace(/[?#].*$/, "").replace(/\/+$/, "");
+  const id = entrada.match(/(?:spotify:track:|open\.spotify\.com\/track\/)?([A-Za-z0-9]{22})$/)?.[1];
+  if (!id) return { ok: false, erro: "ID de faixa do Spotify inválido" };
+  const { abrirUrlNoOpera } = require("./browser");
+  await abrirUrlNoOpera(`https://open.spotify.com/track/${id}`);
+  return { ok: true, mensagem: `Tocando a faixa do Spotify (${id}) no player local.` };
+}
+
+async function spotifyControle(acao) {
+  const comandos = {
+    tocar: "PLAY_PAUSE",
+    pausar: "PLAY_PAUSE",
+    continuar: "PLAY_PAUSE",
+    proxima: "NEXT",
+    anterior: "PREV",
+  };
+  const comando = comandos[String(acao || "").toLowerCase().trim()];
+  if (!comando) {
+    return { ok: false, erro: "Ação do Spotify inválida. Use tocar, pausar, continuar, proxima ou anterior." };
+  }
+
+  const sendkey = require("./sendkey");
+  const enviado = sendkey.send(sendkey.VK[comando]);
+  return enviado
+    ? { ok: true, mensagem: `Comando "${acao}" enviado ao Spotify.` }
+    : { ok: false, erro: `Não consegui enviar o comando "${acao}" ao Spotify.` };
+}
+
 module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
-  moverMouse, clicarMouse, duploClique, arrastar, digitarTexto, tecla,
+  dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, criarArquivo, resumoCommits, abrirWhatsApp, abrirUrl,
+  iniciarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyTocarPorId, spotifyControle,
+  moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
+  tamanhoTela, scroll,
   verTela, analisarImagem,
 };

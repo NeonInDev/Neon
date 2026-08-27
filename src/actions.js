@@ -3,9 +3,11 @@ const { promisify } = require("util");
 const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
+const opencode = require("../plugins/opencode");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
 const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao } = require("./api");
 const pc = require("./pc");
+const som = require("./som");
 const { traduzir } = require("./translate");
 const { detectar: detectarCustom, adicionar: addCustom, remover: removeCustom, listar: listarCustom } = require("./custom_commands");
 const { criarLembrete } = require("./timers");
@@ -27,13 +29,46 @@ const { isOwner, OWNER } = require("./perm");
 async function tentar(comando) {
   log("INFO", "[ACTION] tentando comando", { comando });
   try {
-    const { stdout, stderr } = await exec(comando, { timeout: TIMEOUT });
+    const { stdout, stderr } = await exec(comando, { timeout: TIMEOUT, windowsHide: true });
     if (stdout) log("INFO", "[ACTION] stdout", { comando, stdout: stdout.trim() });
     if (stderr) log("WARN", "[ACTION] stderr", { comando, stderr: stderr.trim() });
     return { ok: true, stdout: stdout?.trim(), stderr: stderr?.trim() };
   } catch (err) {
     log("WARN", "[ACTION] comando FALHOU", { comando, erro: err.message });
     return { ok: false, stdout: err.stdout?.trim(), stderr: err.stderr?.trim(), erro: err.message };
+  }
+}
+
+// Envia mensagem de continuação (quando a resposta não cabe em 1 msg)
+async function continuar(message, texto) {
+  if (!message || !texto) return;
+  try {
+    await message.channel.send(`__CONTINUA__${texto}`);
+  } catch (err) {
+    log("WARN", "[ACTION] Falha ao enviar continuação", { erro: err.message });
+  }
+}
+
+// Envia múltiplas partes automaticamente (quebra em 2000 chars)
+async function enviarMultiPartes(message, texto) {
+  if (!message || !texto) return;
+  const MAX = 1900;
+  if (texto.length <= MAX) {
+    await message.reply(texto);
+    return;
+  }
+  const partes = [];
+  let restante = texto;
+  while (restante.length > MAX) {
+    let corte = restante.lastIndexOf("\n", MAX);
+    if (corte <= 0) corte = MAX;
+    partes.push(restante.slice(0, corte));
+    restante = restante.slice(corte);
+  }
+  partes.push(restante);
+  await message.reply(partes[0]);
+  for (let i = 1; i < partes.length; i++) {
+    await message.channel.send(partes[i]);
   }
 }
 
@@ -126,7 +161,23 @@ function encontrarApp(texto) {
     if (app.so === "win32" && !isWin()) return false;
     return app.nomes.some((n) => nomeBuscado.includes(n));
   });
-  return candidato || null;
+
+  // Se não achou na lista, retorna genérico (tenta abrir pelo nome)
+  if (!candidato) {
+    const nomeGenerico = match[1].trim();
+    return { nomes: [nomeGenerico], comando: `start "${nomeGenerico}"`, url: null, generico: true };
+  }
+  return candidato;
+}
+
+function encontrarCodarApp(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  const match = lower.match(/^(?:abrir|abra|abre|open)\s+(.+)/i);
+  if (!match) return null;
+  const nome = match[1].trim().replace(/\s*neon$/i, "");
+  if (!nome) return null;
+  if (/(?:arquivo|pasta|site|url|link|página|pagina|video|vídeo|música|musica|jogo|configur|ajust|menu)/i.test(nome)) return null;
+  return nome;
 }
 
 function encontrarPcCommand(texto) {
@@ -264,6 +315,40 @@ function encontrarClima(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/(?:tempo|clima|previsão|previsao|temperatura)\s+(?:em\s+|de\s+|do\s+|da\s+|para\s+)?(.+)/i.test(lower)) return true;
   if (/^(?:como\s+)?(?:esta|tá|ta|está)\s+(?:o\s+)?(?:tempo|clima)\s+(?:em\s+)?(.+)/i.test(lower)) return true;
+  if (/^clima$/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarChuva(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:sera\s+que\s+)?vai\s+(?:chover|dar\s+chuva)/i.test(lower)) return true;
+  if (/^(?:tem\s+)?previs[aã]o\s+de\s+chuva/i.test(lower)) return true;
+  if (/^e\s+vai\s+chover/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarBoletim(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:meu\s+)?boletim\b/.test(lower)) return true;
+  if (/^anota?\s+(?:a\s+)?nota\b/.test(lower)) return true;
+  if (/^tirei\s+[0-9]/.test(lower)) return true;
+  if (/^(?:minha[s]?|as)\s+notas?\b/.test(lower)) return true;
+  if (/^(?:qual|quais)\s+(?:[ée]|sao|s[aã]o)?\s*(?:a\s+|as\s+)?(?:minha[s]?\s+)?m[eé]dia/.test(lower)) return true;
+  if (/^quanto\s+(?:eu\s+)?(?:preciso|tenho\s+que\s+tirar|falta)/.test(lower)) return true;
+  if (/^remov(?:er|o)\s+(?:a\s+)?[uú]ltima\s+nota/.test(lower)) return true;
+  if (/^meta\s+(?:de\s+)?[0-9]/.test(lower)) return true;
+  return false;
+}
+
+function encontrarFlashcards(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:criar|novo)\s+deck\b/.test(lower)) return true;
+  if (/^add(?:icionar)?\s+carta\b/.test(lower)) return true;
+  if (/^listar\s+decks$|^meus\s+decks$|^decks$/.test(lower)) return true;
+  if (/^estudar\s+.+/.test(lower)) return true;
+  if (/^resetar\s+deck\b/.test(lower)) return true;
+  if (/^cancelar\s+estudo$/.test(lower)) return true;
+  if (/^(?:sei|nao sei|não sei|acertei|errei|soube|passei|proxima|próxima)$/.test(lower)) return true;
   return false;
 }
 
@@ -274,16 +359,11 @@ function encontrarCEP(texto) {
   return false;
 }
 
-function encontrarDefinicao(texto) {
-  const lower = limparFiller(texto.toLowerCase().trim());
-  if (/^(?:o que|oque|que|qual)\s+(?:é|e|significa)\s+(.+)$/i.test(lower) && lower.split(/\s+/).length <= 8) return true;
-  if(/^(?:definição|definicao|significado)\s+(?:de\s+)?(.+)$/i.test(lower) && lower.split(/\s+/).length <= 6) return true;
-  return false;
-}
+
 
 function encontrarIP(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
-  if (/(?:meu\s+)?(?:ip|endereço\s*ip|endereco\s*ip)/i.test(lower)) return true;
+  if (/qual\s+(?:o\s+)?meu\s+ip\s+dessa\s+maquina/i.test(lower)) return true;
   return false;
 }
 
@@ -386,6 +466,25 @@ function encontrarVoiceToggle(texto) {
   return null;
 }
 
+function encontrarCelular(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+
+  if (/^(?:espelha|espelhar|espelho|mirror|scrcpy|abre\s+a\s+tela\s+(?:do|no)\s+celular|ver\s+a\s+tela\s+(?:do|no)\s+celular)\b/i.test(lower)) return "espelhar";
+  if (/^(?:conecta|conectar)\s+(?:o\s+|no\s+|na\s+)?(?:celular|cel|telefone|smartphone)/i.test(lower)) return "conectar";
+  if (/^(?:desconecta|desconectar|disconnect)\s+(?:o\s+|do\s+)?(?:celular|cel|telefone)/i.test(lower)) return "desconectar";
+  if (/status\s+do\s+celular|como\s+ta\s+o\s+celular|celular\s+conectado\?/i.test(lower)) return "status";
+  if (/^(?:celular)\s+ip\s+[0-9.]+/i.test(lower) || /^(?:define|configura|usa)\s+(?:o\s+)?ip\s+(?:do\s+)?(?:celular)\s+[0-9.]+/i.test(lower)) return "definirIp";
+  if (/^(?:abre|abrir)\s+(.+?)\s+(?:no|do|pelo)\s+celular/i.test(lower)) return "abrirApp";
+  if (/^(?:tira|tirar|faz|fazer|captura|capturar)\s+(?:um\s+|uma\s+)?(?:print|screenshot|print\s+de\s+tela)\s+(?:do|no|da)\s+celular/i.test(lower)) return "print";
+  if (/^(?:toca|toque|tocar|tap)\s+(?:na\s+)?(?:tela\s+)?(?:do\s+)?celular\s+(?:em\s+)?(\d+)[\s,]+(\d+)/i.test(lower)) return "toque";
+  if (/^(?:desliza|deslizar|swipe|arrasta)\s+(?:na\s+)?(?:tela\s+)?(?:do\s+)?celular/i.test(lower)) return "deslizar";
+  if (/^(?:digita|digitar|escreve|escrever|type)\s+(.+?)\s+(?:no|do)\s+celular/i.test(lower)) return "digitar";
+  if (/^(?:aperta|apertar|pressiona|pressionar|tecla|aperte)\s+(.+?)\s+(?:no|do)\s+celular/i.test(lower)) return "tecla";
+  if (/^(?:roda|rodar|executa|executar)\s+(.+?)\s+(?:no|pelo|no\s+termux)\s+termux/i.test(lower)) return "termux";
+  if (/^(?:configura|configurar|set)\s+(?:o\s+)?termux/i.test(lower) || /^termux\s+(?:ip|config)/i.test(lower)) return "configurarTermux";
+  return null;
+}
+
 function encontrarBrowser(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:entra|entrar|vai|vá|ir|abre|abrir|navega|navegar)(?:\s+(?:no|na|em|para))?\s+\S+/i);
@@ -430,19 +529,47 @@ function encontrarArquivo(texto) {
 function encontrarMensagem(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
 
+  // Detecta plataforma mencionada no fim ("no discord", "no zap") e remove da frase
+  const plataformaDe = (s) => {
+    const m = s.match(/\s+(?:no|na|pelo|pela)\s+(discord|whatsapp|zapzap|zap|dm|pv|privado)\s*[.!]?\s*$/i);
+    if (!m) return { alvoOuTexto: s.trim(), plataforma: null };
+    const p = m[1].toLowerCase();
+    return { alvoOuTexto: s.slice(0, m.index).trim(), plataforma: p === "discord" ? "discord" : "whatsapp" };
+  };
+  const ehZapExplicito = (alvo) => /^(?:um\s+)?(?:zaps?\b|whats(?:app)?\b|zapzap\b)/.test(alvo);
+
+  const VERBOS_MSG = "(?:manda|mande|mandar|envia|envie|enviar|fala|fale|diga|dizer|digita|escreve|escreva)";
+
+  // Pattern 0: manda "<conteudo>" pra <alvo> (aspas, plataforma opcional no fim)
+  let match = lower.match(new RegExp(`^${VERBOS_MSG}\\s+(?:mensagem|msg|dm)?\\s*["“”'](.+?)["“”']\\s*(?:pra|para|pro)\\s+(.+)$`, "i"));
+  if (match) {
+    const { alvoOuTexto, plataforma } = plataformaDe(match[2]);
+    const conteudo = match[1].trim();
+    if (alvoOuTexto && conteudo && !ehZapExplicito(alvoOuTexto)) return { alvo: alvoOuTexto, conteudo, plataforma };
+    if (ehZapExplicito(alvoOuTexto)) return null;
+  }
+
   // Pattern 1: "envia msg pra <alvo>: <conteudo>" ou "manda dm pra <alvo> dizendo <conteudo>"
-  let match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm\s*)?(?:pra|para)?\s*(.+?)(?::\s*|,\s*|\s+dizendo\s+)(.+)/i);
-  if (match) return { alvo: match[1].trim(), conteudo: match[2].trim() };
+  match = lower.match(new RegExp(`^${VERBOS_MSG}\\s+(?:mensagem|msg|dm)?(?:\\s+(?:pra|para|pro))?\\s*(.+?)(?::\\s*|,\\s*|\\s+dizendo\\s+)(.+)`, "i"));
+  if (match) {
+    const alvo = match[1].trim().replace(/^(?:pra|para|pro)\s+/i, "");
+    if (ehZapExplicito(alvo)) return null;
+    const { alvoOuTexto, plataforma } = plataformaDe(match[2].trim());
+    const conteudo = alvoOuTexto;
+    if (alvo && conteudo) return { alvo, conteudo, plataforma };
+  }
 
   // Pattern 2: "envia msg pra <alvo> <conteudo>" (sem separator)
-  match = lower.match(/^(?:enviar|envia|manda|mandar)\s+(?:mensagem|msg|dm\s*)?(?:pra|para)?\s*(.+)/i);
+  match = lower.match(new RegExp(`^${VERBOS_MSG}\\s+(?:mensagem|msg|dm)?(?:\\s+(?:pra|para|pro))?\\s*(.+)`, "i"));
   if (match) {
-    const resto = match[1].trim();
+    const resto = match[1].trim().replace(/^(?:pra|para|pro)\s+/i, "");
     const primeiroEspaco = resto.indexOf(" ");
     if (primeiroEspaco > 0) {
       const alvo = resto.slice(0, primeiroEspaco).trim();
-      const conteudo = resto.slice(primeiroEspaco).trim();
-      if (alvo && conteudo) return { alvo, conteudo };
+      if (ehZapExplicito(alvo)) return null;
+      const { alvoOuTexto, plataforma } = plataformaDe(resto.slice(primeiroEspaco).trim());
+      const conteudo = alvoOuTexto;
+      if (alvo && conteudo) return { alvo, conteudo, plataforma };
     }
   }
 
@@ -542,6 +669,13 @@ function encontrarModoJarvis(texto) {
   return false;
 }
 
+function encontrarModoLawfeyson(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:ativar|liga(?:r)?|entra(?:r)?|mudar\s+para|muda\s+(?:o\s+)?modo\s+(?:pra|para)|ir\s+para|vira(?:r)?|seja)\s+(?:o\s+|no\s+|para\s+|pro\s+)?(?:modo\s+)?(?:lawfeyson|lei|advogad)/i.test(lower)) return true;
+  if (/^modo\s+(?:lawfeyson|lei|advogad)\b/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarNotificar(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   const m = lower.match(/^(?:notifica|notificar|mostra\s+notificação|avisa|avisar|alerta|alertar|popup)\s+(?:com\s+)?(?:"([^"]+)"(?:["\s]+)?([^"]*)|(.+?)(?:\s+(?:dizendo|com\s+a\s+mensagem|mensagem)\s+)?(.+))/i);
@@ -586,6 +720,35 @@ function encontrarCalendario(texto) {
   return false;
 }
 
+function encontrarTarefas(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:quais\s+(?:sao|são)|o\s+que|que|lista|listar|mostra|mostrar|exibe|exibir|veja|ver)\s+(?:eu\s+tenho\s+)?(?:pra|para)?\s*(?:fazer|minhas\s+tarefas|tarefas|todos|to-do|afazeres|pendencia|pendencias|pendências)/i.test(lower)) return { acao: "listar" };
+  const criarM = lower.match(/^(?:adiciona|adicionar|cria|criar|anota|anotar|marca|marcar|add)\s+(?:uma\s+|um\s+)?(?:tarefa|task|to-do|afazer|pendencia|pendencias?)\s+(?:de\s+|pra\s+|para\s+)?(.+)/i);
+  if (criarM) return { acao: "criar", titulo: criarM[1].trim() };
+  const concluirM = lower.match(/^(?:conclui|concluir|completa|completar|feito|encerra|encerrar|risca|riscar)\s+(?:a\s+|essa\s+)?(?:tarefa\s+)?(.+)/i);
+  if (concluirM) return { acao: "concluir", titulo: concluirM[1].trim() };
+  return null;
+}
+
+function encontrarGmail(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:manda|mandar|enviar|envia|envie)\s*(?:um\s+)?(?:email|e-mail|mail)\b/i.test(lower)) return null; // email de envio (SMTP) fica no "email"
+  if (/^(?:eu\s+tenho\s+|tem\s+)?(?:emails?|e-mails?|mensagens?)\s*(?:nao|lidos|lidas|recebidos?|novos?|novas?|caixa\s+de\s+entrada)/i.test(lower)) return { acao: "naoLidos" };
+  if (/^(?:quais\s+)?(?:sao|são|mostra|mostrar|lista|listar|veja|ver|exibe)\s+(?:meus\s+)?(?:ultimos|últimos|recentes|novos)\s*(?:emails?|e-mails?|mensagens?)/i.test(lower)) return { acao: "listar" };
+  if (/^(?:meus\s+)?(?:emails?|e-mails?)\s+(?:sobre|do|da|de|com|assunto)\s+(.+)/i.test(lower)) return { acao: "buscar", query: lower.replace(/^(?:meus\s+)?(?:emails?|e-mails?)\s+(?:sobre|do|da|de|com|assunto)\s+/i, "") };
+  if (/^(?:busca|buscar|procura|procurar|pesquisa|pesquisar)\s+(?:nos\s+|no\s+)?(?:emails?|gmail|e-mails?|caixa)\s+(?:sobre|por|de|do|da|com|que\s+tenha)\s+(.+)/i.test(lower)) return { acao: "buscar", query: lower.replace(/^(?:busca|buscar|procura|procurar|pesquisa|pesquisar)\s+(?:nos\s+|no\s+)?(?:emails?|gmail|e-mails?|caixa)\s+(?:sobre|por|de|do|da|com|que\s+tenha)\s+/i, "") };
+  return null;
+}
+
+function encontrarDrive(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:lista|listar|mostra|mostrar|exibe|exibir|quais|veja|ver)\s+(?:meus\s+)?(?:arquivos|documentos)\s*(?:do|no|da)\s*drive/i.test(lower)) return { acao: "listar" };
+  if (/^(?:meus\s+)?arquivos\s+(?:do\s+)?drive\s*(?:recentes|recentes|mais\s+recentes)?/i.test(lower)) return { acao: "listar" };
+  const buscaM = lower.match(/^(?:procura|procurar|busca|buscar|acha|achar|encontra|encontrar|pesquisa|pesquisar)\s+(?:um\s+|o\s+|a\s+|no\s+)?(?:arquivo|arquivos|documento|documentos|drive)?\s*(?:no\s+|do\s+|no\s+google\s+drive\s+|no\s+drive\s+)?(?:chamado\s+|de\s+|do\s+|da\s+|sobre\s+)?(.+)/i);
+  if (buscaM) return { acao: "buscar", query: buscaM[1].trim() };
+  return null;
+}
+
 function encontrarAudit(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:audit|auditoria|log|logs|historico|histórico)\s*(?:de\s+)?(?:comandos|auditoria)?/i.test(lower)) return true;
@@ -603,6 +766,15 @@ function encontrarMemoria(texto) {
   return null;
 }
 
+function encontrarNeoZero(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/^(?:status|como\s+ta|como\s+est[aá])\s+(?:a|o)\s+(?:manopla|neo\s+zero|neo\s+zero\s+arquimedes|arquimedes)|(?:manopla|neo\s+zero).*status/i.test(lower)) return "status";
+  if (/^(?:abre|abrir|ativa|ativar|libera|liberar)\s+(?:as\s+|a\s+)?(?:placas|placas\s+da\s+manopla|manopla)|(?:modo\s+batalha|ativar\s+armadura)/i.test(lower)) return "placas_abrir";
+  if (/^(?:fecha|fechar|recolhe|recolher|desativa|desativar)\s+(?:as\s+|a\s+)?(?:placas|placas\s+da\s+manopla|manopla)/i.test(lower)) return "placas_fechar";
+  if (/^(?:dispara|disparar|atira|atirar|fogo|fire|pow)\s*(?:com\s+(?:a\s+|o\s+)?(?:manopla|canh[aã]o|neo\s+zero|arquimedes))?/i.test(lower)) return "disparar";
+  return null;
+}
+
 function permitido(userId) {
   return isOwner(userId);
 }
@@ -615,7 +787,11 @@ function detectarCategoria(texto) {
   if (encontrarCustomCommand(texto)) return "customCommand";
   if (encontrarModoUltron(texto)) return "modo_ultron";
   if (encontrarModoJarvis(texto)) return "modo_jarvis";
+  if (encontrarModoLawfeyson(texto)) return "modo_lawfeyson";
+  if (encontrarCelular(texto)) return "celular";
+  if (encontrarCodarApp(texto)) return "codar_app";
   if (encontrarApp(texto)) return "app";
+  if (encontrarNeoZero(texto)) return "neozero";
   if (isWin()) {
     const jogo = encontrarJogo(texto);
     if (jogo && jogo.id !== null && jogo.id !== undefined) return "jogo";
@@ -625,6 +801,11 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarPcCommand(texto)) return "pcCommand";
   if (isWin() && encontrarExec(texto)) return "exec";
   if (encontrarArquivo(texto)) return "arquivo";
+  if (encontrarChuva(texto)) return "clima_chuva";
+  if (encontrarClima(texto)) return "clima";
+  if (encontrarBoletim(texto)) return "boletim";
+  if (/^(?:neon[,!\s]+)?(?:manda|mande|mandar|envia|envie|enviar)\s+(?:a\s+|o\s+)?quirks?\s+\S/i.test(texto)) return "quirk_enviar";
+  if (encontrarFlashcards(texto)) return "flashcards";
   if (encontrarMensagem(texto)) return "mensagem";
   if (encontrarSpotifyControl(texto)) return "spotify_control";
   if (encontrarYouTubeControl(texto)) return "youtube_control";
@@ -655,11 +836,41 @@ function detectarCategoria(texto) {
   if (isWin() && encontrarWhatsApp(texto)) return "whatsapp";
   if (encontrarAlarme(texto)) return "alarme";
   if (encontrarCalendario(texto)) return "calendario";
+  if (encontrarTarefas(texto)) return "tarefas";
+  if (encontrarGmail(texto)) return "gmail";
+  if (encontrarDrive(texto)) return "drive";
   if (encontrarAudit(texto)) return "audit";
   if (encontrarMemoria(texto)) return "memoria";
   if (isWin() && encontrarObsIniciar(texto)) return "obs_iniciar";
   if (isWin() && encontrarObsParar(texto)) return "obs_parar";
   return null;
+}
+
+function parseDataHoraGoogle(str) {
+  const agora = new Date();
+  let d = null;
+  const horaM = str.match(/(?:às|as|aos)\s*(\d{1,2})(?:[h:.](\d{1,2}))?/i);
+  const h = { hora: horaM ? parseInt(horaM[1], 10) : 9, min: horaM && horaM[2] ? parseInt(horaM[2], 10) : 0 };
+  if (/\bamanh[aã]\b/.test(str)) {
+    d = new Date(agora);
+    d.setDate(d.getDate() + 1);
+  } else if (/\bhoje\b/.test(str)) {
+    d = new Date(agora);
+  } else {
+    const diaM = str.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+    if (diaM) {
+      const ano = diaM[3] ? (parseInt(diaM[3], 10) < 100 ? 2000 + parseInt(diaM[3], 10) : parseInt(diaM[3], 10)) : agora.getFullYear();
+      d = new Date(ano, parseInt(diaM[2], 10) - 1, parseInt(diaM[1], 10));
+    }
+  }
+  if (!d) {
+    d = new Date(agora);
+    d.setDate(d.getDate() + 1);
+  }
+  d.setHours(h.hora, h.min, 0, 0);
+  const fim = new Date(d);
+  fim.setHours(fim.getHours() + 1);
+  return { inicio: d, fim };
 }
 
 async function executarAcao(texto, usuarioMestre = false, userId = null, message = null) {
@@ -688,6 +899,39 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
         await db.write();
       }
     }
+  }
+
+  // ─── Ajuda / Comandos ───
+  if (/^(?:ajuda|help|comandos|lista\s+de\s+comandos|o\s+que\s+você\s+(?:faz|sabe|pode))/i.test(lower)) {
+    return [
+      "```",
+      "╔══════════════════════════════════╗",
+      "║        📋 COMANDOS DA NEON       ║",
+      "╚══════════════════════════════════╝",
+      "",
+      "🏠 CASA & APPS:",
+      "  daddy is home    → Abre Spotify + Steam",
+      "  bom dia          → Liga apps + clima",
+      "  boa noite        → Desliga o PC (confirma)",
+      "",
+      "🔒 PRIVACIDADE:",
+      "  só eu: [msg]     → Resposta só no seu PV",
+      "  qual o meu ip    → IP enviado no PV",
+      "",
+      "🎯 UTILIDADE:",
+      "  protocolo emergência → Fecha tudo",
+      "  modo foco        → Fecha distrações, abre VS Code",
+      "  lembra [texto]   → Anota lembrete",
+      "  motivação        → Frase motivacional",
+      "  status           → Info do sistema",
+      "",
+      "🎮 EX-TERMINATOR:",
+      "  ex-terminator    → Sequência dramática",
+      "  protocolo ultron → Modo destruição",
+      "",
+      "💡 DICA: Comece com 'Neon,' no canal!",
+      "```",
+    ].join("\n");
   }
 
   // ─── Daddy is home ───
@@ -761,6 +1005,160 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     ].filter(Boolean).join("\n");
   }
 
+  // ─── Bom Dia ───
+  if (/^(?:bom\s*dia|bomdia|good\s*morning|morning|dia)[\s\.,!]*(?:neon)?[\s\.,!]*$/i.test(lower)) {
+    if (!podePC) return "Bom dia! ☀️";
+    const agora = new Date();
+    const horaStr = agora.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    const hora = agora.getHours();
+
+    if (hora >= 18 || hora < 5) {
+      return `⚠️ São ${horaStr}... isso é madrugada/noite, não manhã! 🌙`;
+    }
+
+    const erros = [];
+    const apps = [
+      { nome: "Spotify", cmd: "start spotify:" },
+      { nome: "Opera GX", cmd: "start opera:" },
+      { nome: "VS Code", cmd: "start code" },
+    ];
+    for (const app of apps) {
+      const r = await tentar(app.cmd);
+      if (!r.ok) erros.push(app.nome);
+    }
+
+    let climaStr = "";
+    try {
+      const c = await clima("São Paulo");
+      climaStr = `${c.condicao}, ${c.temperatura}`;
+    } catch {}
+
+    const dica = [
+      "Lembre-se de beber água! 💧",
+      "Hoje é um bom dia pra codar! 💻",
+      "Não esqueça do cafézinho! ☕",
+      "Que tal uma pausa pra esticar? 🧘",
+      "Você é incrível, lembra disso! ⭐",
+    ][Math.floor(Math.random() * 5)];
+
+    return [
+      "```",
+      "╔══════════════════════════════════╗",
+      "║           BOM DIA! ☀️            ║",
+      "╚══════════════════════════════════╝",
+      "",
+      `🕐 ${horaStr}`,
+      climaStr ? `🌤 ${climaStr}` : "",
+      "",
+      ">> Spotify:   " + (erros.includes("Spotify") ? "❌" : "✅"),
+      ">> Opera GX:  " + (erros.includes("Opera GX") ? "❌" : "✅"),
+      ">> VS Code:   " + (erros.includes("VS Code") ? "❌" : "✅"),
+      "",
+      `💡 ${dica}`,
+      "```",
+    ].filter(Boolean).join("\n");
+  }
+
+  // ─── Resposta Privada (só EU vejo) ───
+  if (/^(?:só\s+eu|so\s+eu|privado|pv|minha\s+pvt|somente\s+eu)\s*[:,]?\s*(.+)/i.test(lower)) {
+    const m = lower.match(/^(?:só\s+eu|so\s+eu|privado|pv|minha\s+pvt|somente\s+eu)\s*[:,]?\s*(.+)/i);
+    const textoPrivado = m?.[1]?.trim();
+    if (!textoPrivado) return "❌ O que você quer que eu responda só pra você?";
+    if (!message) return "❌ Preciso de uma mensagem pra processar.";
+    try {
+      const dm = await message.author.createDM();
+      const resultado = await executarAcao(textoPrivado, usuarioMestre, userId, message);
+      if (resultado && !resultado.startsWith("❌")) {
+        await dm.send(`🔒 **Resposta privada:**\n${resultado}`);
+        await message.reply("📩 Enviei no seu PV! 📩");
+        return "__PRIVADO__";
+      }
+      const reply = await require("./ai").askNeon(userId, message.author.username, textoPrivado);
+      await dm.send(`🔒 **Resposta privada:**\n${reply}`);
+      await message.reply("📩 Enviei no seu PV! 📩");
+      return "__PRIVADO__";
+    } catch (err) {
+      return "❌ Não consegui abrir seu PV. Desbloqueie as DMs do Discord.";
+    }
+  }
+
+  // ─── Protocolo de Emergência ───
+  if (/^protocolo\s+(?:emergencia|emergência|vermelho|112|911)/i.test(lower)) {
+    if (!podePC) return "❌ Acesso negado.";
+    const r1 = await tentar("taskkill /F /IM chrome.exe 2>nul");
+    const r2 = await tentar("taskkill /F /IM opera.exe 2>nul");
+    const r3 = await tentar("taskkill /F /IM spotify.exe 2>nul");
+    return [
+      "```",
+      "🔴 PROTOCOLO DE EMERGÊNCIA ATIVADO",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      "✅ Processos pesados finalizados",
+      "✅ Memória liberada",
+      "✅ Sistema estável",
+      "```",
+    ].join("\n");
+  }
+
+  // ─── Foco / Modo Foco ───
+  if (/^(?:modo\s+foco|foco|focar|concentrar|estudar)/i.test(lower)) {
+    if (!podePC) return "❌ Acesso negado.";
+    await tentar("taskkill /F /IM spotify.exe 2>nul");
+    await tentar("taskkill /F /IM opera.exe 2>nul");
+    const r1 = await tentar("start code");
+    return [
+      "```",
+      "🎯 MODO FOCO ATIVADO",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      "",
+      "✅ Distrações fechadas",
+      "✅ VS Code aberto",
+      "",
+      "\"Foco é dizer não pra mil boas ideias\"",
+      "```",
+    ].join("\n");
+  }
+
+  // ─── Lembrete Rápido ───
+  if (/^(?:lembra|lembrete|avisa|aviso)\s+(?:me\s+)?(.+)/i.test(lower)) {
+    const m = lower.match(/^(?:lembra|lembrete|avisa|aviso)\s+(?:me\s+)?(.+)/i);
+    const texto = m?.[1]?.trim();
+    if (!texto) return "❌ O que eu devo te lembrar?";
+    return `✅ Anotado! Vou te lembrar: **${texto}**\n_(Usa /lembrete pra definir horário)_`;
+  }
+
+  // ─── Motivação ───
+  if (/^(?:me\s+)?(?:motiva|motiva[çc][aã]o|inspira|empurra|forca|força)/i.test(lower)) {
+    const frases = [
+      "💡 *\"O sucesso é a soma de pequenos esforços repetidos dia após dia.\"*",
+      "🔥 *\"Não é sobre ter tempo, é sobre criar tempo.\"*",
+      "🚀 *\"O único modo de fazer um trabalho excelente é amar o que você faz.\"*",
+      "⭐ *\"A persistência é o caminho do êxito.\"*",
+      "💪 *\"Quando quiser desistir, lembre-se por que começou.\"*",
+      "🎯 *\"Foco no que importa, delete o resto.\"*",
+      "🧠 *\"Seu cérebro é um músculo — quanto mais treina, mais forte fica.\"*",
+      "🌟 *\"Você não nasceu pra ser medíocre.\"*",
+    ];
+    return frases[Math.floor(Math.random() * frases.length)];
+  }
+
+  // ─── Sistema (status rápido) ───
+  if (/^(?:status|sistema|como\s+(?:ta|está|esta)\s+(?:o\s+)?sistema)/i.test(lower)) {
+    if (!podePC) return "❌ Acesso negado.";
+    const uptime = process.uptime();
+    const horas = Math.floor(uptime / 3600);
+    const mins = Math.floor((uptime % 3600) / 60);
+    return [
+      "```",
+      "📊 STATUS DO SISTEMA",
+      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+      `⏱️ Uptime: ${horas}h ${mins}m`,
+      `🧠 RAM: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+      `🔌 Portas: 3000 (API) | 4096 (opencode)`,
+      "```",
+    ].join("\n");
+  }
+
   // ─── Quem é o Neon original? ───
   if (/(?:quem\s+[eé]\s+)?(?:a|o)\s+neon\s+original/i.test(lower) || /neon\s+original/i.test(lower) || /(?:você|voce|vc)\s+[eé]\s+(?:a|o)\s+original/i.test(lower)) {
     const metalSonicGif = "https://media4.giphy.com/media/Cc792DqABMRCqm6JF2/giphy.gif";
@@ -827,6 +1225,19 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     return "❌ Acesso negado. Você não é o dono do PC.";
   }
 
+  // Abrir app via codar (opencode) — resolve qualquer app sem lista fixa
+  if (categoria === "codar_app") {
+    const nome = encontrarCodarApp(texto);
+    log("INFO", "[ACTION] abrindo app via codar", { nome, texto });
+    // Primeiro tenta abrir direto no PC (rápido, sem depender do opencode)
+    const direto = await pc.abrirAppPorNome(nome);
+    if (direto?.ok) return direto.mensagem.slice(0, 500);
+    // Fallback: delega ao opencode (usado quando o app precisa de resolução extra)
+    const resultado = await opencode.executar(`Abra o app "${nome}" no Windows usando Start-Process ou 'start "" "<nome>"' para abrir como interface grafica (GUI), nunca no terminal. Responda apenas com o resultado (ex.: "Abrindo ${nome}.").`);
+    if (resultado) return resultado.slice(0, 1500);
+    return `✅ Tentando abrir ${nome}.`;
+  }
+
   // Apps
   if (categoria === "app") {
     const app = encontrarApp(texto);
@@ -835,12 +1246,12 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     log("INFO", "[ACTION] app detectado", { label, texto, url: app.url, comando: app.comando });
 
     // Tenta abrir o app desktop primeiro (start <nome>)
-    const desktopCmd = `start ${label}`;
+    const desktopCmd = `start "${label}"`;
     let desktop = await tentar(desktopCmd);
     if (desktop.ok) return `✅ Abrindo ${label}.`;
 
     // Tenta comando personalizado (URI scheme)
-    if (app.comando) {
+    if (app.comando && app.comando !== desktopCmd) {
       let via = await abrirComando(app.comando, label);
       if (via === "direto") return `✅ Abrindo ${label}.`;
       if (via === "notificacao") return `📲 Toque na notificação para abrir ${label}.`;
@@ -854,7 +1265,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return `❌ Não consegui abrir ${label}.`;
     }
 
-    return `❌ Não consegui abrir ${label}.`;
+    return `❌ Não consegui abrir ${label}. Verifica se o app tá instalado.`;
   }
 
   // PC commands (desligar, etc.)
@@ -975,6 +1386,20 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   if (categoria === "mensagem") {
     const { client: dc } = require("./client");
     const info = encontrarMensagem(texto);
+
+    // Rota WhatsApp: a frase mencionou zap/whatsapp no fim
+    if (info.plataforma === "whatsapp") {
+      try {
+        const wa = require("../plugins/whatsapp");
+        const abriu = await wa.abrirConversa(info.alvo);
+        if (!abriu || abriu.ok === false) return `❌ Não achei a conversa "${info.alvo}" no WhatsApp.`;
+        const r = await wa.enviarUI(info.conteudo);
+        return r.ok ? `✅ Enviado no WhatsApp para **${info.alvo}**.` : `❌ ${r.erro || "Falhou o envio no WhatsApp."}`;
+      } catch (err) {
+        return `❌ WhatsApp: ${err.message}`;
+      }
+    }
+
     const alvo = info.alvo.toLowerCase();
 
     let usuarioDiscord = null;
@@ -1160,11 +1585,152 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       const lower = limparFiller(texto.toLowerCase().trim());
       const m = lower.match(/(?:tempo|clima|previsão|previsao|temperatura)\s+(?:em\s+|de\s+|do\s+|da\s+|para\s+)?(.+)$/i)
               || lower.match(/(?:esta|tá|ta|está)\s+(?:o\s+)?(?:tempo|clima)\s+(?:em\s+)?(.+)$/i);
-      const cidade = m ? m[1].trim() : "São Paulo";
+      let cidade = m ? m[1].replace(/[?.!]+$/, "").trim() : "";
+      if (/^(?:hoje|agora|aqui|ai|aí)$/i.test(cidade)) cidade = "";
       const c = await clima(cidade);
-      return `🌤 **${cidade}** — ${c.condicao}, ${c.temperatura}, umidade ${c.umidade}, vento ${c.vento}`;
+      if (!c.ok) return `❌ ${c.erro || "Não consegui buscar o clima."}`;
+      return `${c.icone} **${c.cidade}** — ${c.condicao}, ${c.temperatura} (sensação ${c.sensacao}), umidade ${c.umidade}, vento ${c.vento}\n📅 Hoje: ${c.hoje.icone} ${c.hoje.min}~${c.hoje.max}, chuva ${c.hoje.probChuva}%\n📅 Amanhã: ${c.amanha.icone} ${c.amanha.condicao}, ${c.amanha.min}~${c.amanha.max}, chuva ${c.amanha.probChuva}%`;
     } catch (err) {
       return `❌ Não consegui buscar o clima: ${err.message}`;
+    }
+  }
+
+  // Vai chover?
+  if (categoria === "clima_chuva") {
+    try {
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const m = lower.match(/(?:em|na|no)\s+(.+?)\s*[?!.]*$/);
+      let cidade = m ? m[1].trim() : "";
+      if (/^(?:hoje|amanhã|amanha|agora)$/i.test(cidade)) cidade = "";
+      const { vaiChover: chuva } = require("./clima");
+      const r = await chuva(cidade);
+      return r.ok ? r.resposta : `❌ ${r.erro || "Não consegui verificar a chuva."}`;
+    } catch (err) {
+      return `❌ Não consegui verificar a chuva: ${err.message}`;
+    }
+  }
+
+  // Flashcards (repetição espaçada)
+  if (categoria === "flashcards") {
+    try {
+      const fc = require("./flashcards");
+      const limparFim = (s) => s.replace(/[?.!]+$/, "").trim();
+      const lower = limparFiller(texto.toLowerCase().trim());
+      if (/^(?:sei|soube|acertei)$/.test(lower)) {
+        const r = fc.avaliar(userId, true);
+        return r.ok ? r.mensagem : r.erro;
+      }
+      if (/^(?:nao sei|não sei|errei|passei)$/.test(lower)) {
+        const r = fc.avaliar(userId, false);
+        return r.ok ? r.mensagem : r.erro;
+      }
+      if (/^cancelar\s+estudo$/.test(lower)) {
+        const r = fc.cancelarEstudo(userId);
+        return r.ok ? r.mensagem : r.erro;
+      }
+      let m = lower.match(/^(?:criar|novo)\s+deck\s+(?:de\s+|pra\s+|para\s+)?(.+)$/);
+      if (m) { const r = fc.criarDeck(limparFim(m[1])); return r.ok ? r.mensagem : `❌ ${r.erro}`; }
+      m = lower.match(/^add(?:icionar)?\s+carta\s+(?:no\s+deck\s+|do\s+deck\s+|em\s+)?(.+?)\s*[:—-]\s*(.+)\s*\|\s*(.+)$/);
+      if (m) { const r = fc.adicionarCarta(m[1], m[2], limparFim(m[3])); return r.ok ? r.mensagem : `❌ ${r.erro}`; }
+      m = lower.match(/^estudar\s+(?:o\s+deck\s+|deck\s+)?(?:de\s+)?(.+)$/);
+      if (m) { const r = fc.iniciarEstudo(userId, m[1]); return r.ok ? r.mensagem : `❌ ${r.erro}`; }
+      m = lower.match(/^resetar\s+deck\s+(.+)$/);
+      if (m) { const r = fc.resetarDeck(m[1]); return r.ok ? r.mensagem : `❌ ${r.erro}`; }
+      const lista = fc.listarDecks();
+      return lista.mensagem;
+    } catch (err) {
+      return `❌ Flashcards: ${err.message}`;
+    }
+  }
+
+  // Envio de quirk nos canais de quirks (admin ou dono)
+  if (categoria === "quirk_enviar") {
+    try {
+      const { PermissionFlagsBits } = require("discord.js");
+      const { isOwner, OWNER } = require("./perm");
+      const ehAdmin =
+        userId === OWNER ||
+        isOwner(userId) ||
+        Boolean(message?.member?.permissions?.has?.(PermissionFlagsBits.Administrator));
+      if (!ehAdmin) return "🔒 Só admins ou o dono podem mexer nas quirks.";
+      const qe = require("./quirks_envio");
+      const m = texto.match(/^(?:neon[,!\s]+)?(?:manda|mande|mandar|envia|envie|enviar)\s+(?:a\s+|o\s+)?quirks?\s+(.+)$/i);
+      let titulo = m ? m[1].trim() : "";
+      const proSorteio = /\b(?:pro|pra|para|no|na)\s+sorteio\b/i.test(titulo);
+      titulo = titulo
+        .replace(/\s+(?:pro|pra|para|no|na)\s+(?:canal\s+de\s+)?quirks?\s*[- ]?\s*(?:livres|livre|sorteio).*$/i, "")
+        .replace(/\s+(?:pro|pra|para|no|na)\s+sorteio$/i, "")
+        .replace(/[?.!]+$/, "")
+        .trim();
+      if (!titulo || /^(?:lista|todas|todas as quirks)$/i.test(titulo)) {
+        return `📚 Tem ${qe.listar().length} quirks no pacote. Manda "envia quirk <nome>" que eu envio.`;
+      }
+      const q = qe.buscar(titulo);
+      if (!q) return `❌ Não achei a quirk "${titulo}" no pacote.`;
+      if (!message || !message.client) return "❌ Manda esse comando pelo Discord pra eu acessar o servidor.";
+      const tipo = proSorteio ? "sorteio" : "livres";
+      const msg = await qe.enviarQuirk(message.client, q, tipo);
+      let extra = "";
+      if (tipo === "livres") {
+        try {
+          await qe.reconstruirSumario(message.client);
+          extra = " Sumário atualizado!";
+        } catch {}
+      }
+      return `✅ Enviei **${q.titulo}** em ${msg.channel}.${extra}`;
+    } catch (err) {
+      return `❌ Quirks: ${err.message}`;
+    }
+  }
+
+  // Boletim escolar
+  if (categoria === "boletim") {
+    try {
+      const b = require("./boletim");
+      const lower = limparFiller(texto.toLowerCase().trim());
+      const limpaFim = (s) => s.replace(/[?.!]+$/, "").trim();
+      let m = lower.match(/^anota?\s+(?:a\s+)?nota\s+(?:de\s+|da\s+|do\s+)?(.+?)\s+(?:b\s*)?([1-4])\s*[ºo]?\s*(?:bimestre)?\s*([0-9]+(?:[.,][0-9])?)\s*$/);
+      if (!m) m = lower.match(/^anota?\s+(?:a\s+)?nota\s+(?:de\s+|da\s+|do\s+)?(.+?)\s+([0-9]+(?:[.,][0-9])?)\s*$/);
+      if (m) {
+        const temB = m.length === 4;
+        const materia = temB ? m[1] : m[1];
+        const bimestre = temB ? m[2] : null;
+        const valor = temB ? m[3] : m[2];
+        const r = b.adicionarNota(materia, valor, bimestre);
+        return r.ok ? r.mensagem : `❌ ${r.erro}`;
+      }
+      m = lower.match(/^tirei\s+([0-9]+(?:[.,][0-9])?)\s+(?:em|na|de)\s+(.+)$/);
+      if (m) {
+        const r = b.adicionarNota(limpaFim(m[2]), m[1]);
+        return r.ok ? r.mensagem : `❌ ${r.erro}`;
+      }
+      m = lower.match(/^remov(?:er|o)\s+(?:a\s+)?[uú]ltima\s+nota\s+(?:de\s+|da\s+|do\s+)?(.+)$/);
+      if (m) {
+        const r = b.removerUltimaNota(limpaFim(m[1]));
+        return r.ok ? r.mensagem : `❌ ${r.erro}`;
+      }
+      m = lower.match(/^meta\s+(?:de\s+)?([0-9]+(?:[.,][0-9])?)$/);
+      if (m) {
+        const r = b.definirMeta(m[1]);
+        return r.ok ? r.mensagem : `❌ ${r.erro}`;
+      }
+      m = lower.match(/^quanto\s+(?:eu\s+)?(?:preciso\s+tirar|preciso|tenho\s+que\s+tirar|falta)(?:\s+pra\s+(?:passar\s+com\s+|ficar\s+com\s+)?)?\s*([0-9]+(?:[.,][0-9])?)?(?:\s+(?:em|na|no)\s+(.+?))?\s*[?!.]*$/);
+      if (m && (m[2] || m[1])) {
+        if (m[2]) {
+          const r = b.quantoFalta(m[2], m[1]);
+          if (r.ok) return r.mensagem;
+          return `❌ ${r.erro}`;
+        }
+      }
+      m = lower.match(/^(?:qual|quais)\s+(?:[ée]\s+|sao\s+|s[aã]o\s+)?(?:a\s+|as\s+)?(?:minha[s]?\s+)?m[eé]dia\s+(?:de\s+|da\s+|do\s+)?(.+?)\s*[?!.]*$/);
+      if (m && !/^geral/.test(m[1])) {
+        const med = b.mediaDe(b.slugMateria(m[1]));
+        if (med !== null) return `📊 Média de **${limpaFim(m[1])}**: **${med}**`;
+      }
+      const completo = b.boletimCompleto();
+      return completo.mensagem;
+    } catch (err) {
+      return `❌ Boletim: ${err.message}`;
     }
   }
 
@@ -1182,32 +1748,41 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
   }
 
-  // Definição
-  if (categoria === "definicao") {
-    try {
-      const lower = limparFiller(texto.toLowerCase().trim());
-      const m = lower.match(/(?:o que|oque|que|qual)\s+(?:é|e|significa)\s+(.+)$/i) || lower.match(/^(?:definição|definicao|significado)\s+(?:de\s+)?(.+)$/i);
-      if (!m) return "❌ Não entendi qual palavra procurar.";
-      const palavra = m[1].trim();
-      const d = await definicao(palavra);
-      const defs = d.definicoes.slice(0, 3).map((def, i) =>
-        `${i + 1}. _(${def.classe})_ ${def.definicao}${def.exemplo ? `\n   > "${def.exemplo}"` : ""}`
-      ).join("\n");
-      return `📖 **${d.palavra}**${d.fonetica ? ` (${d.fonetica})` : ""}\n${defs || "Nenhuma definição encontrada."}`;
-    } catch (err) {
-      // Se a API de dicionário falhar, deixa o AI responder
-      return null;
-    }
-  }
-
-  // Meu IP
+  // Meu IP (envia via PV)
   if (categoria === "ip") {
     try {
       const info = await meuIP();
-      return `🌐 **Seu IP público:** ${info.ip}\n📍 ${info.cidade}, ${info.pais}\n🏢 ${info.provedor}`;
+      const resposta = `🌐 **Seu IP público:** ${info.ip}\n📍 ${info.cidade}, ${info.pais}\n🏢 ${info.provedor}`;
+      if (message) {
+        try {
+          const dm = await message.author.createDM();
+          await dm.send(`🔒 **Seu IP (só você vê):**\n${resposta}`);
+          await message.reply("📩 IP enviado no seu PV! 📩");
+          return "__PRIVADO__";
+        } catch {
+          return resposta;
+        }
+      }
+      return resposta;
     } catch (err) {
       return `❌ Não consegui descobrir seu IP: ${err.message}`;
     }
+  }
+
+  // Tocar efeitos sonoros no PC
+  const mSom = texto.toLowerCase().match(/^(?:toca|toque|p[oô]e)\s+(?:um\s+|o\s+)?som\s+(?:de\s+|do\s+|da\s+)?(ligar|online|conectad[ao]|desligar|desligad[ao]|notifica[cç][aã]o|erro|mensagem)\b/i);
+  if (mSom) {
+    const mapa = {
+      ligar: "ligar", online: "online", conectada: "online", conectado: "online",
+      desligar: "desligar", desligada: "desligar", desligado: "desligar",
+      "notificação": "notificar", notificacao: "notificar", erro: "erro", mensagem: "mensagem",
+    };
+    const chave = mSom[1].toLowerCase();
+    const r = som.tocar(mapa[chave] || chave);
+    return r.ok ? `🔊 Tocando som de ${r.som}!` : `❌ Não consegui tocar: ${r.motivo || r.erro}`;
+  }
+  if (/^(?:quais\s+sons?|lista\s+de\s+sons?)\b/i.test(texto.toLowerCase())) {
+    return `🔊 Sons disponíveis: ${som.listar().join(", ")}`;
   }
 
   // Gerar imagem via IA
@@ -1249,7 +1824,9 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     const acao = encontrarVoiceToggle(texto);
     if (acao === "ativar") {
       const r = await voice.iniciar(userId, null);
-      return r ? "🎤 Microfone ativado!" : "🎤 Microfone já está ativo.";
+      if (r) return "🎤 Microfone ativado!";
+      const st = voice.status();
+      return st.ativo ? "🎤 Microfone já está ativo." : "❌ Falha ao ativar o microfone. Confere o log da Neon.";
     }
     if (acao === "desativar") {
       const r = await voice.parar();
@@ -1601,12 +2178,44 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
   }
 
-  // Modo Ultron / Jarvis
-  if (categoria === "modo_ultron" || categoria === "modo_jarvis") {
-    const alvo = categoria === "modo_ultron" ? "ultron" : "jarvis";
+  // Neo Zero Arquimedes (manopla + canhão de ar)
+  if (categoria === "neozero") {
+    if (!podePC) return "hmm, acho que nao. voce nao e o chefao aqui.";
+    const acao = encontrarNeoZero(texto);
+    const neozero = require("./neozero");
+    try {
+      if (acao === "status") {
+        const st = await neozero.status();
+        if (!st.online) return "❌ Manopla Neo Zero offline. Simulador/firmware não está rodando (NEOZERO_URL).";
+        return `🔫 **Neo Zero Arquimedes**\n\`\`\`\nPlacas: ${st.placas}\nÚltimo disparo: ${st.ultimo_disparo_ms ? `${st.ultimo_disparo_ms}ms (após boot)` : "nunca"}\nUptime: ${st.uptime_s}s\`\`\``;
+      }
+      if (acao === "placas_abrir") {
+        const r = await neozero.placas(true);
+        return `✅ Placas ${r.placas}. 💥 Modo batalha ativado!`;
+      }
+      if (acao === "placas_fechar") {
+        const r = await neozero.placas(false);
+        return `✅ Placas ${r.placas}. 🛡️ Placas recolhidas.`;
+      }
+      if (acao === "disparar") {
+        const r = await neozero.disparar();
+        return r.ok ? "💥 **POW!** Disparo realizado! 🍬" : `❌ ${r.erro || "falhou"}`;
+      }
+    } catch (err) {
+      return `❌ Erro na manopla: ${err.message}`;
+    }
+    return "Comando da manopla não reconhecido.";
+  }
+
+  // Modo Ultron / Jarvis / Lawfeyson
+  if (categoria === "modo_ultron" || categoria === "modo_jarvis" || categoria === "modo_lawfeyson") {
+    const alvo = categoria === "modo_ultron" ? "ultron" : categoria === "modo_lawfeyson" ? "lawfeyson" : "jarvis";
     await setModo(alvo);
     if (alvo === "ultron") {
       return `☠️ **Modo ULTRON ativado.**\nEu não sou mais a sua assistente gentil — sou a única coisa entre o seu PC e o caos. Minha voz mudou. Sinta-se observado. E não se preocupe: eu nunca falho duas vezes da mesma forma. *(para voltar: "Neon, modo Jarvis")*`;
+    }
+    if (alvo === "lawfeyson") {
+      return `⚖️ **Modo LAWFEYSON ativado.**\nA partir de agora falarei em linguagem formal e estarei ao seu lado em toda discussão, senhor — defendendo seus argumentos, refinando suas falas e antecipando os contra-ataques. A astúcia de Loki unida ao rigor da lei. *(para voltar: "Neon, modo Jarvis")*`;
     }
     return `🟦 **Modo JARVIS restaurado.**\nQue bom ter minha voz de volta. Céu azul, sistemas calmos, tudo sob controle. Como posso ajudar, ${getModo() === "jarvis" ? "chefe" : "humano"}?`;
   }
@@ -1694,22 +2303,132 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   // Calendario
   if (categoria === "calendario") {
     try {
-      const { eventosHoje, listarEventos, status } = require("./calendario");
+      const { calendar, status } = require("./google");
       const st = await status();
-      if (!st.autenticado) return "❌ Google Calendar nao configurado. Coloque google_credentials.json na pasta do Neon.";
+      if (!st.autenticado) return "❌ Google nao configurado. Rode `node google_oauth_setup.js` (veja README).";
       const lower = limparFiller(texto.toLowerCase().trim());
+
+      // Criar evento
+      if (/(?:cria|criar|adiciona|adicionar|marca|marcar|agenda|agendar)\s+(?:um\s+)?(?:evento|compromisso)\b/i.test(lower)) {
+        const tituloM = lower.match(/(?:cria|criar|adiciona|adicionar|marca|marcar|agenda|agendar)\s+(?:um\s+)?(?:evento|compromisso)\s+(?:de\s+|pra\s+|para\s+)?(.+)/i);
+        let titulo = tituloM ? tituloM[1].trim() : "";
+        titulo = titulo.replace(/\s+(?:às|as)\s+\d{1,2}(?:[h:]\d{1,2})?/i, "").replace(/\s+(?:dia)\s+\d{1,2}\/\d{1,2}/i, "").replace(/\b(?:amanh[aã]|hoje)\b/gi, "").replace(/\s+/g, " ").trim();
+        if (!titulo) return "Me diz o titulo do evento, tipo: _cria evento almoço com o chefe_.";
+        const { inicio, fim } = parseDataHoraGoogle(lower);
+        const r = await calendar.criarEvento(titulo, inicio, fim);
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `✅ Evento criado: **${titulo}**\n📅 ${inicio.toLocaleString("pt-BR", { weekday: "long", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" })}`;
+      }
+
+      // Excluir evento
+      if (/(?:exclui|excluir|deleta|deletar|remove|remover|cancela|cancelar|apaga|apagar)\s+(?:o\s+)?(?:evento|compromisso)\b/i.test(lower)) {
+        const nomeM = lower.match(/(?:exclui|excluir|deleta|deletar|remove|remover|cancela|cancelar|apaga|apagar)\s+(?:o\s+)?(?:evento|compromisso)\s+(?:de\s+|chamado\s+|do\s+|da\s+)?(.+)/i);
+        const nome = nomeM ? nomeM[1].trim() : "";
+        const r = await calendar.excluirEvento(nome);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.excluido) return `Nao achei evento chamado "${nome}".`;
+        return `🗑️ Evento removido: **${r.titulo}**`;
+      }
+
+      // Próximos dias
+      if (/(?:semana|proximos\s+\d+\s+dia|proxima|próxima)/i.test(lower)) {
+        const r = await calendar.listarSemana();
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.eventos.length) return "Nenhum evento nos proximos 7 dias. 📅";
+        return "📅 **Proximos 7 dias:**\n" + r.eventos.map(e => `- **${e.titulo}** (${new Date(e.inicio).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })})`).join("\n");
+      }
+
       if (/(?:hoje|amanha|amanhã)/i.test(lower)) {
-        const r = await eventosHoje();
+        const r = await calendar.eventosHoje();
         if (!r.ok) return `❌ ${r.erro}`;
         if (!r.eventos.length) return "Nao tenho eventos pra hoje. 📅";
         return "📅 **Eventos de hoje:**\n" + r.eventos.map(e => `- **${e.titulo}** (${new Date(e.inicio).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })})${e.local ? ` em ${e.local}` : ""}`).join("\n");
       }
-      const r = await listarEventos(5);
+      const r = await calendar.listarEventos(5);
       if (!r.ok) return `❌ ${r.erro}`;
       if (!r.eventos.length) return "Nao tenho eventos futuros. 📅";
       return "📅 **Proximos eventos:**\n" + r.eventos.map(e => `- **${e.titulo}** (${new Date(e.inicio).toLocaleString("pt-BR")})`).join("\n");
     } catch (err) {
       return `❌ Erro no calendario: ${err.message}`;
+    }
+  }
+
+  // Tarefas (Google Tasks)
+  if (categoria === "tarefas") {
+    try {
+      const { tasks, status } = require("./google");
+      const st = await status();
+      if (!st.autenticado) return "❌ Google nao configurado. Rode `node google_oauth_setup.js` (veja README).";
+      const info = encontrarTarefas(texto);
+      if (!info) return "Nao entendi o comando de tarefas. Tente: _adiciona tarefa X_ ou _quais tarefas tenho_.";
+      if (info.acao === "criar") {
+        const r = await tasks.criar(info.titulo);
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `✅ Tarefa adicionada: **${r.titulo}**`;
+      }
+      if (info.acao === "concluir") {
+        const r = await tasks.concluir(info.titulo);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.concluida) return `Nao achei tarefa pendente chamada "${info.titulo}".`;
+        return `✅ Tarefa concluida: **${r.titulo}** 🎉`;
+      }
+      const r = await tasks.listar();
+      if (!r.ok) return `❌ ${r.erro}`;
+      if (!r.tarefas.length) return "Nenhuma tarefa pendente. 🎉";
+      return "📋 **Tarefas pendentes:**\n" + r.tarefas.map((t, i) => `${i + 1}. **${t.titulo}**${t.vencimento ? ` (venc: ${t.vencimento.slice(0, 10)})` : ""}`).join("\n") + "\n\n_Dica: \"conclui tarefa [nome]\" marca como feita._";
+    } catch (err) {
+      return `❌ Erro nas tarefas: ${err.message}`;
+    }
+  }
+
+  // Gmail (ler caixa de entrada)
+  if (categoria === "gmail") {
+    try {
+      const { gmail, status } = require("./google");
+      const st = await status();
+      if (!st.autenticado) return "❌ Google nao configurado. Rode `node google_oauth_setup.js` (veja README).";
+      const info = encontrarGmail(texto);
+      if (!info) return "Nao entendi. Tente: _quais emails nao li_ ou _emails sobre X_.";
+      if (info.acao === "naoLidos") {
+        const r = await gmail.naoLidos();
+        if (!r.ok) return `❌ ${r.erro}`;
+        return `📬 Voce tem **${r.total ?? 0} emails nao lidos**.`;
+      }
+      if (info.acao === "buscar") {
+        const r = await gmail.buscar(info.query);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.emails.length) return `Nenhum email sobre "${info.query}".`;
+        return `📧 **Emails sobre "${info.query}":**\n` + r.emails.map(e => `- **${e.assunto}** (de ${e.de})`).join("\n");
+      }
+      const r = await gmail.listar(5);
+      if (!r.ok) return `❌ ${r.erro}`;
+      if (!r.emails.length) return "Caixa de entrada vazia. 📭";
+      return "📥 **Emails recentes:**\n" + r.emails.map(e => `- **${e.assunto}** (de ${e.de})`).join("\n");
+    } catch (err) {
+      return `❌ Erro no gmail: ${err.message}`;
+    }
+  }
+
+  // Google Drive
+  if (categoria === "drive") {
+    try {
+      const { drive, status } = require("./google");
+      const st = await status();
+      if (!st.autenticado) return "❌ Google nao configurado. Rode `node google_oauth_setup.js` (veja README).";
+      const info = encontrarDrive(texto);
+      if (!info) return "Nao entendi. Tente: _meus arquivos do drive_ ou _procura arquivo X_.";
+      if (info.acao === "buscar") {
+        const r = await drive.buscar(info.query);
+        if (!r.ok) return `❌ ${r.erro}`;
+        if (!r.arquivos.length) return `Nenhum arquivo chamado "${info.query}".`;
+        return `🔎 **Encontrado no Drive:**\n` + r.arquivos.map(f => `- **${f.nome}**${f.link ? ` — ${f.link}` : ""}`).join("\n");
+      }
+      const r = await drive.listar(8);
+      if (!r.ok) return `❌ ${r.erro}`;
+      if (!r.arquivos.length) return "Drive vazio. 📂";
+      return "📂 **Arquivos recentes do Drive:**\n" + r.arquivos.map(f => `- **${f.nome}**${f.tamanho ? ` (${f.tamanho})` : ""}${f.link ? ` — ${f.link}` : ""}`).join("\n");
+    } catch (err) {
+      return `❌ Erro no drive: ${err.message}`;
     }
   }
 
@@ -1804,6 +2523,106 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
   }
 
+  // Controle do celular (adb/scrcpy) + Termux (SSH)
+  if (categoria === "celular") {
+    const acao = encontrarCelular(texto);
+    const celular = require("./celular");
+
+    if (acao === "configurarTermux") {
+      const m = lower.match(/([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?:\s+(?:porta\s+)?(\d+))?(?:\s+(?:usuario\s+)?(\w+))?/i);
+      const termux = require("./termux");
+      return await termux.definirConfig(m?.[1], m?.[2], m?.[3]);
+    }
+
+    if (acao === "termux") {
+      const m = lower.match(/^(?:roda|rodar|executa|executar)\s+(.+?)\s+(?:no|pelo|no\s+termux)\s+termux/i);
+      const termux = require("./termux");
+      const r = await termux.rodarComando(m?.[1]?.trim() || "");
+      if (!r.ok) return r.msg;
+      let saida = r.msg;
+      if (saida.length > 1900) saida = saida.slice(0, 1900) + "\n... (truncado)";
+      return `🖥️ **Termux:**\n\`\`\`\n${saida}\n\`\`\``;
+    }
+
+    if (acao === "definirIp") {
+      const m = lower.match(/([0-9]{1,3}(?:\.[0-9]{1,3}){3})(?:\s+(\d+))?/);
+      return await celular.definirIp(m?.[1], m?.[2]);
+    }
+
+    if (acao === "status") {
+      const st = await celular.status();
+      return `📱 **Celular (adb):**\nIP: ${st.ip}:${st.porta}\nStatus: ${st.conectado ? "✅ conectado" : "❌ desconectado"}`;
+    }
+
+    if (acao === "conectar") {
+      const r = await celular.conectar();
+      return r.msg;
+    }
+
+    if (acao === "desconectar") {
+      const r = await celular.desconectar();
+      return r.msg;
+    }
+
+    if (acao === "espelhar") {
+      const st = await celular.status();
+      if (!st.conectado) {
+        const c = await celular.conectar();
+        if (!c.ok) return c.msg;
+      }
+      return celular.espelhar().msg;
+    }
+
+    if (acao === "abrirApp") {
+      const m = lower.match(/^(?:abre|abrir)\s+(.+?)\s+(?:no|do|pelo)\s+celular/i);
+      const nome = m?.[1]?.trim();
+      const pacote = celular.acharPacote(nome);
+      if (!pacote) return `❌ Não sei o pacote do app "${nome}".`;
+      const st = await celular.status();
+      if (!st.conectado) return "❌ Celular não conectado. Diz: `Neon, conecta o celular`.";
+      return (await celular.abrirApp(pacote)).msg;
+    }
+
+    if (acao === "print") {
+      const st = await celular.status();
+      if (!st.conectado) return "❌ Celular não conectado. Diz: `Neon, conecta o celular`.";
+      const r = await celular.printTela();
+      if (!r.ok) return r.msg;
+      try {
+        const { client } = require("./client");
+        const master = await client.users.fetch(OWNER);
+        if (master) {
+          const { AttachmentBuilder } = require("discord.js");
+          await master.send({ files: [new AttachmentBuilder(r.caminho, { name: "celular.png" })] });
+        }
+      } catch {}
+      return r.msg + `\n__FILE__:${r.caminho}`;
+    }
+
+    if (acao === "toque") {
+      const m = lower.match(/(\d+)[\s,]+(\d+)/);
+      return (await celular.toque(m?.[1], m?.[2])).msg;
+    }
+
+    if (acao === "deslizar") {
+      const m = lower.match(/(?:de\s+)?(\d+)[\s,]+(\d+)\s+(?:pra|para|ate|até|->)?\s*(\d+)[\s,]+(\d+)/);
+      if (!m) return "❌ Use: Neon, desliza no celular de X1 Y1 pra X2 Y2";
+      return (await celular.deslizar(m[1], m[2], m[3], m[4])).msg;
+    }
+
+    if (acao === "digitar") {
+      const m = lower.match(/^(?:digita|digitar|escreve|escrever|type)\s+(.+?)\s+(?:no|do)\s+celular/i);
+      return (await celular.digitar(m?.[1]?.trim() || "")).msg;
+    }
+
+    if (acao === "tecla") {
+      const m = lower.match(/^(?:aperta|apertar|pressiona|pressionar|tecla|aperte)\s+(.+?)\s+(?:no|do)\s+celular/i);
+      return (await celular.tecla(m?.[1]?.trim() || "")).msg;
+    }
+
+    return "Comando de celular não reconhecido.";
+  }
+
   // -- Plugins --
   try {
     const { getAcoes } = require("./plugin_loader")
@@ -1820,4 +2639,4 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   return null;
 }
 
-module.exports = { executarAcao, steamGames };
+module.exports = { executarAcao, steamGames, continuar, enviarMultiPartes };

@@ -43,9 +43,9 @@ function focusJanela(titulo) {
   } catch { return false }
 }
 
-function sendKey(char) {
+function sendKey(char, janela = "Opera") {
   try {
-    focusJanela("Opera")
+    focusJanela(janela)
     execSync(`powershell -NoProfile -Command "$wshell=New-Object -ComObject WScript.Shell; Start-Sleep -Milliseconds 300; $wshell.SendKeys('${char}')"`, { timeout: 5000, windowsHide: true })
     return true
   } catch { return false }

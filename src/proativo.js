@@ -98,6 +98,7 @@ async function montarContexto() {
   if (pcInfo) {
     ctx += ` | CPU: ${pcInfo.cpuUso || "?"}% | RAM: ${pcInfo.ramUso || "?"}%`;
     if (pcInfo.temperatura) ctx += ` | Temp: ${pcInfo.temperatura}°C`;
+    if (pcInfo.temperaturaGpu) ctx += ` | GPU: ${pcInfo.temperaturaGpu}°C`;
     if (pcInfo.discoUso) ctx += ` | Disco: ${pcInfo.discoUso}%`;
     ultimaAcao = Date.now();
   }
@@ -119,6 +120,7 @@ async function verificarEmergencias() {
       if (info.cpuUso > 90) alertas.push(`⚠️ CPU em ${info.cpuUso}% — algo ta pesado.`);
       if (info.discoUso > 95) alertas.push(`⚠️ Disco quase cheio (${info.discoUso}%).`);
       if (info.temperatura && info.temperatura > 85) alertas.push(`🔥 Temperatura em ${info.temperatura}°C — PC ta esquentando!`);
+      if (info.temperaturaGpu && info.temperaturaGpu > 85) alertas.push(`🔥 GPU em ${info.temperaturaGpu}°C — ta esquentando!`);
     }
   } catch {}
 

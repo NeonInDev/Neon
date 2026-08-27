@@ -16,3 +16,27 @@ memoria_global.json
 .env.old
 
 .env.example
+
+ssl/
+logs/tailscale_watch_state.json
+logs/vigilante_ram.pid
+data/opencode_server.pid
+data/skills.json
+data/guests.json
+google_credentials.json
+google_token.json
+opencode.json.chefe.bak
+echo/
+
+.whatsapp/
+.wwebjs_cache/
+whatsapp_qr.txt
+
+strava_export/
+boletim.json
+
+data/quirks/imgs/
+data/lore.json
+data/lockdown.json
+data/poderes.json
+libs/librehardwaremonitor/*.sys

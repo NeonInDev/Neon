@@ -1,12 +1,19 @@
 {
+  "id": "/",
   "name": "Neon - Assistente Pessoal",
   "short_name": "Neon",
+  "description": "HUD da Neon: controle de PC, chat, terminal e voz",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0a0a0f",
   "theme_color": "#6c5ce7",
-  "description": "Assistente pessoal IA com controle de PC",
   "icons": [
-    { "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%A1%3C/text%3E%3C/svg%3E", "sizes": "192x192", "type": "image/svg+xml" }
+    { "src": "/public/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/public/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/public/icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Controle por gestos", "url": "/gesture", "description": "Controlar o PC pela câmera do celular" }
   ]
 }

@@ -1,25 +1,25 @@
-const { log } = require("../src/logger")
+const { log } = require("../src/logger");
 
 module.exports = {
   nome: "Exemplo",
-  versao: "1.0",
-  desc: "Plugin de exemplo para mostrar o sistema",
+  versao: "1.1",
+  desc: "Plugin de exemplo — template pra criar novos plugins.",
 
   async iniciar() {
-    log("INFO", "[EXEMPLO] Plugin de exemplo ativo!")
+    log("INFO", "[EXEMPLO] Plugin de exemplo ativo!");
   },
 
   async parar() {
-    log("INFO", "[EXEMPLO] Plugin de exemplo parado")
+    log("INFO", "[EXEMPLO] Plugin de exemplo parado");
   },
 
   ferramentas: [
     {
       nome: "exemplo_ola",
-      desc: "Plugin exemplo: retorna uma saudacao. Uso: exemplo_ola | [nome]",
+      desc: "Plugin exemplo: retorna uma saudação. Uso: exemplo_ola | [nome]",
       async executar(args) {
-        const nome = args || "mundo"
-        return `Ola, ${nome}! (do plugin Exemplo)`
+        const nome = args || "mundo";
+        return `Olá, ${nome}! (do plugin Exemplo)`;
       }
     }
   ],
@@ -28,8 +28,8 @@ module.exports = {
     {
       padrao: /^(teste|testar)\s+plugin/i,
       async executar(texto, userId) {
-        return "Plugin de exemplo funcionando perfeitamente!"
+        return "Plugin de exemplo funcionando perfeitamente!";
       }
     }
   ]
-}
+};

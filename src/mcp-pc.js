@@ -1,5 +1,6 @@
 const readline = require("readline");
 const pc = require("./pc");
+const medal = require("../plugins/medal");
 
 const FERRAMENTAS = [
   {
@@ -77,8 +78,104 @@ const FERRAMENTAS = [
     },
   },
   {
+    name: "pc_abrir_app",
+    description: "Abre um aplicativo/jogo/programa do Windows pelo nome (ex: 'notepad', 'steam', 'discord', 'chrome'). Usa Start-Process para abrir como interface grafica.",
+    inputSchema: {
+      type: "object",
+      properties: { nome: { type: "string", description: "Nome do app (ex: notepad, chrome, steam)" } },
+      required: ["nome"],
+    },
+  },
+  {
+    name: "pc_criar_arquivo",
+    description: "Cria um arquivo novo. Caminhos relativos vão para C:\\Users\\Pichau\\Documents; caminhos absolutos devem ficar dentro de C:\\Users\\Pichau. Nunca sobrescreve um arquivo existente.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        caminho: { type: "string", description: "Caminho relativo a C:\\Users\\Pichau ou absoluto dentro dela" },
+        conteudo: { type: "string", description: "Conteúdo UTF-8 do arquivo" },
+      },
+      required: ["caminho"],
+    },
+  },
+  {
+    name: "pc_resumo_commits",
+    description: "Retorna um resumo dos commits recentes do repositório da Neon.",
+    inputSchema: {
+      type: "object",
+      properties: { limite: { type: "number", description: "Quantidade de commits, de 1 a 20" } },
+    },
+  },
+  {
+    name: "pc_abrir_whatsapp",
+    description: "Abre o WhatsApp. Só use quando o usuário pedir explicitamente para abrir o WhatsApp.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "pc_abrir_url",
+    description: "Abre uma URL http/https no navegador padrão.",
+    inputSchema: {
+      type: "object",
+      properties: { url: { type: "string" } },
+      required: ["url"],
+    },
+  },
+  {
+    name: "pc_iniciar_jogo_steam",
+    description: "Inicia um jogo pela Steam usando o AppID numérico.",
+    inputSchema: {
+      type: "object",
+      properties: { appid: { type: "string", description: "AppID numérico da Steam" } },
+      required: ["appid"],
+    },
+  },
+  {
+    name: "pc_fechar_apps",
+    description: "Fecha aplicativos com janelas abertas, preservando Medal, Steam e a Neon.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "pc_spotify_buscar_tocar",
+    description: "Abre o Spotify e toca uma música por nome/artista ou diretamente por ID/URL de faixa.",
+    inputSchema: {
+      type: "object",
+      properties: { busca: { type: "string", description: "Nome da música e, de preferência, o artista" } },
+      required: ["busca"],
+    },
+  },
+  {
+    name: "pc_spotify_tocar_id",
+    description: "Abre e toca diretamente uma faixa do Spotify pelo ID de 22 caracteres ou URL da faixa.",
+    inputSchema: {
+      type: "object",
+      properties: { id: { type: "string", description: "ID ou URL da faixa do Spotify" } },
+      required: ["id"],
+    },
+  },
+  {
+    name: "pc_spotify_controle",
+    description: "Controla a reprodução do Spotify: tocar, pausar, continuar, proxima ou anterior.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        acao: { type: "string", enum: ["tocar", "pausar", "continuar", "proxima", "anterior"] },
+      },
+      required: ["acao"],
+    },
+  },
+  {
     name: "pc_janelas",
     description: "Lista as janelas abertas.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "medal_ultima_screenshot",
+    description: "Busca a última screenshot salva pelo Medal e retorna o caminho para envio.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "medal_ultima_gravacao",
+    description: "Busca a última gravação/clipe salvo pelo Medal e retorna o caminho para envio.",
     inputSchema: { type: "object", properties: {} },
   },
 ];
@@ -124,9 +221,49 @@ async function chamarFerramenta(nome, args) {
     case "pc_digitar":
       texto = JSON.stringify(await pc.digitarTexto(args.texto));
       break;
+    case "pc_abrir_app":
+      texto = JSON.stringify(await pc.abrirAppPorNome(args.nome));
+      break;
+    case "pc_criar_arquivo":
+      texto = JSON.stringify(await pc.criarArquivo(args.caminho, args.conteudo || ""));
+      break;
+    case "pc_resumo_commits":
+      texto = JSON.stringify(await pc.resumoCommits(args.limite));
+      break;
+    case "pc_abrir_whatsapp":
+      texto = JSON.stringify(await pc.abrirWhatsApp());
+      break;
+    case "pc_abrir_url":
+      texto = JSON.stringify(await pc.abrirUrl(args.url));
+      break;
+    case "pc_iniciar_jogo_steam":
+      texto = JSON.stringify(await pc.iniciarJogoSteam(args.appid));
+      break;
+    case "pc_fechar_apps":
+      texto = JSON.stringify(await pc.fecharAppsExceto());
+      break;
+    case "pc_spotify_buscar_tocar":
+      texto = JSON.stringify(await pc.spotifyBuscarTocar(args.busca));
+      break;
+    case "pc_spotify_tocar_id":
+      texto = JSON.stringify(await pc.spotifyTocarPorId(args.id));
+      break;
+    case "pc_spotify_controle":
+      texto = JSON.stringify(await pc.spotifyControle(args.acao));
+      break;
     case "pc_janelas":
       texto = JSON.stringify(await pc.listarJanelas());
       break;
+    case "medal_ultima_screenshot": {
+      const item = medal.ultimaScreenshot();
+      texto = JSON.stringify(item || { erro: "nenhuma screenshot do Medal encontrada" });
+      break;
+    }
+    case "medal_ultima_gravacao": {
+      const item = medal.ultimaGravacao();
+      texto = JSON.stringify(item || { erro: "nenhuma gravação do Medal encontrada" });
+      break;
+    }
     default:
       throw new Error(`ferramenta desconhecida: ${nome}`);
   }

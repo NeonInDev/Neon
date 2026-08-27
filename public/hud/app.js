@@ -1,6 +1,15 @@
 (() => {
   const $ = (id) => document.getElementById(id);
 
+  const AMBIENTE_RENDER = window.location.hostname.endsWith("onrender.com");
+  if (AMBIENTE_RENDER) {
+    ["terminal", "arquivos", "historico", "tela", "celular"].forEach((v) => {
+      const view = $(`view${v[0].toUpperCase()}${v.slice(1)}`);
+      if (view) view.classList.add("hidden");
+      document.querySelectorAll(`[data-view="${v}"]`).forEach((b) => (b.style.display = "none"));
+    });
+  }
+
   const chat = $("chat");
   const chatForm = $("chatForm");
   const chatInput = $("chatInput");
@@ -15,6 +24,7 @@
   const volVal = $("volVal");
   const audio = new Audio();
   const modoBtn = $("modoBtn");
+  const btnVozAssistente = $("btnVozAssistente");
 
   function aplicarTema(modo) {
     document.documentElement.dataset.theme = modo === "ultron" ? "ultron" : "jarvis";
@@ -35,7 +45,7 @@
     const novo = atual === "ultron" ? "jarvis" : "ultron";
     toast(novo === "ultron" ? "☠️ MODO ULTRON" : "🟦 MODO JARVIS");
     try {
-      const r = await fetch("/api/modo", {
+      const r = await api("/api/modo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ modo: novo }),
@@ -54,8 +64,6 @@
   let vozAtiva = true;
   let reconhecendo = false;
   let recognition = null;
-
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
   function toast(msg) {
     const t = $("toast");
@@ -87,7 +95,7 @@
   async function falar(texto) {
     if (!vozAtiva || !texto) return;
     try {
-      const r = await fetch("/api/voz/audio", {
+      const r = await api("/api/voz/audio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ texto: texto.slice(0, 500) }),
@@ -107,7 +115,7 @@
     const typing = addMsg("neon", "processando...");
     typing.classList.add("typing");
     try {
-      const r = await fetch("/api/chat", {
+      const r = await api("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mensagem: t, usuario: "HUD", userId: "hud_web" }),
@@ -117,9 +125,20 @@
       const reply = data.resposta || data.erro || "Sem resposta.";
       addMsg("neon", reply);
       falar(reply);
+      if (data.resposta) {
+        try {
+          await api("/api/historico", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ usuario: "HUD", mensagem: t, resposta: data.resposta }),
+          });
+        } catch {}
+      }
+      return reply;
     } catch (err) {
       typing.remove();
       addMsg("neon", `Erro de conexão: ${err.message}`);
+      return `Erro de conexão: ${err.message}`;
     }
   }
 
@@ -131,7 +150,7 @@
   // ============ STATUS AO VIVO ============
   async function atualizarStatus() {
     try {
-      const r = await fetch("/api/pc", { method: "GET" });
+      const r = await api("/api/pc", { method: "GET" });
       if (!r.ok) throw new Error("status");
       const { info, bateria } = await r.json();
       setStatus(true, "SISTEMA ONLINE");
@@ -144,19 +163,22 @@
       if (ram != null) { setRing("ringRam", ram); $("ramVal").textContent = `${Math.round(ram)}%`; }
       if (disco != null) { setRing("ringDisk", disco); $("diskVal").textContent = `${Math.round(disco)}%`; }
 
-      if (bateria?.temBateria) {
-        setRing("ringBat", bateria.pct);
-        $("batVal").textContent = `${bateria.pct}%`;
-        $("batVal").style.color = bateria.pct <= 20 ? "var(--red)" : "";
+      const temperatura = info?.temperatura ?? null;
+      if (temperatura != null) {
+        setRing("ringTemp", temperatura);
+        $("tempVal").textContent = `${Math.round(temperatura)}°C`;
+        $("tempVal").style.color = temperatura >= 80 ? "var(--red)" : "";
       } else {
-        $("batVal").textContent = "--";
-        $("batVal").style.color = "var(--dim)";
+        $("tempVal").textContent = "--°C";
+        $("tempVal").style.color = "var(--dim)";
       }
 
       const partes = [];
       if (info) {
         if (cpu != null) partes.push(`CPU ${Math.round(cpu)}%`);
         if (ram != null) partes.push(`RAM ${Math.round(ram)}%`);
+        if (info.temperatura != null) partes.push(`Temp ${info.temperatura}°C`);
+        if (info.temperaturaGpu != null) partes.push(`GPU ${info.temperaturaGpu}°C`);
         if (info.ramLivre != null) partes.push(`${info.ramLivre.toFixed(1)} GB livres`);
         if (info.cpuNome) partes.push(info.cpuNome.trim().slice(0, 28));
         if (bateria?.temBateria) partes.push(`Bateria ${bateria.pct}% (${bateria.status})`);
@@ -181,46 +203,134 @@
   relogio();
 
   // ============ VOZ (PUSH TO TALK) ============
-  function iniciarReconhecimento() {
-    if (!SR) { toast("Seu navegador não suporta voz"); return; }
-    reconhecendo = true;
-    recognition = new SR();
-    recognition.lang = "pt-BR";
-    recognition.interimResults = true;
-    recognition.continuous = false;
+  let mediaRecorder = null;
+  let gravando = false;
+  const suportaWebSpeech = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
 
-    let final = "";
-    recognition.onresult = (e) => {
-      let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        if (e.results[i].isFinal) final += e.results[i][0].transcript;
-        else interim += e.results[i][0].transcript;
-      }
-      chatInput.value = (final + interim).trim();
-    };
-    recognition.onend = () => {
-      micBtn.classList.remove("listening");
-      micLabel.textContent = "PUSH TO TALK";
-      $("voiceBadge").style.display = "none";
-      if (reconhecendo && final.trim()) {
-        reconhecendo = false;
-        enviar(final);
-      } else if (reconhecendo && chatInput.value.trim()) {
-        reconhecendo = false;
-        enviar(chatInput.value);
-      }
-      reconhecendo = false;
-    };
-    recognition.onerror = () => { stopReconhecimento(); };
+  async function obterMicrofone() {
+    if (!navigator.mediaDevices?.getUserMedia) return null;
+    try { return await navigator.mediaDevices.getUserMedia({ audio: true }); }
+    catch { return null; }
+  }
 
-    micBtn.classList.add("listening");
-    micLabel.textContent = "OUVINDO...";
-    $("voiceBadge").style.display = "block";
-    recognition.start();
+  function setMic(ativo, label) {
+    micBtn.classList.toggle("listening", ativo);
+    micLabel.textContent = label;
+    $("voiceBadge").style.display = ativo ? "block" : "none";
+    $("voiceBadge").textContent = `● ${label}`;
+  }
+
+  function usarWebSpeech() {
+    if (!suportaWebSpeech) return false;
+    try {
+      reconhecendo = true;
+      recognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+      recognition.lang = "pt-BR";
+      recognition.interimResults = true;
+      recognition.continuous = false;
+
+      let final = "";
+      recognition.onresult = (e) => {
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) final += e.results[i][0].transcript;
+          else interim += e.results[i][0].transcript;
+        }
+
+        let vozAssistente = false;
+        let wakeRecognition = null;
+        function alternarAssistenteVoz() {
+          if (!suportaWebSpeech) { toast("Reconhecimento de voz não disponível"); return; }
+          if (vozAssistente) {
+            vozAssistente = false;
+            try { wakeRecognition?.stop(); } catch {}
+            btnVozAssistente.textContent = "🎙️ VOZ: DESLIGADA";
+            return;
+          }
+          vozAssistente = true;
+          btnVozAssistente.textContent = "🎙️ VOZ: ATIVA";
+          const ouvir = () => {
+            if (!vozAssistente) return;
+            wakeRecognition = new (window.SpeechRecognition || window.webkitSpeechRecognition)();
+            wakeRecognition.lang = "pt-BR";
+            wakeRecognition.continuous = true;
+            wakeRecognition.interimResults = false;
+            wakeRecognition.onresult = (e) => {
+              for (let i = e.resultIndex; i < e.results.length; i++) {
+                if (!e.results[i].isFinal) continue;
+                const frase = e.results[i][0].transcript.trim();
+                const comando = frase.replace(/^\s*(?:ei\s+)?neon[\s,!.\-:;]*/i, "").trim();
+                if (comando) enviar(comando);
+              }
+            };
+            wakeRecognition.onend = () => { if (vozAssistente) setTimeout(ouvir, 250); };
+            wakeRecognition.onerror = () => { if (vozAssistente) setTimeout(ouvir, 500); };
+            try { wakeRecognition.start(); } catch {}
+          };
+          ouvir();
+        }
+        btnVozAssistente.addEventListener("click", alternarAssistenteVoz);
+        chatInput.value = (final + interim).trim();
+      };
+      recognition.onend = () => {
+        reconhecendo = false;
+        const t = (final || chatInput.value).trim();
+        if (t) { chatInput.value = ""; enviar(t); }
+        setMic(false, "PUSH TO TALK");
+      };
+      recognition.onerror = () => { try { recognition.stop(); } catch {} setMic(false, "PUSH TO TALK"); };
+
+      setMic(true, "OUVINDO...");
+      recognition.start();
+      return true;
+    } catch { return false; }
+  }
+
+  async function iniciarReconhecimento() {
+    if (gravando) return;
+    const stream = await obterMicrofone();
+    if (!stream) {
+      if (!usarWebSpeech()) toast("Sem acesso ao microfone");
+      return;
+    }
+
+    gravando = true;
+    setMic(true, "GRAVANDO...");
+
+    try { mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" }); }
+    catch { mediaRecorder = new MediaRecorder(stream); }
+
+    const chunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    mediaRecorder.onstop = async () => {
+      stream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(chunks, { type: mediaRecorder.mimeType || "audio/webm" });
+      await transcreverBlob(blob);
+    };
+    mediaRecorder.start();
   }
 
   function stopReconhecimento() {
-    if (recognition) { try { recognition.stop(); } catch {} }
+    if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+  }
+
+  async function transcreverBlob(blob) {
+    setMic(true, "PROCESSANDO...");
+    try {
+      const r = await api("/api/voz/stt", { method: "POST", body: blob });
+      const data = await r.json();
+      const texto = (data.texto || "").trim();
+      if (texto) {
+        chatInput.value = "";
+        enviar(texto);
+      } else {
+        toast(data.erro || "Não entendi o áudio. Tenta de novo.");
+      }
+    } catch (err) {
+      toast("Falha na transcrição: " + err.message);
+    } finally {
+      setMic(false, "PUSH TO TALK");
+    }
   }
 
   micBtn.addEventListener("mousedown", iniciarReconhecimento);
@@ -242,7 +352,7 @@
     const nivel = parseInt(volRange.value, 10);
     volVal.textContent = `${nivel}%`;
     try {
-      await fetch("/api/pc/volume", {
+      await api("/api/pc/volume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ nivel }),
@@ -253,7 +363,7 @@
   $("btnShot").addEventListener("click", async () => {
     toast("Capturando tela...");
     try {
-      const r = await fetch("/api/pc/screenshot", { method: "POST" });
+      const r = await api("/api/pc/screenshot", { method: "POST" });
       const data = await r.json();
       if (data.imagem) {
         $("shotImg").src = data.imagem;
@@ -271,7 +381,7 @@
     const mensagem = prompt("Mensagem:", "");
     if (mensagem === null) return;
     try {
-      const r = await fetch("/api/pc/notificar", {
+      const r = await api("/api/pc/notificar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ titulo, mensagem }),
@@ -304,7 +414,7 @@
 
   // ============ ABAS ============
   const tabs = document.querySelectorAll(".tab");
-  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos") };
+  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode"), projetos: $("viewProjetos"), projetos3d: $("viewProjetos3d"), holomap: $("viewHolomap") };
 
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -450,4 +560,216 @@
       toast(data.ok ? "Arquivo salvo" : data.erro);
     } catch (err) { toast(err.message); }
   });
+
+  // ============ CONTROLES RÁPIDOS ============
+  document.querySelectorAll(".qb-chip").forEach((chip) => {
+    chip.addEventListener("click", async () => {
+      const acao = chip.dataset.quick.toLowerCase();
+      let tipo, nome;
+      if (acao.includes("dormir")) tipo = "dormir";
+      else if (acao.includes("bloquear")) tipo = "bloquear";
+      else if (acao.includes("desligar")) tipo = "desligar";
+      else if (acao.includes("vscode")) { tipo = "abrir_app"; nome = "code"; }
+      if (!tipo) return;
+      toast("Executando...");
+      try {
+        const r = await api("/api/pc/acao", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ acao: tipo, nome }),
+        });
+        const data = await r.json();
+        toast(data.resultado || data.erro || "ok");
+      } catch (err) { toast(err.message); }
+    });
+  });
+
+  // ============ HISTÓRICO ============
+  const histList = $("histList");
+  const HIST_USUARIO = "HUD";
+
+  function histItem(h) {
+    const el = document.createElement("div");
+    el.className = "hist-item";
+    const d = new Date(h.t).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+    el.innerHTML = `<div class="hist-q">${escapeHtml(h.m)}</div><div class="hist-a">${escapeHtml(h.r)}</div><div class="hist-t">${d}</div>`;
+    el.addEventListener("click", () => {
+      chatInput.value = h.m;
+      enviar(h.m);
+    });
+    return el;
+  }
+
+  async function carregarHistorico() {
+    histList.innerHTML = '<div class="hist-empty">carregando...</div>';
+    try {
+      const r = await api(`/api/historico?usuario=${encodeURIComponent(HIST_USUARIO)}`);
+      const data = await r.json();
+      const hist = data.historico || [];
+      histList.innerHTML = "";
+      if (!hist.length) {
+        histList.innerHTML = '<div class="hist-empty">Sem histórico ainda. Fale com a Neon no chat!</div>';
+        return;
+      }
+      hist.slice().reverse().forEach((h) => histList.appendChild(histItem(h)));
+    } catch (err) {
+      histList.innerHTML = `<div class="hist-empty">${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  $("btnHistAtualizar").addEventListener("click", carregarHistorico);
+  $("btnHistLimpar").addEventListener("click", async () => {
+    if (!confirm("Apagar todo o histórico de conversa?")) return;
+    try {
+      await api(`/api/historico?usuario=${encodeURIComponent(HIST_USUARIO)}`, { method: "DELETE" });
+      carregarHistorico();
+      toast("Histórico apagado");
+    } catch (err) { toast(err.message); }
+  });
+
+  // ============ TELA AO VIVO ============
+  const screenImg = $("screenImg");
+  let telaTimer = null;
+  const TELA_MS = 2000;
+
+  async function frameTela() {
+    try {
+      const r = await api("/api/pc/tela");
+      const data = await r.json();
+      if (data.imagem) screenImg.src = data.imagem;
+    } catch {}
+  }
+
+  function telaParar() {
+    clearInterval(telaTimer);
+    telaTimer = null;
+    screenImg.classList.remove("on");
+  }
+
+  $("btnTelaPlay").addEventListener("click", async () => {
+    if (telaTimer) telaParar();
+    toast("Transmitindo tela...");
+    screenImg.classList.remove("on");
+    await frameTela();
+    screenImg.classList.add("on");
+    telaTimer = setInterval(frameTela, TELA_MS);
+  });
+
+  $("btnTelaStop").addEventListener("click", () => {
+    telaParar();
+    toast("Transmissão parada");
+  });
+
+  // ============ NAV MOBILE + TAB TOPS ============
+  const botoes = document.querySelectorAll(".bn-item");
+  const viewsNavegaveis = [...botoes].filter((b) => b.style.display !== "none");
+  let indiceAba = Math.max(0, viewsNavegaveis.findIndex((b) => b.classList.contains("active")));
+  function selecionarAbaPorTeclado(indice) {
+    if (!viewsNavegaveis.length) return;
+    indiceAba = (indice + viewsNavegaveis.length) % viewsNavegaveis.length;
+    viewsNavegaveis[indiceAba].click();
+  }
+  botoes.forEach((b) => {
+    b.addEventListener("click", () => {
+      const v = b.dataset.view;
+      indiceAba = viewsNavegaveis.indexOf(b);
+      tabs.forEach((x) => x.classList.toggle("active", x.dataset.view === v));
+      botoes.forEach((x) => x.classList.toggle("active", x === b));
+      Object.entries(views).forEach(([k, el]) => el.classList.toggle("active", k === v));
+      if (v === "arquivos" && !fileList.dataset.carregado) carregarArquivos();
+      if (v === "historico") carregarHistorico();
+      if (v === "tela") $("viewTela").classList.add("active");
+      if (v === "celular") carregarCelular();
+      if (v === "projetos") { const f = $("frameProjetos"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
+      if (v === "projetos3d") { const f = $("frameProjetos3d"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
+      if (v === "holomap") { const f = $("frameHolomap"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
+    });
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Tab" || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+    e.preventDefault();
+    selecionarAbaPorTeclado(indiceAba + (e.shiftKey ? -1 : 1));
+  });
+
+  // ============ CELULAR (adb/scrcpy) ============
+  const celStatus = $("celStatus");
+  const celShot = $("celShot");
+  const celShotImg = $("celShotImg");
+  const celAppInput = $("celApp");
+
+  async function carregarCelular() {
+    try {
+      const r = await api("/api/celular");
+      const d = await r.json();
+      celStatus.textContent = d.conectado ? `✅ conectado (${d.dispositivo || (d.ip + ":" + d.porta)})` : "❌ desconectado";
+    } catch { celStatus.textContent = "❌ offline"; }
+  }
+
+  async function acaoCelular(caminho, body) {
+    toast("Executando...");
+    try {
+      const r = await api(`/api/celular/${caminho}`, {
+        method: "POST",
+        headers: body ? { "Content-Type": "application/json" } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const d = await r.json();
+      if (d.imagem) {
+        celShot.classList.remove("hidden");
+        celShotImg.src = d.imagem;
+        toast("Print gerado");
+      } else {
+        toast(d.mensagem || d.erro || "ok");
+      }
+    } catch (err) { toast(err.message); }
+    carregarCelular();
+  }
+
+  $("btnCelConectar").addEventListener("click", () => acaoCelular("conectar"));
+  $("btnCelDesconectar").addEventListener("click", () => acaoCelular("desconectar"));
+  $("btnCelEspelhar").addEventListener("click", () => acaoCelular("espelhar"));
+  $("btnCelPrint").addEventListener("click", () => acaoCelular("print"));
+  $("btnCelAbrir").addEventListener("click", () => {
+    const app = celAppInput.value.trim();
+    if (app) acaoCelular("abrir", { app });
+  });
+
+  // ============ OPENCODE (comunicar com o opencode da Neon) ============
+  const ocChat = $("ocChat");
+  const ocForm = $("ocForm");
+  const ocInput = $("ocInput");
+
+  function ocMsg(texto, cls) {
+    const d = document.createElement("div");
+    d.className = "msg " + cls;
+    d.textContent = texto;
+    ocChat.appendChild(d);
+    ocChat.scrollTop = ocChat.scrollHeight;
+  }
+
+  ocForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const tarefa = ocInput.value.trim();
+    if (!tarefa) return;
+    ocInput.value = "";
+    ocMsg(tarefa, "user");
+    ocMsg("pensando...", "neon oc-busy");
+    try {
+      const r = await api("/api/opencode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tarefa }),
+      });
+      const data = await r.json();
+      ocChat.querySelector(".oc-busy")?.remove();
+      if (data.ok && data.resultado) ocMsg(data.resultado, "neon");
+      else ocMsg(data.erro || "sem resposta", "neon");
+    } catch (err) {
+      ocChat.querySelector(".oc-busy")?.remove();
+      ocMsg("Falha: " + err.message, "neon");
+    }
+  });
+
+  // registra histórico de cada troca de chat
 })();

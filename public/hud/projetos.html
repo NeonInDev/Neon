@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEON · Projetos</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #141428 0%, #05050c 70%); font-family: 'Segoe UI', system-ui, sans-serif; color: #cfc9ff; }
+
+    .hud-top {
+      position: fixed; top: 12px; left: 16px; z-index: 10;
+      color: #6c5ce7; letter-spacing: 2px; font-weight: 700;
+      text-shadow: 0 0 12px rgba(108,92,231,.8); pointer-events: none;
+    }
+    .hud-top small { color: #8d84e8aa; font-weight: 400; letter-spacing: 1px; }
+
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 20px;
+      padding: 60px 24px 24px;
+      overflow-y: auto;
+      height: 100vh;
+      scrollbar-width: thin;
+      scrollbar-color: #6c5ce744 transparent;
+    }
+    #grid::-webkit-scrollbar { width: 6px; }
+    #grid::-webkit-scrollbar-thumb { background: #6c5ce744; border-radius: 3px; }
+
+    .card {
+      background: rgba(12, 12, 30, 0.85);
+      border: 1px solid #6c5ce733;
+      border-radius: 14px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+    .card:hover {
+      border-color: #6c5ce7;
+      box-shadow: 0 0 24px rgba(108, 92, 231, 0.35);
+      transform: translateY(-4px);
+    }
+
+    .card-img {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      display: block;
+      border-bottom: 1px solid #6c5ce722;
+    }
+
+    .card-body { padding: 16px 18px 14px; }
+
+    .card-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #6c5ce7;
+      letter-spacing: 1px;
+      text-shadow: 0 0 8px rgba(108,92,231,.6);
+      margin-bottom: 6px;
+    }
+
+    .card-desc {
+      font-size: 12px;
+      color: #8d84e8;
+      line-height: 1.5;
+      margin-bottom: 10px;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .tag {
+      font-size: 10px;
+      letter-spacing: 1px;
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid;
+    }
+    .tag-blue { color: #00f0ff; border-color: #00f0ff44; background: rgba(0,240,255,0.08); }
+    .tag-red { color: #ff3355; border-color: #ff335544; background: rgba(255,51,85,0.08); }
+    .tag-green { color: #00ff88; border-color: #00ff8844; background: rgba(0,255,136,0.08); }
+    .tag-orange { color: #ff9d00; border-color: #ff9d0044; background: rgba(255,157,0,0.08); }
+    .tag-purple { color: #b47aff; border-color: #b47aff44; background: rgba(180,122,255,0.08); }
+
+    .card-meta {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 10px;
+      color: #5a5080;
+      letter-spacing: 1px;
+    }
+
+    .card-status {
+      display: flex; align-items: center; gap: 5px;
+    }
+    .card-status .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+    }
+    .dot-active { background: #00ff88; box-shadow: 0 0 6px #00ff88; }
+    .dot-dev { background: #ff9d00; box-shadow: 0 0 6px #ff9d00; }
+    .dot-paused { background: #ff3355; box-shadow: 0 0 6px #ff3355; }
+
+    .card-links {
+      display: flex; gap: 8px; margin-top: 10px;
+    }
+    .card-link {
+      font-size: 10px;
+      color: #6c5ce7;
+      text-decoration: none;
+      letter-spacing: 1px;
+      padding: 4px 10px;
+      border: 1px solid #6c5ce744;
+      border-radius: 4px;
+      transition: all 0.2s;
+    }
+    .card-link:hover {
+      background: rgba(108,92,231,0.15);
+      border-color: #6c5ce7;
+    }
+
+    .empty-msg {
+      grid-column: 1 / -1;
+      text-align: center;
+      padding: 60px 20px;
+      color: #5a5080;
+      font-size: 14px;
+      letter-spacing: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="hud-top">⚡ PROJETOS · NEONWORLD <small>— projetos locais e experimentos</small></div>
+  <div id="grid">
+    <div class="empty-msg">CARREGANDO PROJETOS...</div>
+  </div>
+
+  <script>
+    const PROJETOS = [
+      {
+        nome: "WebShooter",
+        desc: "Lançador de teia inspirado no Homem-Aranha. Duas variantes: carretel PET + alginato (barato) e cartucho PU 2K (forte). ESP32-C3, gatilho FSR, 3 modos de disparo.",
+        img: "/api/projeto-imagem?projeto=webshooter",
+        tags: [["ESP32", "blue"], ["3D Print", "purple"], ["Hardware", "orange"]],
+        status: "active",
+        statusText: "v9.3",
+        links: [
+          { label: "GITHUB", url: "https://github.com/NeonInDev/WebShooter" },
+          { label: "PASTA", url: "file:///C:/Users/Pichau/WebShooter" }
+        ],
+        meta: "C++ · Blender · Fritzing"
+      },
+      {
+        nome: "Neon Zero Arquimedes",
+        desc: "Manopla estilo Iron Man com placas de armadura móveis e canhão de marshmallow. Controle via Neon/ESP32. Modo sphero e modo canhão.",
+        img: "/api/projeto-imagem?projeto=neon-zero-arquimedes",
+        tags: [["ESP32", "blue"], ["Wearable", "red"], ["Arduino", "green"]],
+        status: "active",
+        statusText: "v1.0",
+        links: [
+          { label: "PASTA", url: "file:///C:/Users/Pichau/neon-zero-arquimedes" }
+        ],
+        meta: "Arduino · C++"
+      },
+      {
+        nome: "Neon AI",
+        desc: "Assistente pessoal com Discord bot, WhatsApp, terminal remoto, controle PC, HUD web, app desktop. Modos Jarvis e Ultron com personalidade.",
+        img: "/api/projeto-imagem?projeto=neon",
+        tags: [["Node.js", "green"], ["Discord", "purple"], ["AI", "orange"]],
+        status: "active",
+        statusText: "online",
+        links: [
+          { label: "GITHUB", url: "https://github.com/NeonInDev/Neon" },
+          { label: "HUD", url: "/hud" }
+        ],
+        meta: "JavaScript · Node.js"
+      },
+      {
+        nome: "YGGDRASIL",
+        desc: "Bridge MCP que conecta AI agents (OpenCode) ao Neon. Permite que a IA controle o PC, arquivos, terminal, notificações e mais.",
+        img: "/api/projeto-imagem?projeto=yggdrasil",
+        tags: [["MCP", "blue"], ["AI", "orange"], ["Bridge", "green"]],
+        status: "active",
+        statusText: "ativo",
+        links: [],
+        meta: "JSON-RPC · Node.js"
+      },
+      {
+        nome: "Neon HUD",
+        desc: "Painel de controle web com chat, terminal remoto, screenshots ao vivo, controle de celular, modo Jarvis/Ultron e visualização 3D de projetos.",
+        img: "/api/projeto-imagem?projeto=hud",
+        tags: [["Web", "blue"], ["Dashboard", "purple"], ["Real-time", "green"]],
+        status: "active",
+        statusText: "v3.0",
+        links: [
+          { label: "ABRIR", url: "/hud" }
+        ],
+        meta: "HTML · CSS · JS"
+      },
+      {
+        nome: "SPDR-HUD",
+        desc: "Skins Rainmeter desktop HUD inspiradas na Peni Parker / SP//dr. System stats, clock neon e tema completo de desktop.",
+        img: "/api/projeto-imagem?projeto=spdr-hud",
+        tags: [["Rainmeter", "red"], ["Desktop", "orange"], ["Theme", "purple"]],
+        status: "paused",
+        statusText: "completo",
+        links: [],
+        meta: "Rainmeter · INI"
+      }
+    ];
+
+    function renderCards() {
+      const grid = document.getElementById("grid");
+      if (!PROJETOS.length) {
+        grid.innerHTML = '<div class="empty-msg">NENHUM PROJETO ENCONTRADO</div>';
+        return;
+      }
+      grid.innerHTML = PROJETOS.map(p => `
+        <div class="card" onclick="abrirProjeto('${p.links[0]?.url || '#'}')">
+          <img class="card-img" src="${p.img}" alt="${p.nome}" onerror="this.style.display='none'" />
+          <div class="card-body">
+            <div class="card-title">${p.nome}</div>
+            <div class="card-desc">${p.desc}</div>
+            <div class="card-tags">
+              ${p.tags.map(([t, c]) => `<span class="tag tag-${c}">${t}</span>`).join("")}
+            </div>
+            <div class="card-meta">
+              <span>${p.meta}</span>
+              <div class="card-status">
+                <span class="dot dot-${p.status}"></span>
+                <span>${p.statusText}</span>
+              </div>
+            </div>
+            ${p.links.length ? `
+              <div class="card-links">
+                ${p.links.map(l => `<a class="card-link" href="${l.url}" target="_blank" onclick="event.stopPropagation()">${l.label}</a>`).join("")}
+              </div>
+            ` : ""}
+          </div>
+        </div>
+      `).join("");
+    }
+
+    function abrirProjeto(url) {
+      if (url && url !== "#") window.open(url, "_blank");
+    }
+
+    renderCards();
+  </script>
+</body>
+</html>

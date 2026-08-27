@@ -70,7 +70,7 @@ async function executarTarefa(tarefa) {
         break;
       }
       case "comando": {
-        const { stdout, stderr } = await execAsync(tarefa.alvo, { timeout: 30000 });
+        const { stdout, stderr } = await execAsync(tarefa.alvo, { timeout: 30000, windowsHide: true });
         if (stderr && !stdout) log("WARN", "[SCHEDULER] Erro no comando", { erro: stderr });
         else log("INFO", "[SCHEDULER] Comando executado", { saida: stdout?.slice(0, 200) });
         if (tarefa.userId && client?.isReady()) {

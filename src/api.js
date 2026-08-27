@@ -1,5 +1,73 @@
 const axios = require("axios");
 
+const UA_IMG = { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" };
+
+// Confere se a URL realmente serve uma imagem (mata os 404/HTML disfarçado)
+async function urlValidaImagem(url) {
+  if (!/^https?:\/\//.test(url || "")) return false;
+  try {
+    const r = await axios.head(url, { timeout: 6000, headers: UA_IMG, maxRedirects: 4 });
+    const ct = (r.headers["content-type"] || "").toLowerCase();
+    return r.status === 200 && ct.startsWith("image/");
+  } catch {
+    try {
+      const r = await axios.get(url, { timeout: 8000, headers: UA_IMG, responseType: "stream", maxContentLength: 3000000, maxRedirects: 4 });
+      const ct = (r.headers["content-type"] || "").toLowerCase();
+      r.data.destroy();
+      return r.status === 200 && ct.startsWith("image/");
+    } catch {
+      return false;
+    }
+  }
+}
+
+// Raspa resultados de imagem do DuckDuckGo (precisa do token vqd; às vezes bloqueia com 403)
+async function imagensDuck(query) {
+  const home = await axios.get(`https://duckduckgo.com/?q=${encodeURIComponent(query)}&iax=images&ia=images`, { timeout: 10000, headers: UA_IMG });
+  const vqd = (home.data.match(/vqd=["']?([\w-]+)["']?/) || [])[1];
+  if (!vqd) return [];
+  const r = await axios.get("https://duckduckgo.com/i.js", {
+    params: { l: "pt-br", o: "json", q: query, vqd, f: ",,,," },
+    timeout: 12000,
+    headers: { ...UA_IMG, Referer: "https://duckduckgo.com/" },
+  });
+  return (r.data.results || []).map((x) => x.image).filter(Boolean);
+}
+
+// Openverse: API aberta de imagens CC, sem chave
+async function imagensOpenverse(query) {
+  const r = await axios.get("https://api.openverse.org/v1/images/", {
+    params: { q: query, page_size: 8 },
+    timeout: 12000,
+    headers: UA_IMG,
+  });
+  return (r.data.results || []).map((x) => x.url).filter(Boolean);
+}
+
+// Wikimedia Commons: ótimo pra temas enciclopédicos, URLs estáveis
+async function imagensWikimedia(query) {
+  const r = await axios.get("https://commons.wikimedia.org/w/api.php", {
+    params: {
+      action: "query",
+      generator: "search",
+      gsrsearch: `filetype:bitmap ${query}`,
+      gsrnamespace: 6,
+      gsrlimit: 8,
+      prop: "imageinfo",
+      iiprop: "url",
+      iiurlwidth: 1024,
+      format: "json",
+      origin: "*",
+    },
+    timeout: 12000,
+    headers: UA_IMG,
+  });
+  const paginas = r.data?.query?.pages || {};
+  return Object.values(paginas)
+    .map((p) => p.imageinfo?.[0]?.thumburl || p.imageinfo?.[0]?.url)
+    .filter(Boolean);
+}
+
 async function cotacaoMoeda() {
   const { data } = await axios.get("https://economia.awesomeapi.com.br/json/last/USD-BRL,EUR-BRL,GBP-BRL,ARS-BRL", { timeout: 10000 });
   return {
@@ -49,24 +117,72 @@ async function meuIP() {
 }
 
 async function gerarImagem(prompt) {
-  // Usa Pollinations.ai (gratis, sem chave, retorna imagem direto)
+  // Usa Pollinations.ai (gratis, sem chave, retorna imagem direto). 429 é comum -> tenta de novo
   const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${Date.now()}&nofeed=true`;
-  // Verifica se a URL responde
-  try {
-    await axios.head(url, { timeout: 5000 });
-  } catch {
-    // Se HEAD falhar, tenta GET parcial
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
     try {
-      await axios.get(url, { timeout: 8000, responseType: "stream", maxContentLength: 1024 });
-    } catch {
-      throw new Error("Não foi possível gerar a imagem");
-    }
+      const r = await axios.get(url, { timeout: 25000, responseType: "arraybuffer", maxContentLength: 15000000, headers: UA_IMG });
+      if (r.status === 200) return url;
+    } catch {}
+    await new Promise((x) => setTimeout(x, 4000 * (tentativa + 1)));
   }
-  return url;
+  throw new Error("Não foi possível gerar a imagem (servidor lotado)");
 }
 
+// Junta candidatos de várias fontes (todas validadas antes de usar)
 async function buscarImagem(query) {
-  // Tenta IA encontrar uma URL de imagem real para a query
+  const brutos = [];
+  for (const fonte of [imagensOpenverse, imagensDuck, imagensWikimedia]) {
+    try {
+      const urls = await fonte(query);
+      if (urls.length) brutos.push(...urls);
+      if (brutos.length >= 10) break;
+    } catch {}
+  }
+
+  // tira duplicadas e parâmetros de rastreio
+  const limpas = [...new Set(brutos.map((u) => u.split("?utm_")[0]))];
+
+  // valida de verdade cada candidata
+  const validas = [];
+  for (const url of limpas) {
+    if (await urlValidaImagem(url)) {
+      validas.push(url);
+      if (validas.length >= 5) break;
+    }
+  }
+
+  if (!validas.length) {
+    // Sugestão da IA como último recurso de busca real
+    try {
+      const { OPENROUTER_API_KEY } = require("./config");
+      const resp = await axios.post(
+        "https://openrouter.ai/api/v1/chat/completions",
+        {
+          model: "google/gemini-2.0-flash-001",
+          messages: [
+            { role: "user", content: `Retorne APENAS a URL direta de uma imagem real (jpg/png/gif/webp) relevante para "${query}". NÃO explique, só a URL.` }
+          ],
+          max_tokens: 200,
+        },
+        {
+          timeout: 20000,
+          headers: {
+            Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const content = resp?.data?.choices?.[0]?.message?.content?.trim();
+      if (content && /^https?:\/\//.test(content) && (await urlValidaImagem(content))) return content;
+    } catch {}
+    // Fallback garantido: gera uma imagem com IA
+    return gerarImagem(query);
+  }
+
+  if (validas.length === 1) return validas[0];
+
+  // Várias válidas? Pergunta à IA qual combina mais com o pedido
   try {
     const { OPENROUTER_API_KEY } = require("./config");
     const resp = await axios.post(
@@ -74,9 +190,9 @@ async function buscarImagem(query) {
       {
         model: "google/gemini-2.0-flash-001",
         messages: [
-          { role: "user", content: `Retorne APENAS a URL direta de uma imagem real (jpg/png/gif) relevante para "${query}". NÃO explique, só a URL.` }
+          { role: "user", content: `Pedido: "${query}". Qual dessas URLs de imagem combina melhor? Responda APENAS com a URL escolhida.\n${validas.map((u, i) => `${i + 1}. ${u}`).join("\n")}` }
         ],
-        max_tokens: 200,
+        max_tokens: 300,
       },
       {
         timeout: 20000,
@@ -86,12 +202,10 @@ async function buscarImagem(query) {
         },
       }
     );
-    const content = resp?.data?.choices?.[0]?.message?.content?.trim();
-    if (content && /^https?:\/\//.test(content)) return content;
+    const escolha = resp?.data?.choices?.[0]?.message?.content?.trim().split("?utm_")[0];
+    if (validas.includes(escolha)) return escolha;
   } catch {}
-  // Fallback: gera uma imagem tematica com o prompt como seed
-  const seed = encodeURIComponent(query.replace(/\s+/g, "-"));
-  return `https://picsum.photos/seed/${seed}/800/600`;
+  return validas[0];
 }
 
 async function imagemAleatoria(tipo) {
@@ -330,4 +444,4 @@ async function cotacaoAcao(ticker) {
   };
 }
 
-module.exports = { cotacao, cotacaoMoeda, cotacaoCrypto, cinema, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao };
+module.exports = { cotacao, cotacaoMoeda, cotacaoCrypto, cinema, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao, urlValidaImagem, imagensDuck, imagensOpenverse, imagensWikimedia };
