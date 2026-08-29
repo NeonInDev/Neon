@@ -1035,6 +1035,119 @@ function iniciar(port = 3000) {
       return;
     }
 
+    // ── LEITURA (temporária): canais de texto de um servidor + capas ──
+    if (req.url.split("?")[0] === "/api/discord/canais" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const qs = new URL(req.url, "http://x").searchParams;
+        const servidor = qs.get("servidor") || "";
+        const { client } = require("./client");
+        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda não conectou" }); return; }
+        const guilds = [];
+        for (const g of client.guilds.cache.values()) {
+          if (servidor && g.name.toLowerCase() !== String(servidor).toLowerCase()) continue;
+          await g.channels.fetch().catch(() => {});
+          const tipoNome = { 0: "texto", 2: "voz", 13: "stage", 15: "forum", 4: "categoria", 5: "anuncio", 10: "noticia", 14: "midia" };
+          const canais = g.channels.cache
+            .filter((c) => !c.isThread())
+            .map((c) => ({ id: c.id, nome: c.name, tipo: tipoNome[c.type] || String(c.type), parent: c.parent ? c.parent.name : null }))
+            .sort((a, b) => (a.parent || "").localeCompare(b.parent || "") || a.nome.localeCompare(b.nome));
+          guilds.push({ id: g.id, nome: g.name, canais });
+        }
+        responder(res, 200, { ok: true, guilds });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/discord/canal/mensagens" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const qs = new URL(req.url, "http://x").searchParams;
+        const id = qs.get("id") || "";
+        const limite = parseInt(qs.get("limite") || "5", 10);
+        const antes = qs.get("antes") || undefined;
+        const { client } = require("./client");
+        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda não conectou" }); return; }
+        const ch = await client.channels.fetch(id).catch(() => null);
+        if (!ch || !ch.isTextBased()) { responder(res, 404, { erro: "canal não encontrado" }); return; }
+        const msgs = await ch.messages.fetch({ limit: Math.min(limite, 100), before: antes, cache: false }).catch(() => null);
+        const lista = msgs ? msgs.map((m) => ({
+          id: m.id, autor: m.author.username, bot: m.author.bot,
+          conteudo: m.content.slice(0, 600), fixada: m.pinned,
+        })) : [];
+        responder(res, 200, { ok: true, canal: ch.name, mensagens: lista });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    // ── RENOMEAR (temporária): canal por id ──
+    if (req.url.split("?")[0] === "/api/discord/canal/renomear" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { id, nome } = await lerBody(req);
+        if (!id || !nome) { responder(res, 400, { erro: "id e nome são obrigatórios" }); return; }
+        const { client } = require("./client");
+        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda não conectou" }); return; }
+        const ch = await client.channels.fetch(String(id)).catch(() => null);
+        if (!ch) { responder(res, 404, { erro: "canal não encontrado" }); return; }
+        const antigo = ch.name;
+        const novo = await ch.setName(String(nome));
+        responder(res, 200, { ok: true, antes: antigo, depois: novo.name });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    // ── APAGAR (temporária): última mensagem do bot em um canal ──
+    if (req.url.split("?")[0] === "/api/discord/canal/apagar_ultima_bot" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { id } = await lerBody(req);
+        if (!id) { responder(res, 400, { erro: "id é obrigatório" }); return; }
+        const { client } = require("./client");
+        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda não conectou" }); return; }
+        const ch = await client.channels.fetch(String(id)).catch(() => null);
+        if (!ch || !ch.isTextBased()) { responder(res, 404, { erro: "canal não encontrado" }); return; }
+        const msgs = await ch.messages.fetch({ limit: 10, cache: false }).catch(() => null);
+        if (!msgs) { responder(res, 404, { erro: "sem mensagens" }); return; }
+        const alvo = msgs.find((m) => m.author && m.author.id === client.user.id);
+        if (!alvo) { responder(res, 404, { erro: "sem mensagem do bot" }); return; }
+        await alvo.delete().catch(() => null);
+        responder(res, 200, { ok: true, apagada: alvo.content.slice(0, 80) });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    // ── LIMPAR (temporária): apaga TODAS as mensagens do bot em um canal ──
+    if (req.url.split("?")[0] === "/api/discord/canal/limpar_bot" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { id } = await lerBody(req);
+        if (!id) { responder(res, 400, { erro: "id é obrigatório" }); return; }
+        const { client } = require("./client");
+        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda não conectou" }); return; }
+        const ch = await client.channels.fetch(String(id)).catch(() => null);
+        if (!ch || !ch.isTextBased()) { responder(res, 404, { erro: "canal não encontrado" }); return; }
+        let apagadas = 0, fim = false, semProgresso = 0;
+        while (!fim) {
+          const msgs = await ch.messages.fetch({ limit: 100, cache: false }).catch(() => null);
+          if (!msgs || msgs.size === 0) break;
+          const botMsgs = msgs.filter((m) => m.author && m.author.id === client.user.id && m.deletable);
+          if (botMsgs.size === 0) { fim = true; break; }
+          const tentativa = botMsgs.size;
+          const ok = await ch.bulkDelete(botMsgs, true).catch(() => {
+            try { return ch.bulkDelete(botMsgs, false); } catch { return null; }
+          });
+          const removidas = ok ? (Array.isArray(ok) ? ok.length : ok.size) : 0;
+          if (removidas > 0) { apagadas += removidas; semProgresso = 0; }
+          else semProgresso++;
+          if (semProgresso >= 2) { fim = true; break; }
+          await new Promise((r) => setTimeout(r, 300));
+        }
+        responder(res, 200, { ok: true, apagadas });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/discord/enviar_canal" && req.method === "POST") {
       if (!exigeChave(req, res)) return;
       try {
@@ -1043,9 +1156,22 @@ function iniciar(port = 3000) {
         const r = await discordMsg.enviarCanal(
           corpo && corpo.servidor ? String(corpo.servidor) : "",
           corpo && corpo.canal ? String(corpo.canal) : "",
-          corpo && corpo.mensagem != null ? String(corpo.mensagem) : ""
+          corpo && corpo.mensagem != null ? String(corpo.mensagem) : "",
+          Array.isArray(corpo && corpo.arquivos) ? corpo.arquivos : []
         );
         responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/discord/quirks/sumario" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { client } = require("./client");
+        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda não conectou" }); return; }
+        const qe = require("./quirks_envio");
+        const n = await qe.reconstruirSumario(client);
+        responder(res, 200, { ok: true, mensagens: n });
       } catch (err) { responder(res, 400, { erro: err.message }); }
       return;
     }

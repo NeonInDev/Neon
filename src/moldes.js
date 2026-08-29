@@ -1,8 +1,7 @@
 // Moldes oficiais de formatação do servidor NEW GENESIS
 // Molde "Quirk File" para cards de quirk e molde "Staff Chat" para mensagens da Neon.
 
-const TIPO_EMOJI = { Emissora: "⚡", Mutação: "🧬", Transformação: "🌀" };
-const TIPO_EMOJI_FALLBACK = "✨";
+const TIPO_EMOJI = { Emissora: "⚡", Mutação: "🧬", Transformação: "🌀", Acumulação: "🔋" };
 
 // título em negrito unicode (estilo matemático) — ex.: ZERO GRAVITY -> 𝐙𝐄𝐑𝐎 𝐆𝐑𝐀𝐕𝐈𝐓𝐘
 function negritoUnicode(s) {
@@ -26,26 +25,37 @@ function negritoUnicode(s) {
 const LINHA_TOP = "╭─────────────── ⋆⋅☆⋅⋆ ───────────────╮";
 const LINHA_HEADER = "          𓆩 ⚡ 𝐐𝐔𝐈𝐑𝐊 𝐅𝐈𝐋𝐄 ⚡ 𓆪";
 const LINHA_MEIO = "╰─────────────── ⋆⋅☆⋅⋆ ───────────────╯";
-const LINHA_FIM = "╰────────────────────────────────────╯ ⌜ ⌟・chat-staff・⌞ ✦ ⌝";
 
 // ---- Molde Quirk File (card de quirk) ----
-// dados: { titulo, descricao, desvantagens?, tipo?, usuario? }
+// dados: { titulo, descricao, desvantagens?, tipo? }
+const LINHA_FIM_QUIRK = "╰────────────────────────────────────╯";
+
 function moldeQuirkFile(dados) {
-  const emoji = TIPO_EMOJI[dados.tipo] || TIPO_EMOJI_FALLBACK;
+  const emoji = TIPO_EMOJI[dados.tipo] || TIPO_EMOJI[TIPO_EMOJI_KEY(dados.tipo)] || "🔋";
   const linhas = [LINHA_TOP, LINHA_HEADER, LINHA_MEIO, "", `          ◈ ${negritoUnicode(dados.titulo)} ◈`, ""];
   linhas.push(`> \`\`${emoji}\`\` ➮ __${limparMulti(dados.descricao)}__`);
   if (dados.desvantagens) {
-    linhas.push("", `> \`\`⚠️\`\` ➸ **Desvantagens➳** __${limparMulti(dados.desvantagens)}__`);
+    linhas.push("", `> \`\`⚠️\`\` ➸ **Desvantagem** __${limparMulti(dados.desvantagens)}__`);
   }
-  if (dados.usuario) {
-    linhas.push("", "   ✦ Usuário:", `   ➥ __${limparMulti(dados.usuario)}__`);
-  }
-  linhas.push("", "   ✦ Tipo de Quirk:", `   ➥ __\`${dados.tipo || "Desconhecido"}\`__`, "", LINHA_FIM);
+  linhas.push("", "   ✦ Tipo de Quirk:", `   ➥ __\`${emoji} ${dados.tipo || "Desconhecido"}\`__`, "", LINHA_FIM_QUIRK);
   return limparFinal(linhas.join("\n"));
+}
+
+// encontra a chave de tipo por aproximação (ex.: "Acumulacao" -> "Acumulação")
+function TIPO_EMOJI_KEY(tipo) {
+  if (!tipo) return "";
+  const t = String(tipo).toLowerCase();
+  if (t.includes("emiss")) return "Emissora";
+  if (t.includes("muta")) return "Mutação";
+  if (t.includes("trans")) return "Transformação";
+  if (t.includes("acum")) return "Acumulação";
+  return "";
 }
 
 // ---- Molde Staff Chat (mensagem da Neon nos chats) ----
 // dados: { titulo, conteudo, icone? }
+const LINHA_FIM = "╰────────────────────────────────────╯ ⌜ ⌟・chat-staff・⌞ ✦ ⌝";
+
 function moldeChatStaff(dados) {
   const icon = dados.icone || "⚡";
   const linhas = [

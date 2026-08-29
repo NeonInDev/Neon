@@ -74,15 +74,27 @@ async function listarContatos() {
   return { ok: true, total: contatos.size, contatos: [...contatos.values()] };
 }
 
-async function enviarCanal(servidor, canal, mensagem) {
+async function enviarCanal(servidor, canal, mensagem, arquivos = []) {
   if (!mensagem) return { ok: false, erro: "mensagem é obrigatória" };
   if (!client.isReady()) return { ok: false, erro: "Discord ainda não conectou" };
+  const { AttachmentBuilder } = require("discord.js");
+  const files = arquivos
+    .map((a) => {
+      try {
+        if (a.startsWith("LOCAL:")) return new AttachmentBuilder(a.slice(6));
+        if (require("fs").existsSync(a)) return new AttachmentBuilder(a);
+      } catch {}
+      return null;
+    })
+    .filter(Boolean);
+  const opts = { content: String(mensagem) };
+  if (files.length) opts.files = files;
   if (/^\d{17,19}$/.test(String(canal))) {
     try {
       const ch = await client.channels.fetch(canal);
       if (ch && ch.isTextBased()) {
-        await ch.send(String(mensagem));
-        return { ok: true, canal: ch.name ?? String(canal), servidor: ch.guild ? ch.guild.name : "DM" };
+        const m = await ch.send(opts);
+        return { ok: true, canal: ch.name ?? String(canal), servidor: ch.guild ? ch.guild.name : "DM", id: m.id, url: m.url };
       }
     } catch {}
   }
@@ -99,9 +111,9 @@ async function enviarCanal(servidor, canal, mensagem) {
     const ch = canais.find((c) => c && c.isTextBased() && c.name.toLowerCase() === cAlvo);
     if (ch) {
       try {
-        await ch.send(String(mensagem));
+        const m = await ch.send(opts);
         log("INFO", "[DISCORD_MSG] Mensagem no canal", { canal: ch.name, servidor: guild.name });
-        return { ok: true, canal: ch.name, servidor: guild.name };
+        return { ok: true, canal: ch.name, servidor: guild.name, id: m.id, url: m.url };
       } catch (err) {
         return { ok: false, erro: err.message };
       }
