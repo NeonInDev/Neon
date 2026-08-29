@@ -221,58 +221,40 @@ async function encaixarTexto(f, orcamento) {
   return d;
 }
 
-// card no mesmo molde dos do pacote, montado a partir dos dados da fandom
+// card no molde Quirk File oficial do servidor, montado a partir dos dados da fandom
 async function montarCardFandom(f) {
+  const { moldeQuirkFile } = require("./moldes");
   const desc = await encaixarTexto(f, 1300);
-  const partes = [
-    "───────",
-    `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`,
-    "",
-    `> 💭 ᝢ__${desc}__`,
-    "",
-  ];
-  if (f.usuario) partes.push(`> **꒰👤꒱ Usuário ➳** __${limparUsuario(f.usuario)}__`, "");
-  partes.push(` ⭐ Tipo de quirk ：__\`${f.tipo || "Desconhecido"}\`__`);
-  partes.push(" ︶︶︶︶︶︶︶︶︶︶");
-  partes.push(" ₊˚✧◝ ᵔ₊.");
-  return partes.join("\n");
+  return moldeQuirkFile({
+    titulo: f.nome,
+    descricao: `💭 ${desc}`,
+    tipo: f.tipo || "Desconhecido",
+    usuario: f.usuario ? limparUsuario(f.usuario) : undefined,
+  });
 }
 
 // resumo de uma quirk canônica da fandom (pra /quirk informação)
 async function informacao(nome) {
+  const { moldeQuirkFile } = require("./moldes");
   const f = buscarFandom(nome);
   if (!f) return null;
   const e = EMOJI_TIPO[f.tipo] || "✨";
 
   // encaixe: o texto é prioridade máxima — usuário sempre entra; link só se sobrar espaço
-  const cabecalho = [`───────`, `𑁍 ָ࣪ ˖**${f.nome};**𖥔 ۫ ּ`, ""];
-  const linhaUsuario = f.usuario ? `> **꒰👤꒱ Usuário ➳** __${limparUsuario(f.usuario)}__` : null;
-  const linhasFim = [
-    ` ⭐ Tipo de quirk ：__\`${f.tipo || "Desconhecido"} ${e}\`__`,
-    " ︶︶︶︶︶︶︶︶︶︶",
-    " ₊˚✧◝ ᵔ₊.",
-  ];
-  const custoFixo =
-    cabecalho.join("\n").length +
-    2 +
-    (linhaUsuario ? linhaUsuario.length + 2 : 0) +
-    linhasFim.join("\n").length +
-    1 + // \n antes do bloco da descrição
-    11; // "> 💭 ᝢ__" + "__"
-
-  let orcamento = Math.max(1980 - custoFixo, 200);
+  let orcamento = Math.max(1980 - 500, 200);
   const desc = await encaixarTexto(f, orcamento);
 
-  const partes = [...cabecalho];
-  partes.push(`> 💭 ᝢ__${desc}__`, "");
-  if (linhaUsuario) partes.push(linhaUsuario, "");
-  partes.push(...linhasFim);
-  let texto = partes.join("\n");
+  const texto = moldeQuirkFile({
+    titulo: f.nome,
+    descricao: `💭 ᝢ ${desc}`,
+    tipo: `${f.tipo || "Desconhecido"} ${e}`,
+    usuario: f.usuario ? limparUsuario(f.usuario) : undefined,
+  });
 
   const linkBonito = `🔗 <${f.url}>`;
   const linkCurto = `🔗 ${f.url}`;
-  if (texto.length + linkBonito.length + 2 <= 1995) texto += "\n\n" + linkBonito;
-  else if (texto.length + linkCurto.length + 2 <= 1998) texto += "\n\n" + linkCurto;
+  if (texto.length + linkBonito.length + 2 <= 2000) return { texto: texto + "\n\n" + linkBonito, fandom: f, painel: painelDe(f.nome) };
+  if (texto.length + linkCurto.length + 2 <= 2000) return { texto: texto + "\n\n" + linkCurto, fandom: f, painel: painelDe(f.nome) };
 
   return { texto: texto.slice(0, 2000), fandom: f, painel: painelDe(f.nome) };
 }

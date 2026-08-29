@@ -14,6 +14,26 @@ const { add: addContexto } = require("../contexto");
 const axios = require("axios");
 const { PermissionFlagsBits } = require("discord.js");
 const { ativaLockdown, desativaLockdown } = require("../lockdown");
+const { enquadrarResposta } = require("../moldes");
+
+function tituloMoldeCanal(message) {
+  return message.channel?.name ? message.channel.name : "NEON";
+}
+
+// envia a resposta emoldurada no molde staff-chat (divide em várias mensagens se precisar)
+async function enviarEmoldurado(message, texto) {
+  const molde = enquadrarResposta(texto, tituloMoldeCanal(message));
+  if (!molde.length) return;
+  if (molde.length === 1) {
+    await message.reply(molde[0]);
+    return;
+  }
+  for (let i = 0; i < molde.length; i++) {
+    const conteudo = molde[i];
+    if (i === 0) await message.reply(conteudo);
+    else await message.channel.send(conteudo);
+  }
+}
 
 const processando = new Set();
 const cooldowns = new Map();
@@ -205,7 +225,11 @@ async function enviarResposta(message, texto) {
   // Suporte a respostas continuadas (__CONTINUA__ no início = mensagem adicional)
   if (texto.startsWith("__CONTINUA__")) {
     const conteudo = texto.replace("__CONTINUA__", "").trim();
-    if (conteudo) await message.channel.send(conteudo);
+    if (conteudo) {
+      for (const p of enquadrarResposta(conteudo, tituloMoldeCanal(message))) {
+        await message.channel.send(p);
+      }
+    }
     return;
   }
 
@@ -216,8 +240,10 @@ async function enviarResposta(message, texto) {
       const filePath = fileMatch[1].split("\n")[0].trim();
       const nome = `neon_${Date.now()}_${require("path").basename(filePath)}`;
       const attachment = new AttachmentBuilder(filePath, { name: nome });
-      const txt = texto.replace(fileMatch[0], "").trim();
-      await message.reply({ content: txt || undefined, files: [attachment] });
+      const bruto = texto.replace(fileMatch[0], "").trim();
+      const pedacos = enquadrarResposta(bruto, tituloMoldeCanal(message));
+      await message.reply({ content: pedacos[0] || "", files: [attachment] });
+      for (let i = 1; i < pedacos.length; i++) await message.channel.send(pedacos[i]);
     } catch {
       await message.reply("❌ Erro ao enviar arquivo.");
     }
@@ -241,8 +267,10 @@ async function enviarResposta(message, texto) {
           const { AttachmentBuilder } = require("discord.js");
           const ext = ct.split("/")[1] || "png";
           const attachment = new AttachmentBuilder(Buffer.from(resp.data), { name: `neon_${Date.now()}.${ext}` });
-          const txt = texto.replace(url, "").trim();
-          await message.reply({ content: txt || undefined, files: [attachment] });
+          const bruto = texto.replace(url, "").trim();
+          const pedacos = enquadrarResposta(bruto, tituloMoldeCanal(message));
+          await message.reply({ content: pedacos[0] || "", files: [attachment] });
+          for (let i = 1; i < pedacos.length; i++) await message.channel.send(pedacos[i]);
           return;
         }
       } catch {}
@@ -259,13 +287,12 @@ async function enviarResposta(message, texto) {
       restante = restante.slice(corte);
     }
     partes.push(restante);
-    await message.reply(partes[0]);
-    for (let i = 1; i < partes.length; i++) {
-      await message.channel.send(partes[i]);
+    for (const parte of partes) {
+      await enviarEmoldurado(message, parte);
     }
     return;
   }
-  await message.reply(texto);
+  await enviarEmoldurado(message, texto);
 }
 
 function combinarTextoMensagens(mensagens) {
