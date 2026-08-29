@@ -40,3 +40,5 @@ data/lore.json
 data/lockdown.json
 data/poderes.json
 libs/librehardwaremonitor/*.sys
+
+_tmp*

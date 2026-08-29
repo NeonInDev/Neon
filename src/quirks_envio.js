@@ -7,6 +7,7 @@ const IMGS = path.join(__dirname, "..", "data", "quirks", "imgs");
 const FANDOM = path.join(__dirname, "..", "data", "quirks", "fandom.json");
 const ADICIONADAS = path.join(__dirname, "..", "data", "quirks", "adicionadas.json");
 const APAGADAS = path.join(__dirname, "..", "data", "quirks", "apagadas.json");
+const CATALOGO_SORTEIO = path.join(__dirname, "..", "data", "quirks", "sorteio74.json");
 const MARCADOR = "⊹₊˚ʚ 📚 Sumário";
 const EMOJIS_LETRA = ["🌟", "✨", "⚡", "🌀", "🧬", "💫", "🔮", "🦋", "🔥", "🌊", "🌙", "⭐", "🍀", "🎭", "💎", "🌸"];
 const EMOJI_TIPO = { Emissora: "⚡", Mutação: "🧬", Transformação: "🌀" };
@@ -385,7 +386,8 @@ async function apagarSumarioAntigo(canal, client) {
     const lote = await canal.messages.fetch({ limit: 100, before: antes }).catch(() => null);
     if (!lote || !lote.size) break;
     for (const m of lote.values()) {
-      if (m.author.id === client.user.id && m.content.includes("Sumário")) apagar.push(m);
+      const ehDoBot = client ? m.author.id === client.user.id : true;
+      if (ehDoBot && m.content.includes("Sumário")) apagar.push(m);
     }
     antes = lote.last().id;
   }
@@ -393,10 +395,14 @@ async function apagarSumarioAntigo(canal, client) {
   return apagar.length;
 }
 
-function montarChunksSumario() {
-  const lista = [...carregar(), ...carregarAdicionadas()].sort((a, b) =>
-    a.titulo.localeCompare(b.titulo, "pt-BR")
-  );
+function montarChunksSumario(listaFonte) {
+  const lista = (listaFonte || [...carregar(), ...carregarAdicionadas()])
+    .map((q) => ({
+      titulo: q.titulo || q.nome || "?",
+      link: q.link || q.url || null,
+    }))
+    .filter((q) => q.titulo !== "?")
+    .sort((a, b) => a.titulo.localeCompare(b.titulo, "pt-BR"));
   const secoes = [];
   let letra = "";
   let atual = "";
@@ -447,6 +453,24 @@ async function reconstruirSumario(client) {
   return chunks.length;
 }
 
+function carregarSorteio() {
+  try {
+    const d = JSON.parse(fs.readFileSync(CATALOGO_SORTEIO, "utf8"));
+    return Array.isArray(d) ? d : Object.values(d);
+  } catch {
+    return [];
+  }
+}
+
+async function reconstruirSumarioSorteio(client) {
+  const canal = await acharCanal(client, "sorteio");
+  if (!canal) throw new Error("canal quirks-sorteio não encontrado pro sumário");
+  await apagarSumarioAntigo(canal);
+  const chunks = montarChunksSumario(carregarSorteio());
+  for (const c of chunks) await canal.send({ content: c });
+  return chunks.length;
+}
+
 module.exports = {
   enviarQuirk,
   buscar,
@@ -460,4 +484,5 @@ module.exports = {
   atualizarTexto,
   remover,
   reconstruirSumario,
+  reconstruirSumarioSorteio,
 };

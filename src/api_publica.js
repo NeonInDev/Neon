@@ -1073,7 +1073,8 @@ function iniciar(port = 3000) {
         const msgs = await ch.messages.fetch({ limit: Math.min(limite, 100), before: antes, cache: false }).catch(() => null);
         const lista = msgs ? msgs.map((m) => ({
           id: m.id, autor: m.author.username, bot: m.author.bot,
-          conteudo: m.content.slice(0, 600), fixada: m.pinned,
+          conteudo: m.content.slice(0, 2500), fixada: m.pinned,
+          anexos: m.attachments.size ? m.attachments.map((a) => a.url) : [],
         })) : [];
         responder(res, 200, { ok: true, canal: ch.name, mensagens: lista });
       } catch (err) { responder(res, 400, { erro: err.message }); }
@@ -1113,6 +1114,38 @@ function iniciar(port = 3000) {
         if (!alvo) { responder(res, 404, { erro: "sem mensagem do bot" }); return; }
         await alvo.delete().catch(() => null);
         responder(res, 200, { ok: true, apagada: alvo.content.slice(0, 80) });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    // ── APAGAR (temporária): mensagens por ids ──
+    if (req.url.split("?")[0] === "/api/discord/canal/apagar_ids" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { id, ids } = await lerBody(req);
+        if (!id || !Array.isArray(ids) || !ids.length) { responder(res, 400, { erro: "id e ids são obrigatórios" }); return; }
+        const { client } = require("./client");
+        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda não conectou" }); return; }
+        const ch = await client.channels.fetch(String(id)).catch(() => null);
+        if (!ch || !ch.isTextBased()) { responder(res, 404, { erro: "canal não encontrado" }); return; }
+        let apagadas = 0, erros = [];
+        for (let i = 0; i < ids.length; i += 20) {
+          const lote = ids.slice(i, i + 20);
+          const msgs = await Promise.all(lote.map((mid) => ch.messages.fetch(String(mid)).catch(() => null)));
+          const val = msgs.filter(Boolean);
+          const feitas = await ch.bulkDelete(val, true).catch(() => null);
+          if (feitas && feitas.size > 0) {
+            apagadas += feitas.size;
+            await new Promise((r) => setTimeout(r, 350));
+            continue;
+          }
+          for (const m of val) {
+            const ok = await m.delete().catch(() => false);
+            if (ok) apagadas++;
+            await new Promise((r) => setTimeout(r, 350));
+          }
+        }
+        responder(res, 200, { ok: true, apagadas });
       } catch (err) { responder(res, 400, { erro: err.message }); }
       return;
     }
@@ -1170,7 +1203,11 @@ function iniciar(port = 3000) {
         const { client } = require("./client");
         if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda não conectou" }); return; }
         const qe = require("./quirks_envio");
-        const n = await qe.reconstruirSumario(client);
+        const corpo = await lerBody(req);
+        const tipo = corpo && typeof corpo === "object" ? String(corpo.tipo || "livres") : "livres";
+        const n = /sorte/i.test(tipo)
+          ? await qe.reconstruirSumarioSorteio(client)
+          : await qe.reconstruirSumario(client);
         responder(res, 200, { ok: true, mensagens: n });
       } catch (err) { responder(res, 400, { erro: err.message }); }
       return;

@@ -237,4 +237,4 @@ function resumo() {
   return { categorias, canais, atualizadoEm: d.atualizadoEm, guildId: d.guildId, config: d.config };
 }
 
-module.exports = { carregar, persistir, atualizar, buscar, resumo, acharGuild, normalizar, nucleo };
+module.exports = { carregar, persistir, atualizar, buscar, resumo, acharGuild, normalizar, nucleo, decodificarMath };
