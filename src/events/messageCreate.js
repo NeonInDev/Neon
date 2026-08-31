@@ -14,6 +14,7 @@ const { add: addContexto } = require("../contexto");
 const axios = require("axios");
 const { PermissionFlagsBits } = require("discord.js");
 const { ativaLockdown, desativaLockdown } = require("../lockdown");
+const objetivo = require("../objetivo");
 // envia a resposta em texto plano (sem molde/sem formatação staff-chat),
 // dividindo em várias mensagens se passar do limite do Discord
 async function enviarEmoldurado(message, texto) {
@@ -101,6 +102,19 @@ function interpretarAbortar(message) {
   opencode.parar();
   require("../fila").limpar(message.author.id);
   message.reply("🛑 Parei o processamento atual da Neon e limpei a fila.").catch(() => {});
+  return true;
+}
+
+function interpretarObjetivo(message) {
+  if (!isOwner(message.author.id)) return false;
+  const m = (message.content || "").match(/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:modo\s+)?objetivo\s+(on|off)\b/i);
+  if (!m) return false;
+  const ativo = m[1].toLowerCase() === "on";
+  objetivo.setObjetivo(ativo).then(() => {
+    message.reply(ativo
+      ? "🎯 Modo objetivo LIGADO. Agora qualquer pedido seu vira uma missão: eu resolvo por todos os meios e só te entrego o resultado."
+      : "✅ Modo objetivo DESLIGADO. Voltei ao comportamento normal.").catch(() => {});
+  }).catch(() => {});
   return true;
 }
 
@@ -374,7 +388,10 @@ async function processarLote(userId, lote) {
       const avisarAtraso = isOwner(userId)
         ? () => message.author.send("⚠️ O OpenCode está processando há mais de 3 minutos. A Neon continuará aguardando até 5 minutos antes de informar o erro.")
         : null;
-      const reply = await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso);
+      const objetivoAtivo = objetivo.objetivoAtivo();
+      const reply = objetivoAtivo && isOwner(userId)
+        ? await objetivo.executarObjetivo(userId, username, textoLimpo, avisarAtraso)
+        : await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso);
       if (!message.replied) {
         addContexto(userId, username, textoLimpo, reply);
         auditar(userId, username, textoLimpo, reply?.slice(0, 100));
@@ -403,6 +420,11 @@ module.exports = {
     processando.add(message.id);
 
     if (interpretarAbortar(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
+    if (interpretarObjetivo(message)) {
       processando.delete(message.id);
       return;
     }

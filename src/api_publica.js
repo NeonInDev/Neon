@@ -692,6 +692,38 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/objetivo" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const objetivo = require("../objetivo");
+        responder(res, 200, { ok: true, ativo: objetivo.objetivoAtivo() });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/objetivo" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const objetivo = require("../objetivo");
+        const ativo = await objetivo.setObjetivo(corpo.ativo === true || corpo.ativo === "true");
+        responder(res, 200, { ok: true, ativo });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/objetivo/executar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { objetivo: texto } = await lerBody(req);
+        if (!texto || !String(texto).trim()) { responder(res, 400, { erro: "objetivo é obrigatório" }); return; }
+        const objetivo = require("../objetivo");
+        const resultado = await objetivo.executarObjetivo("API", "API", String(texto).slice(0, 3000));
+        responder(res, 200, { ok: true, resultado });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/whatsapp/qr" && req.method === "GET") {
       if (!exigeChave(req, res)) return;
       try {
