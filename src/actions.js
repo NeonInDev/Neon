@@ -16,6 +16,7 @@ const voice = require("./voice");
 const { db } = require("./db");
 const { getOrCreateUser } = require("./user");
 const { setModo, getModo } = require("./modo");
+const { removerFundo } = require("./imagens");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function limparFiller(t) {
@@ -377,6 +378,14 @@ function encontrarMostrarImagem(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver|acha|busca)\s+(?:uma?\s+|um\s+)?(?:foto|imagem|gif|figura)\s+(?:de|do|da|do|pra|para)?\s+(.+)/i.test(lower)) return true;
   if (/^(?:mostra|mostrar|me\s+manda|exibe|exibir|quero\s+ver)\s+(?:um\s+|uma\s+|um\s+)?(?:gato|cachorro|dog|cat|paisagem|natureza)\s*/i.test(lower)) return true;
+  return false;
+}
+
+function encontrarRemoverFundo(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/(?:remove|tira|remover|tirar|apaga|apagar|deixa)\s+(?:o\s+)?(?:fundo|fundo\s+de)\s+(?:da\s+|do\s+)?(?:imagem|foto|png)/i.test(lower)) return true;
+  if (/(?:deixa|deixar|torna|tornar|faz|fazer)\s+(?:a\s+|essa\s+)?(?:imagem|foto|png|figura)\s+(?:transparente|com\s+fundo\s+transparente)/i.test(lower)) return true;
+  if (/(?:remove|remover|tirar|retirar)\s+(?:o\s+)?(?:fundo)\s+(?:transparente)?\s+(.+)/i.test(lower) && /\.(png|jpg|jpeg|webp)/i.test(texto)) return true;
   return false;
 }
 
@@ -824,6 +833,7 @@ function detectarCategoria(texto) {
   if (encontrarCEP(texto)) return "cep";
   if (encontrarIP(texto)) return "ip";
   if (encontrarMostrarImagem(texto)) return "mostrarImagem";
+  if (encontrarRemoverFundo(texto)) return "removerFundo";
   if (/status.*discord|discord.*status/i.test(texto)) return "statusDiscord";
   if (encontrarLetra(texto)) return "letra";
   if (encontrarQRCode(texto)) return "qrCode";
@@ -1816,6 +1826,24 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return `🔍 Aqui está uma imagem de "${query}":\n${url}`;
     } catch (err) {
       return `❌ Erro ao buscar imagem: ${err.message}`;
+    }
+  }
+
+  // Remover fundo de imagem
+  if (categoria === "removerFundo") {
+    try {
+      const lower = texto.toLowerCase();
+      // Extrair caminho da imagem do texto
+      const pathMatch = texto.match(/["'](C:\\[^"']+|[^"']*\.(?:png|jpg|jpeg|webp))["']/i)
+        || texto.match(/((?:C:|\\)[^\s"']+\.(?:png|jpg|jpeg|webp))/i)
+        || texto.match(/(\S+\.(?:png|jpg|jpeg|webp))/i);
+      const caminhoImagem = pathMatch ? pathMatch[1] : null;
+      if (!caminhoImagem) return "❌ Envie o caminho da imagem ou adjunte-a junto com o comando.";
+      const saida = caminhoImagem.replace(/\.(png|jpg|jpeg|webp)$/i, "_sem_fundo.png");
+      await removerFundo(caminhoImagem, saida);
+      return `✅ Fundo removido com sucesso!\n💾 Salvo em: \`${saida}\``;
+    } catch (err) {
+      return `❌ Erro ao remover fundo: ${err.message}`;
     }
   }
 
