@@ -22,11 +22,21 @@
     }
     #carregando { position: fixed; inset: 0; display: grid; place-items: center; color: #6c5ce7; letter-spacing: 3px; z-index: 5; }
     a { color: inherit; text-decoration: none; pointer-events: auto; }
+    #menuStl {
+      position: fixed; top: 12px; right: 16px; z-index: 12; display: flex; gap: 8px; flex-wrap: wrap; max-width: 46vw; justify-content: flex-end;
+    }
+    #menuStl button {
+      background: rgba(20,20,40,.8); border: 1px solid #6c5ce766; color: #00f0ff; border-radius: 20px;
+      padding: 7px 14px; font-size: 12px; letter-spacing: 1px; cursor: pointer; backdrop-filter: blur(6px);
+      font-family: 'Segoe UI', system-ui, sans-serif; transition: all .15s;
+    }
+    #menuStl button:hover { background: #6c5ce7; color: #fff; border-color: #6c5ce7; }
   </style>
 </head>
 <body>
   <canvas id="cena"></canvas>
   <div class="hud-top">🧊 PROJETOS · NEONWORLD <small>— arraste pra girar · scroll pra zoom · clique pra abrir</small></div>
+  <div id="menuStl"></div>
   <div id="info">carregando repositórios...</div>
   <div id="carregando">⣿ SINCRONIZANDO</div>
 
@@ -49,6 +59,20 @@
 
     const info = document.getElementById("info");
     const carregando = document.getElementById("carregando");
+
+    // STLs locais conhecidos — abrem no viewer 3D (HOLOMAT)
+    const STL_LOCAIS = [
+      { nome: "WebShooter v9.5", path: "C:/Users/Pichau/WebShooter/webshooter_v95.stl" },
+      { nome: "WebShooter v9.4", path: "C:/Users/Pichau/WebShooter/webshooter_v94_scarlet.stl" },
+      { nome: "WebShooter v9.5 mockup", path: "C:/Users/Pichau/WebShooter/webshooter_v95_mockup.stl" },
+    ];
+    const menuEl = document.getElementById("menuStl");
+    STL_LOCAIS.forEach((s) => {
+      const b = document.createElement("button");
+      b.textContent = "🧊 " + s.nome;
+      b.onclick = () => window.open(`/public/hud/stlviewer.html?nome=${encodeURIComponent(s.nome)}&url=${encodeURIComponent(`/api/stl?path=${s.path}`)}`, "_blank");
+      menuEl.appendChild(b);
+    });
 
     async function pegarProjetos() {
       let github = [];

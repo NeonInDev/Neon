@@ -17,6 +17,7 @@ const { db } = require("./db");
 const { getOrCreateUser } = require("./user");
 const { setModo, getModo } = require("./modo");
 const { removerFundo } = require("./imagens");
+const projetosArquivos = require("./projetos_arquivos");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 function limparFiller(t) {
@@ -95,6 +96,48 @@ async function abrirComando(comando, label) {
 
 function isWin() {
   return process.platform === "win32";
+}
+
+// Abre um arquivo/projeto resolvido conforme seu tipo (STL→HUD 3D, etc.)
+async function abrirResolvido(resolvido, nomeAlvo) {
+  const { caminho, tipo, nome } = resolvido;
+  const host = process.env.API_HOST || "127.0.0.1";
+  const porta = process.env.API_PORT || 3000;
+  const baseHud = `http://${host}:${porta}/public/hud`;
+
+  try {
+    if (tipo === "stl") {
+      // abre no viewer 3D do HUD (HOLOMAT) — ele pede a chave e carrega via API
+      const stlUrl = `/api/stl?path=${encodeURIComponent(caminho)}`;
+      const viewer = `${baseHud}/stlviewer.html?nome=${encodeURIComponent(nome)}&url=${encodeURIComponent(stlUrl)}`;
+      const r = await tentar(`start "" "${viewer}"`);
+      return r.ok ? `🧊 Abrindo ${nome} no Viewer 3D.` : `🧊 Só consegui o link: ${viewer}`;
+    }
+    if (tipo === "navegador") {
+      const r = await tentar(`start "" "${caminho}"`);
+      return r.ok ? `🌐 Abrindo ${nome} no navegador.` : `❌ Não consegui abrir ${caminho}.`;
+    }
+    if (tipo === "imagem") {
+      const r = await tentar(`start "" "${caminho}"`);
+      return r.ok ? `🖼️ Abrindo ${nome}.` : `❌ Não consegui abrir ${caminho}.`;
+    }
+    if (tipo === "blender") {
+      const r = await tentar(`start "" "C:\\Program Files\\Blender Foundation\\Blender 5.2\\blender.exe" "${caminho}"`);
+      return r.ok ? `🧊 Abrindo ${nome} no Blender.` : `❌ Blender não abriu.`;
+    }
+    if (tipo === "codigo" || tipo === "documento") {
+      if (!fs.existsSync(caminho)) return `❌ Arquivo não encontrado: ${caminho}`;
+      const conteudo = fs.readFileSync(caminho, "utf8");
+      const limite = conteudo.length > 1900 ? conteudo.slice(0, 1900) + "\n... (truncado)" : conteudo;
+      return `📄 ${caminho}\n\`\`\`\n${limite}\n\`\`\``;
+    }
+    // pasta
+    const r = await tentar(`explorer "${caminho}"`);
+    return r.ok ? `📁 Abrindo a pasta ${caminho}.` : `📁 Pasta: ${caminho}`;
+  } catch (err) {
+    log("WARN", "[ACTION] erro ao abrir projeto", { erro: err.message });
+    return `❌ Erro ao abrir: ${err.message}`;
+  }
 }
 
 const apps = [
@@ -545,10 +588,28 @@ function encontrarArquivo(texto) {
   return null;
 }
 
+// Abre arquivo de projeto por NOME AMIGÁVEL (sem digitar caminho completo)
+function encontrarAbrirProjeto(texto) {
+  const lower = texto.toLowerCase().replace(/^[Nn][Ee][Oo][Nn][,\s\.]\s*/, "").trim();
+  const patterns = [
+    /^(?:abre|abrir|open|mostra|visualiza|exibe|ver|abrir o)\s+(?:o\s+|a\s+)?(?:arquivo|projeto|modelo)\s+(?:do|de|da|o|a)\s+(.+)$/i,
+    /^(?:abre|abrir|mostra|visualiza|exibe)\s+(?:o\s+|a\s+|no\s+)?(?:projeto|modelo|arquivo)\s+(.+)$/i,
+    /^(?:abre|abrir|ver)\s+(.+?)\s+(?:no|no\s+)/i,
+  ];
+  for (const pat of patterns) {
+    const m = lower.match(pat);
+    if (m && m[1]) {
+      const alvo = m[1].trim().replace(/\s*(?:no|na|pelo|pela)\s+(?:stl\s*)?viewer\s*$/i, "").trim();
+      if (alvo && !/(arquivo|pasta|site|url|link|página|pagina|jogo|música|musica|vídeo|video|whats|discord|mensagem)/i.test(alvo)) {
+        return alvo;
+      }
+    }
+  }
+  return null;
+}
+
 function encontrarMensagem(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
-
-  // Detecta plataforma mencionada no fim ("no discord", "no zap") e remove da frase
   const plataformaDe = (s) => {
     const m = s.match(/\s+(?:no|na|pelo|pela)\s+(discord|whatsapp|zapzap|zap|dm|pv|privado)\s*[.!]?\s*$/i);
     if (!m) return { alvoOuTexto: s.trim(), plataforma: null };
@@ -808,6 +869,8 @@ function detectarCategoria(texto) {
   if (encontrarModoJarvis(texto)) return "modo_jarvis";
   if (encontrarModoLawfeyson(texto)) return "modo_lawfeyson";
   if (encontrarCelular(texto)) return "celular";
+  const projetoAlvo = encontrarAbrirProjeto(texto);
+  if (projetoAlvo && projetosArquivos.resolver(projetoAlvo)) return "abrirProjeto";
   if (encontrarCodarApp(texto)) return "codar_app";
   if (encontrarApp(texto)) return "app";
   if (encontrarNeoZero(texto)) return "neozero";
@@ -1257,6 +1320,16 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     const resultado = await opencode.executar(`Abra o app "${nome}" no Windows usando Start-Process ou 'start "" "<nome>"' para abrir como interface grafica (GUI), nunca no terminal. Responda apenas com o resultado (ex.: "Abrindo ${nome}.").`);
     if (resultado) return resultado.slice(0, 1500);
     return `✅ Tentando abrir ${nome}.`;
+  }
+
+  // Abrir arquivo de projeto por nome amigável (webshooter_v95, etc.)
+  if (categoria === "abrirProjeto") {
+    const nomeAlvo = encontrarAbrirProjeto(texto);
+    if (!nomeAlvo) return null;
+    log("INFO", "[ACTION] abrindo projeto", { nomeAlvo, texto });
+    const resolvido = projetosArquivos.resolver(nomeAlvo);
+    if (!resolvido) return `❌ Não encontrei nenhum arquivo/projeto parecido com "${nomeAlvo}". Tenta de outro jeito ou me passa o caminho.`;
+    return abrirResolvido(resolvido, nomeAlvo);
   }
 
   // Apps

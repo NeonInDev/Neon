@@ -221,7 +221,6 @@ function iniciar() {
 
 module.exports = {
   contexto,
-  aprender,
   carregar,
   respostaIndicaFalta,
   iniciar,

@@ -29,6 +29,8 @@ const MIME = {
   ".woff2": "font/woff2",
   ".wasm": "application/wasm",
   ".task": "application/octet-stream",
+  ".stl": "model/stl",
+  ".blend": "application/octet-stream",
 };
 
 let server = null;
@@ -263,6 +265,21 @@ function iniciar(port = 3000) {
 
     if (req.url === "/api/status" && req.method === "GET") {
       responder(res, 200, { status: "online", versao: "2.0.0" });
+      return;
+    }
+
+    // Serve um arquivo STL arbitrário do sistema p/ o viewer 3D (HOLOMAT)
+    if (req.url.startsWith("/api/stl") && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      const u = new URL(req.url, "http://x");
+      let caminho = u.searchParams.get("path") || "";
+      try { caminho = decodeURIComponent(caminho); } catch {}
+      if (!caminho) { responder(res, 400, { erro: "?path= é obrigatório" }); return; }
+      if (!/\.(stl|STL)$/.test(caminho)) { responder(res, 400, { erro: "só aceito arquivos .stl" }); return; }
+      const abs = path.resolve(caminho);
+      if (!fs.existsSync(abs) || fs.statSync(abs).isDirectory()) { responder(res, 404, { erro: "arquivo não encontrado" }); return; }
+      res.writeHead(200, { "Content-Type": "model/stl", "Content-Disposition": `inline; filename="${path.basename(abs)}"` });
+      fs.createReadStream(abs).pipe(res);
       return;
     }
 

@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NEON · Viewer 3D (STL)</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #141428 0%, #05050c 70%); font-family: 'Segoe UI', system-ui, sans-serif; }
+    #cena { width: 100%; height: 100%; display: block; }
+    .hud-top {
+      position: fixed; top: 12px; left: 16px; z-index: 10;
+      color: #6c5ce7; letter-spacing: 2px; font-weight: 700;
+      text-shadow: 0 0 12px rgba(108,92,231,.8); pointer-events: none;
+    }
+    .hud-top small { color: #8d84e8aa; font-weight: 400; letter-spacing: 1px; }
+    #info {
+      position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,20,40,.85); border: 1px solid #6c5ce766; border-radius: 10px;
+      padding: 8px 18px; color: #cfc9ff; font-size: 13px; z-index: 10;
+      backdrop-filter: blur(6px); white-space: nowrap; pointer-events: none; max-width: 90vw; overflow: hidden; text-overflow: ellipsis;
+    }
+    #carregando { position: fixed; inset: 0; display: grid; place-items: center; color: #6c5ce7; letter-spacing: 3px; z-index: 5; }
+    #msgErro {
+      position: fixed; inset: 0; display: none; place-items: center; z-index: 20;
+      color: #ff6b6b; text-align: center; padding: 20px; font-size: 15px; line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="cena"></canvas>
+  <div class="hud-top">🧊 VIEWER 3D · NEONWORLD <small>— arraste pra girar · scroll pra zoom</small></div>
+  <div id="info">carregando modelo...</div>
+  <div id="carregando">⣿ HOLOMATIZANDO</div>
+  <div id="msgErro"></div>
+
+  <script type="importmap">
+    { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                   "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }
+  </script>
+  <script type="module">
+    import * as THREE from "three";
+    import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+    import { STLLoader } from "three/addons/loaders/STLLoader.js";
+
+    const params = new URLSearchParams(location.search);
+    const stlUrl = params.get("url");
+    const titulo = params.get("nome") || "modelo 3D";
+    const keyNaUrl = params.get("key") || "";
+
+    const info = document.getElementById("info");
+    const carregando = document.getElementById("carregando");
+    const erroEl = document.getElementById("msgErro");
+
+    function falhou(msg) {
+      carregando.style.display = "none";
+      erroEl.style.display = "grid";
+      erroEl.textContent = "❌ " + msg + "\n\nConfira se o arquivo existe e tente de novo.";
+    }
+
+    if (!stlUrl) {
+      falhou("Nenhum modelo especificado (falta o parâmetro ?url=)");
+      throw new Error("no url");
+    }
+
+    // Mesmo mecanismo de chave do resto do HUD (salva em localStorage)
+    function hudKey() {
+      if (keyNaUrl) return keyNaUrl;
+      let k = localStorage.getItem("hud_key");
+      if (!k) {
+        k = prompt("Digite a chave de acesso (MASTER_KEY do .env):");
+        if (k) localStorage.setItem("hud_key", k);
+      }
+      return k;
+    }
+
+    const cena = new THREE.Scene();
+    const cam = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.01, 1000);
+    cam.position.set(1.2, 0.8, 1.5);
+    const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById("cena"), antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setClearColor(0x05050c);
+
+    const controles = new OrbitControls(cam, renderer.domElement);
+    controles.enableDamping = true;
+
+    cena.add(new THREE.AmbientLight(0xffffff, 0.7));
+    const l1 = new THREE.DirectionalLight(0xffffff, 1.6); l1.position.set(1, 2, 1); cena.add(l1);
+    const l2 = new THREE.DirectionalLight(0x6c5ce7, 1.2); l2.position.set(-1, -1, -1); cena.add(l2);
+    cena.add(new THREE.HemisphereLight(0x6c5ce7, 0x000000, 0.9));
+
+    // anel de partículas de fundo
+    const partGeo = new THREE.BufferGeometry();
+    const N = 600; const pos = new Float32Array(N * 3);
+    for (let i = 0; i < N; i++) {
+      const a = Math.random() * Math.PI * 2, r = 6 + Math.random() * 10;
+      pos[i*3] = Math.cos(a) * r; pos[i*3+1] = (Math.random() - .5) * 8; pos[i*3+2] = Math.sin(a) * r;
+    }
+    partGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    cena.add(new THREE.Points(partGeo, new THREE.PointsMaterial({ color: 0x6c5ce7, size: .05, transparent: true, opacity: .55 })));
+
+    // grade holográfica no piso
+    const grade = new THREE.GridHelper(6, 24, 0x6c5ce7, 0x2a2a55);
+    grade.material.transparent = true; grade.material.opacity = 0.35;
+    cena.add(grade);
+
+    // pedestal giratório (mesa holográfica)
+    const pedestal = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.9, 1.05, 0.06, 48),
+      new THREE.MeshBasicMaterial({ color: 0x6c5ce7, transparent: true, opacity: 0.25, wireframe: true })
+    );
+    pedestal.position.y = -0.03;
+    cena.add(pedestal);
+    // anel luminoso sob o modelo
+    const anel = new THREE.Mesh(
+      new THREE.TorusGeometry(0.55, 0.012, 12, 60),
+      new THREE.MeshBasicMaterial({ color: 0x00f0ff })
+    );
+    anel.rotation.x = -Math.PI / 2; anel.position.y = 0.001;
+    cena.add(anel);
+
+    let modelo = null;
+
+    async function carregarSTL() {
+      const url = stlUrl.startsWith("/") || /^https?:/.test(stlUrl) ? stlUrl : "/" + stlUrl;
+      const k = hudKey();
+      if (!k) { falhou("Sem chave de acesso. Recarregue a página."); return; }
+      let resp;
+      try {
+        resp = await fetch(url, { headers: { "X-Hud-Key": k }, credentials: "include" });
+      } catch (e) {
+        falhou("Falha de rede ao buscar o modelo: " + e.message); return;
+      }
+      if (resp.status === 401 || resp.status === 403) {
+        localStorage.removeItem("hud_key");
+        falhou("Chave inválida (401/403). Recarregue a página e digite a MASTER_KEY correta.");
+        return;
+      }
+      if (!resp.ok) {
+        falhou("Erro " + resp.status + " ao buscar o modelo."); return;
+      }
+      const buffer = await resp.arrayBuffer();
+      const loader = new STLLoader();
+      let geo;
+      try { geo = loader.parse(buffer); }
+      catch (e) { falhou("STL inválido: " + e.message); return; }
+
+      geo.computeVertexNormals();
+      const box = new THREE.Box3().setFromBufferAttribute(geo.getAttribute("position"));
+      const centro = box.getCenter(new THREE.Vector3());
+      const tamanho = box.getSize(new THREE.Vector3());
+      const escala = 2.2 / Math.max(tamanho.x, tamanho.y, tamanho.z);
+      // centraliza e normaliza escala (STL pode vir em mm -> vira unidades)
+      geo.translate(-centro.x, -centro.y, -centro.z);
+      geo.scale(escala, escala, escala);
+
+      const cor = new THREE.Color(0x00e5ff);
+      const mat = new THREE.MeshStandardMaterial({ color: 0x12507f, metalness: 0.85, roughness: 0.25, flatShading: true });
+      const matWire = new THREE.MeshBasicMaterial({ color: cor, wireframe: true, transparent: true, opacity: 0.15 });
+
+      modelo = new THREE.Mesh(geo, mat);
+      modelo.position.y = 0.001;
+      cena.add(modelo);
+      const wire = new THREE.Mesh(geo, matWire);
+      wire.position.y = 0.001;
+      cena.add(wire);
+
+      carregando.style.display = "none";
+      info.textContent = `🧊 ${titulo} — STL carregado (${geo.getAttribute("position").count} triângulos) · arraste pra girar`;
+    }
+    carregarSTL();
+
+    addEventListener("resize", () => {
+      cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+
+    const relogio = new THREE.Clock();
+    (function anima() {
+      requestAnimationFrame(anima);
+      const t = relogio.getElapsedTime();
+      anel.rotation.z = t * 0.6;
+      pedestal.rotation.y = t * 0.2;
+      if (modelo) { modelo.rotation.y = t * 0.3; }
+      controles.update();
+      renderer.render(cena, cam);
+    })();
+  </script>
+</body>
+</html>
