@@ -14,25 +14,48 @@ const { add: addContexto } = require("../contexto");
 const axios = require("axios");
 const { PermissionFlagsBits } = require("discord.js");
 const { ativaLockdown, desativaLockdown } = require("../lockdown");
-const { enquadrarResposta } = require("../moldes");
-
-function tituloMoldeCanal(message) {
-  return message.channel?.name ? message.channel.name : "NEON";
-}
-
-// envia a resposta emoldurada no molde staff-chat (divide em várias mensagens se precisar)
+// envia a resposta em texto plano (sem molde/sem formatação staff-chat),
+// dividindo em várias mensagens se passar do limite do Discord
 async function enviarEmoldurado(message, texto) {
-  const molde = enquadrarResposta(texto, tituloMoldeCanal(message));
-  if (!molde.length) return;
-  if (molde.length === 1) {
-    await message.reply(molde[0]);
+  const conteudo = String(texto || "").trim();
+  if (!conteudo) return;
+  const MAX = 2000;
+  if (conteudo.length <= MAX) {
+    await message.reply(conteudo);
     return;
   }
-  for (let i = 0; i < molde.length; i++) {
-    const conteudo = molde[i];
-    if (i === 0) await message.reply(conteudo);
-    else await message.channel.send(conteudo);
+  const partes = [];
+  let restante = conteudo;
+  while (restante.length > MAX) {
+    let corte = restante.lastIndexOf("\n", MAX);
+    if (corte <= 0) corte = MAX;
+    partes.push(restante.slice(0, corte));
+    restante = restante.slice(corte).replace(/^\s+/, "");
   }
+  if (restante) partes.push(restante);
+  for (let i = 0; i < partes.length; i++) {
+    if (i === 0) await message.reply(partes[i]);
+    else await message.channel.send(partes[i]);
+  }
+}
+
+// divide um texto plano em pedaços de até 2000 chars (sem molde/formatação)
+function enquadrarPlano(texto) {
+  const conteudo = String(texto || "").trim();
+  if (!conteudo) return [];
+  const MAX = 2000;
+  if (conteudo.length <= MAX) return [conteudo];
+  const partes = [];
+  let restante = conteudo;
+  while (restante.length > MAX) {
+    let corte = restante.lastIndexOf("\n", MAX);
+    if (corte <= 0) corte = restante.lastIndexOf(" ", MAX);
+    if (corte <= 0) corte = MAX;
+    partes.push(restante.slice(0, corte));
+    restante = restante.slice(corte).replace(/^\s+/, "");
+  }
+  if (restante) partes.push(restante);
+  return partes;
 }
 
 const processando = new Set();
@@ -226,7 +249,7 @@ async function enviarResposta(message, texto) {
   if (texto.startsWith("__CONTINUA__")) {
     const conteudo = texto.replace("__CONTINUA__", "").trim();
     if (conteudo) {
-      for (const p of enquadrarResposta(conteudo, tituloMoldeCanal(message))) {
+      for (const p of enquadrarPlano(conteudo)) {
         await message.channel.send(p);
       }
     }
@@ -241,7 +264,7 @@ async function enviarResposta(message, texto) {
       const nome = `neon_${Date.now()}_${require("path").basename(filePath)}`;
       const attachment = new AttachmentBuilder(filePath, { name: nome });
       const bruto = texto.replace(fileMatch[0], "").trim();
-      const pedacos = enquadrarResposta(bruto, tituloMoldeCanal(message));
+      const pedacos = enquadrarPlano(bruto);
       await message.reply({ content: pedacos[0] || "", files: [attachment] });
       for (let i = 1; i < pedacos.length; i++) await message.channel.send(pedacos[i]);
     } catch {
@@ -268,7 +291,7 @@ async function enviarResposta(message, texto) {
           const ext = ct.split("/")[1] || "png";
           const attachment = new AttachmentBuilder(Buffer.from(resp.data), { name: `neon_${Date.now()}.${ext}` });
           const bruto = texto.replace(url, "").trim();
-          const pedacos = enquadrarResposta(bruto, tituloMoldeCanal(message));
+          const pedacos = enquadrarPlano(bruto);
           await message.reply({ content: pedacos[0] || "", files: [attachment] });
           for (let i = 1; i < pedacos.length; i++) await message.channel.send(pedacos[i]);
           return;
