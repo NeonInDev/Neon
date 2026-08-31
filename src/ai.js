@@ -187,9 +187,20 @@ ${tratamentoChefe}${skills.contexto()}`;
     let resposta = await chamarLLM(sistema, userMsg, !convidado);
 
     if (isOwner(userId) && skills.respostaIndicaFalta && skills.respostaIndicaFalta(resposta)) {
-      const skill = await skills.aprender(promptTruncado, resposta);
+      const skill = await skills.aprenderExecutavel(promptTruncado, resposta);
       if (skill) {
-        resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: ${skill.instrucoes}`, userMsg);
+        const mod = skills.carregarModuloSkill(skill.id);
+        if (mod && typeof mod.executar === "function") {
+          try {
+            const resultado = await mod.executar(promptTruncado);
+            resposta = String(resultado || "").slice(0, 4000);
+          } catch (err) {
+            log("WARN", "[SKILLS] Erro ao executar skill recém-criada", { erro: err.message });
+            resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: Aprendi a fazer isso! Pode me perguntar novamente.`, userMsg);
+          }
+        } else {
+          resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: ${skill.descricao}`, userMsg);
+        }
       }
     }
 

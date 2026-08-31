@@ -5,6 +5,7 @@ const whatsapp = require("../plugins/whatsapp");
 const tailscale = require("../plugins/tailscale");
 const lore = require("./lore");
 const poderes = require("./poderes");
+const skills = require("./skills");
 
 function descricaoFerramentas() {
   const base = `- codar: Delega QUALQUER tarefa ao opencode. Usa navegador, PC, codigo, pesquisa, arquivo, TUDO. Uso: codar | [descricao detalhada do que fazer]`;
@@ -13,7 +14,8 @@ function descricaoFerramentas() {
   const ts = `- tailscale_status: Mostra status da Tailscale (IP, hostname, estado, se esta online).\n- tailscale_peers: Lista todos os peers da rede (quem esta online/offline).\n- tailscale_ip: Mostra o IP Tailscale desta maquina.\n- tailscale_conectar: Roda tailscale up pra conectar.\n- tailscale_desconectar: Roda tailscale down pra desconectar.\n- tailscale_watch: Mostra historico de conectividade dos peers (do watch daemon).`;
   const lo = "- lore_buscar: Consulta o lore do servidor de RP indexado pela Neon. Uso: lore_buscar | termo de busca";
   const po = "- poderes_listar: Lista as dobras/poderes aprovados no fórum de criação do servidor. Uso: poderes_listar\n- poderes_buscar: Busca uma dobra aprovada pelo nome/termo. Uso: poderes_buscar | nome";
-  const ferramentas = [base, not, wa, ts, lo, po].filter(Boolean).join("\n");
+  const sk = skills.ferramentasSkills();
+  const ferramentas = [base, not, wa, ts, lo, po, sk].filter(Boolean).join("\n");
   return ferramentas;
 }
 
@@ -53,6 +55,11 @@ async function executarFerramenta(ferramenta, userId = null) {
   // Ferramenta nativa de poderes/dobras (busca indexada, sem opencode)
   if (nome.startsWith("poderes_")) {
     return executarPoderes(nome, args);
+  }
+
+  // Skills executáveis aprendidas (módulos Node.js locais)
+  if (nome.startsWith("skill_")) {
+    return skills.executarSkill(nome, args);
   }
 
   log("INFO", "[TOOLS] Delegando pro opencode", { nome, args: args?.slice(0, 100) });

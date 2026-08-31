@@ -14,6 +14,7 @@ const proativo = require("./src/proativo");
 const agendados = require("./src/agendados");
 const alarmes = require("./src/lembrete_alarme");
 const plugins = require("./plugins/gerenciador");
+const skills = require("./src/skills");
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
   await plugins.parar();
@@ -41,6 +42,7 @@ function iniciarAPI() {
 }
 
 function iniciarModulos() {
+  try { skills.iniciar(); } catch (err) { log("ERROR", "[SKILLS] Falha ao iniciar", { erro: err.message }); }
   try { monitor.iniciar(client); } catch (err) { log("ERROR", "[MONITOR] Falha ao iniciar", { erro: err.message }); }
   if (PROATIVO) {
     try { proativo.iniciar(client).catch(err => log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message })); } catch (err) { log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message }); }

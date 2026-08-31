@@ -61,6 +61,14 @@
       "type": "local",
       "command": ["node", "src/mcp-voz.js"],
       "enabled": false
+    },
+    "github": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      },
+      "enabled": true
     }
   }
 }
