@@ -341,6 +341,16 @@ function encontrarBoletim(texto) {
   return false;
 }
 
+function encontrarVersala(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/\bversala\b/.test(lower)) return true;
+  if (/\bportals?\b|\bportal do aluno\b/.test(lower)) return true;
+  if (/(?:boletim|notas?)\s+(?:do\s+|da\s+|da\s+escola)/.test(lower)) return true;
+  if (/^(?:quanto\s+(?:eu\s+)?(?:preciso\s+tirar|preciso|tenho\s+que\s+tirar|falta)\s+.*?(?:passar|fechar\s+a\s+media|passar\s+de\s+ano))/i.test(lower)) return true;
+  if (/^(?:quanto|qual)\s+.*?(?:preciso\s+tirar|nota\s+minima|nota\s+mínima|pra\s+passar\s+de\s+ano|pra\s+passar\b)/i.test(lower)) return true;
+  return false;
+}
+
 function encontrarFlashcards(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:criar|novo)\s+deck\b/.test(lower)) return true;
@@ -812,6 +822,7 @@ function detectarCategoria(texto) {
   if (encontrarArquivo(texto)) return "arquivo";
   if (encontrarChuva(texto)) return "clima_chuva";
   if (encontrarClima(texto)) return "clima";
+  if (encontrarVersala(texto)) return "versala";
   if (encontrarBoletim(texto)) return "boletim";
   if (/^(?:neon[,!\s]+)?(?:manda|mande|mandar|envia|envie|enviar)\s+(?:a\s+|o\s+)?quirks?\s+\S/i.test(texto)) return "quirk_enviar";
   if (encontrarFlashcards(texto)) return "flashcards";
@@ -1690,6 +1701,45 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return `✅ Enviei **${q.titulo}** em ${msg.channel}.${extra}`;
     } catch (err) {
       return `❌ Quirks: ${err.message}`;
+    }
+  }
+
+  // Versala (boletim da escola)
+  if (categoria === "versala") {
+    try {
+      const versala = require("./versala");
+      const lower = limparFiller(texto.toLowerCase().trim());
+
+      if (/\bcriar|configurar|salvar\b/.test(lower) === false && /(versala|plurall)/.test(lower)) {
+        // Apenas informativo sobre o que o Neon pode fazer
+      }
+
+      const resultado = await versala.pegarBoletim();
+      if (!resultado.ok) {
+        return `❌ Não consegui acessar o Versala: ${resultado.erro || "erro desconhecido"}`;
+      }
+
+      let resposta = `📒 **Boletim CEVN** — ${resultado.aluno}\n`;
+      resposta += `${resultado.serie.split(" ")[0].replace("º", "")}º Ano · Turma ${resultado.turma} · ${resultado.turno} · ${resultado.ano}\n`;
+      resposta += `_Média de aprovação: ${resultado.metaSemPF} (sem prova final) ou ${resultado.metaComPF} (com prova final)_\n\n`;
+
+      for (const d of resultado.disciplinas) {
+        const nome = d.nome.padEnd(16);
+        const mediaAtual = d.mediaAtual ? String(d.mediaAtual).replace(".", ",") : "—";
+
+        let linha = `**${nome}** — média atual **${mediaAtual}**\n`;
+        linha += `   ➜ 3º trim. pra passar sem PF: **${d.precisaSemPF <= 0 ? "já passou ✅" : String(d.precisaSemPF).replace(".", ",") + " pts"}**\n`;
+        linha += `   ➜ 3º trim. pra passar com PF: **${d.precisaComPF <= 0 ? "já passou ✅" : String(d.precisaComPF).replace(".", ",") + " pts"}**`;
+        resposta += linha + "\n\n";
+      }
+
+      if (/quanto\s+preciso|nota\s+m[ií]nima|pra\s+passar/i.test(lower)) {
+        resposta += "\n💡 **Interpretação:** os valores acima são quanto você precisa somar no 3º trimestre pra ter a média final de aprovação. Ex.: Português precisa de 4,7 pts (sem prova final) — se tirar 5 na média do 3º trimestre, passa.";
+      }
+
+      return resposta;
+    } catch (err) {
+      return `❌ Erro ao consultar o Versala: ${err.message}`;
     }
   }
 
