@@ -6,7 +6,7 @@
 - Evitar comandos que mantenham o shell bloqueado por muito tempo (timeouts longos com processos interativos).
 - Neon deve permanecer ligada; reiniciar somente quando necessário (mudança de código/config).
 - **SEMPRE commitar e pushar os projetos após QUALQUER alteração.** Não importa o que seja — sempre fazer commit + push ao finalizar mudanças.
-- **Sempre que a Neon iniciar, enviar uma DM ao dono** informando que está online e incluindo um resumo das mudanças recentes do Git.
+- **NÃO enviar mensagem de boot/DM automática ao dono quando a Neon iniciar.** O dono não quer esse aviso; o boot deve ser silencioso (só log e som).
 - **Sempre que o site do HUD/YGGDRASIL for atualizado, sincronizar também o app desktop e a distribuição do pendrive**; não considerar a atualização concluída enquanto as três superfícies não estiverem alinhadas.
 
 ## WhatsApp (ver docs/WHATSAPP_UI.md)

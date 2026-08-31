@@ -14,22 +14,6 @@ const proativo = require("./src/proativo");
 const agendados = require("./src/agendados");
 const alarmes = require("./src/lembrete_alarme");
 const plugins = require("./plugins/gerenciador");
-const { execFileSync } = require("child_process");
-
-function resumoBoot() {
-  try {
-    const commits = execFileSync(
-      "git",
-      ["log", "-5", "--pretty=format:%h — %s"],
-      { cwd: __dirname, timeout: 5000, windowsHide: true, encoding: "utf8" }
-    ).trim();
-    if (commits) return commits;
-  } catch (err) {
-    log("WARN", "[BOOT] Não foi possível obter resumo do Git", { erro: err.message });
-  }
-  return "Nenhuma alteração recente disponível.";
-}
-
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
   await plugins.parar();
@@ -74,20 +58,6 @@ client.once("ready", () => {
   iniciarModulos();
   // efeito sonoro de boot quando roda no PC local
   try { require("./src/som").tocar("online"); } catch {}
-  // Regra: toda inicialização envia ao dono um resumo das mudanças recentes.
-  try {
-    const { OWNER } = require("./src/perm");
-    client.users
-      .fetch(OWNER)
-      .then((u) => u.send([
-        "⚡ **Neon online!**",
-        "Estou ligada e pronta para os serviços.",
-        "",
-        "**Mudanças recentes:**",
-        `\`\`\`\n${resumoBoot().slice(0, 1500)}\n\`\`\``,
-      ].join("\n")))
-      .catch((err) => log("WARN", "[BOOT] DM pro dono falhou", { erro: err.message }));
-  } catch {}
 });
 
 iniciarAPI();
