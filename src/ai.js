@@ -9,6 +9,7 @@ const { getModo, personaDoModo } = require("./modo");
 const { isOwner, isGuest } = require("./perm"); // @chefe
 const visao = require("./visao");
 const skills = require("./skills");
+const memoria = require("./memoria");
 
 const MAX_INPUT_LEN = 2000;
 const MAX_ITERACOES_FERRAMENTAS = 3;
@@ -99,7 +100,7 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
   const promptTruncado = userInput.slice(0, MAX_INPUT_LEN);
 
   // Se resetHistorico, não envia histórico anterior
-  const historico = resetHistorico ? "" : user.historico.slice(-4).flatMap((m) => [
+  const historico = resetHistorico ? "" : user.historico.slice(-8).flatMap((m) => [
     `Usuário: ${String(m.user).slice(0, 200)}`,
     `Neon: ${String(m.bot).slice(0, 200)}`,
   ]).join("\n");
@@ -152,6 +153,8 @@ REAÇÕES EMOCIONAIS (importante):
 - Pedido do dono: obedeça ("feito, chefe" com tom natural, não subserviente).
 ${tratamentoChefe}${skills.contexto()}`;
 
+  const memoriasTxt = await memoria.formatarParaPrompt();
+
   const historicoTxt = historico ? `Histórico recente:\n${historico}\n\n` : "";
 
   log("INFO", "Processando", { usuario: username, pergunta: promptTruncado.slice(0, 100) });
@@ -174,7 +177,7 @@ ${tratamentoChefe}${skills.contexto()}`;
       return decisao.resposta.slice(0, 4000);
     }
 
-    let userMsg = `${historicoTxt}Usuário: ${promptTruncado}`;
+    let userMsg = `${historicoTxt}${memoriasTxt ? memoriasTxt + "\n\n" : ""}Usuário: ${promptTruncado}`;
 
     if (imageUrl) {
       const contextoImagem = await visaoDaImagem(imageUrl);

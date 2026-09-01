@@ -71,10 +71,12 @@ process.on("unhandledRejection", (err) => {
   log("ERROR", "Promessa rejeitada sem tratamento", { erro: err.message });
 });
 
-process.on("uncaughtException", (err) => {
-  log("ERROR", "Exceção não capturada", { erro: err.message, stack: err.stack });
-  client.destroy();
-  process.exit(1);
+process.on("uncaughtException", async (err) => {
+  log("ERROR", "Exceção não capturada", { erro: err.message, stack: err.stack?.slice(0, 2000) });
+  // Tenta salvar o banco antes de reiniciar (o start.bat reinicia sozinho)
+  try { await db.write(); } catch (e2) { log("ERROR", "Erro ao salvar dados no crash", { erro: e2.message }); }
+  try { client.destroy(); } catch (e3) { /* ignora */ }
+  setTimeout(() => process.exit(1), 300);
 });
 
 if (TOKEN) {

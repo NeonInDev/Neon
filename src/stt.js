@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const { log } = require('./logger');
-const { GROQ_API_KEY, DEEPSEEK_API_KEY, OPENROUTER_API_KEY } = require('./config');
+const { GROQ_API_KEY, OPENROUTER_API_KEY } = require('./config');
 const axios = require('axios');
 
 const MODEL_CACHE = new Map();
@@ -106,27 +106,6 @@ async function transcribeWithGroq(wavPath, opts = {}) {
   }
 }
 
-async function transcribeWithDeepSeek(wavPath, opts = {}) {
-  if (!DEEPSEEK_API_KEY) return null;
-  try {
-    log('INFO', '[STT] Tentando DeepSeek');
-    const FormData = require('form-data');
-    const form = new FormData();
-    form.append('file', fs.createReadStream(wavPath));
-    form.append('model', 'whisper-1');
-    const resp = await axios.post('https://api.deepseek.com/v1/audio/transcriptions', form, {
-      headers: { Authorization: `Bearer ${DEEPSEEK_API_KEY}`, ...form.getHeaders() },
-      timeout: opts.timeout || DEFAULT_TIMEOUT,
-    });
-    const texto = resp?.data?.text?.trim();
-    if (texto) return { text: texto, provider: 'deepseek' };
-    return null;
-  } catch (err) {
-    log('WARN', '[STT] DeepSeek falhou', { erro: err.message?.slice(0, 200) });
-    return null;
-  }
-}
-
 async function transcribeWithOpenAI(wavPath, opts = {}) {
   const OPENAI_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || process.env.OPENAI_API;
   if (!OPENAI_KEY) return null;
@@ -161,10 +140,6 @@ async function transcribeFile(wavPath, opts = {}) {
     // Fall back to Groq
     const groq = await transcribeWithGroq(wavPath, { language, timeout });
     if (groq && groq.text) return { text: groq.text, provider: groq.provider };
-
-    // DeepSeek
-    const deep = await transcribeWithDeepSeek(wavPath, { language, timeout });
-    if (deep && deep.text) return { text: deep.text, provider: deep.provider };
 
     // OpenAI
     const openai = await transcribeWithOpenAI(wavPath, { language, timeout });
