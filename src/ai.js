@@ -109,7 +109,7 @@ function nivelAfinidade(afinidade) {
   return "desconhecido";
 }
 
-async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null) {
+async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null, onProgress = null) {
   if (!db.data.users) db.data.users = {};
   if (!db.data.blacklist) db.data.blacklist = [];
 
@@ -198,6 +198,7 @@ ${tratamentoChefe}${skills.contexto()}`;
     : null;
 
   try {
+    if (typeof onProgress === "function") onProgress("Decidindo como executar...", "🧠");
     const decisao = convidado ? { acao: false, resposta: null } : await opencode.decidir(promptTruncado);
     if (decisao.acao && decisao.resposta) {
       user.historico.push({ user: userInput, bot: decisao.resposta.slice(0, 500) });
@@ -210,6 +211,7 @@ ${tratamentoChefe}${skills.contexto()}`;
     let userMsg = `${historicoTxt}${memoriasTxt ? memoriasTxt + "\n\n" : ""}Usuário: ${promptTruncado}`;
 
     if (imageUrl) {
+      if (typeof onProgress === "function") onProgress("Analisando imagem...", "🖼️");
       const contextoImagem = await visaoDaImagem(imageUrl);
       if (contextoImagem) {
         userMsg += `\n\n[IMAGEM ENVIADA PELO USUÁRIO]\n${contextoImagem}\n[FIM DA IMAGEM]`;
@@ -217,6 +219,7 @@ ${tratamentoChefe}${skills.contexto()}`;
       }
     }
 
+    if (typeof onProgress === "function") onProgress("Pensando...", "💭");
     let resposta = await chamarLLM(sistema, userMsg, !convidado);
 
     if (isOwner(userId) && skills.respostaIndicaFalta && skills.respostaIndicaFalta(resposta)) {
@@ -243,6 +246,7 @@ ${tratamentoChefe}${skills.contexto()}`;
 
       const resultados = [];
       for (const f of ferramentas) {
+        if (typeof onProgress === "function") onProgress(`Executando ${f.nome}${f.args ? ` (${f.args})` : ""}...`, "🛠️");
         const res = await toolsMod.executarFerramenta(f);
         resultados.push(`FERRAMENTA: ${f.nome}${f.args ? ` | ${f.args}` : ""}\nRESULTADO:\n${String(res).slice(0, 1500)}`);
       }

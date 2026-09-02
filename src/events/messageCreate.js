@@ -388,10 +388,21 @@ async function processarLote(userId, lote) {
       const avisarAtraso = isOwner(userId)
         ? () => message.author.send("⚠️ O OpenCode está processando há mais de 3 minutos. A Neon continuará aguardando até 5 minutos antes de informar o erro.")
         : null;
+
+      // Progresso em ações longas (mensagem editada)
+      const progresso = await require("../progresso").iniciar(message, "Processando...");
+      const onProgress = progresso.ok
+        ? (texto, emoji) => progresso.atualizar(texto, emoji)
+        : null;
+
       const objetivoAtivo = objetivo.objetivoAtivo();
       const reply = objetivoAtivo && isOwner(userId)
         ? await objetivo.executarObjetivo(userId, username, textoLimpo, avisarAtraso)
-        : await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso);
+        : await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso, onProgress);
+
+      if (progresso.ok) {
+        await progresso.finalizar(reply?.slice(0, 100) || "Pronto!");
+      }
       if (!message.replied) {
         addContexto(userId, username, textoLimpo, reply);
         auditar(userId, username, textoLimpo, reply?.slice(0, 100));
