@@ -951,6 +951,34 @@ function iniciar(port = 3000) {
       return;
     }
 
+    // Discord UI — age na SUA conta (via navegador web), não como bot
+    if (req.url.split("?")[0] === "/api/discord/ui/enviar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const discordUI = require("./discord_ui");
+        const r = await discordUI.enviarMensagem(
+          corpo && corpo.usuario ? String(corpo.usuario) : "",
+          corpo && corpo.mensagem != null ? String(corpo.mensagem) : ""
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/discord/ui/ligar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const discordUI = require("./discord_ui");
+        const r = await discordUI.ligar(
+          corpo && corpo.usuario ? String(corpo.usuario) : ""
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/clima" && req.method === "GET") {
       if (!exigeChave(req, res)) return;
       try {

@@ -29,6 +29,7 @@ module.exports = {
   GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-3.6-flash",
   VOZ_NEON: process.env.VOZ_NEON || "pt-BR-FranciscaNeural",
   PROATIVO: process.env.PROATIVO !== "0",
+  DISCORD_UI_AUTONOMO: process.env.DISCORD_UI_AUTONOMO === "1",
   DOCS_PORT: parseInt(process.env.DOCS_PORT, 10) || 3000,
   NOTION_API_KEY: process.env.NOTION_API_KEY,
   NOTION_DATABASE_ID: process.env.NOTION_DATABASE_ID,

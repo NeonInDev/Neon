@@ -656,6 +656,19 @@ function encontrarMensagem(texto) {
   return null;
 }
 
+function encontrarLigar(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  // "liga pra <alvo>", "ligar para <alvo>", "chama <alvo>", "chamar <alvo> no discord"
+  let m = lower.match(/(?:liga|ligar|fa[çc]a\s+uma\s+chamada|fazer\s+uma\s+chamada)\s+(?:pra|para|pro)\s+(.+)/i);
+  if (m) {
+    const alvo = m[1].trim().replace(/\s+(?:no|na)\s+(?:discord|dc)\s*$/i, "").trim();
+    if (alvo) return { alvo };
+  }
+  m = lower.match(/(?:chama|chamar|liga\s+pra|ligar\s+para)\s+([A-Za-zÀ-ÿ0-9_.]+)(?:\s+no\s+(?:discord|dc))?/i);
+  if (m && m[1]) return { alvo: m[1].trim() };
+  return null;
+}
+
 function encontrarPesquisarWeb(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:pesquisa|pesquisar|busca|buscar|procura|procurar)\s+(?:na\s+)?(?:internet|web|google|internet\s+sobre|web\s+sobre)\s+(.+)/i.test(lower)) return true;
@@ -890,6 +903,7 @@ function detectarCategoria(texto) {
   if (/^(?:neon[,!\s]+)?(?:manda|mande|mandar|envia|envie|enviar)\s+(?:a\s+|o\s+)?quirks?\s+\S/i.test(texto)) return "quirk_enviar";
   if (encontrarFlashcards(texto)) return "flashcards";
   if (encontrarMensagem(texto)) return "mensagem";
+  if (encontrarLigar(texto)) return "ligar";
   if (encontrarSpotifyControl(texto)) return "spotify_control";
   if (encontrarYouTubeControl(texto)) return "youtube_control";
   if (encontrarSpotify(texto)) return "spotify";
@@ -977,6 +991,21 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
           return r.ok
             ? "Boa noite! Desligando em 15s. Use `Neon, cancelar` se mudar de ideia. 🌙💤"
             : "Boa noite! Mas nao consegui desligar o PC. :(";
+        }
+        if (acao.tipo === "discordUI") {
+          const discordUI = require("./discord_ui");
+          if (acao.acao === "enviar") {
+            const r = await discordUI.enviarMensagem(acao.alvo, acao.conteudo);
+            return r.ok
+              ? `✅ Mensagem enviada na sua conta para **${r.usuario}**.`
+              : `❌ ${r.erro || "Não consegui enviar a mensagem."}`;
+          }
+          if (acao.acao === "ligar") {
+            const r = await discordUI.ligar(acao.alvo);
+            return r.ok
+              ? `📞 Chamada de voz iniciada com **${r.usuario}**.`
+              : `❌ ${r.erro || "Não consegui fazer a chamada."}`;
+          }
         }
       } else {
         user.acaoPendente = null;
@@ -1496,63 +1525,65 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
 
     const alvo = info.alvo.toLowerCase();
 
-    let usuarioDiscord = null;
-
-    // "mim"/"me"/"eu" → dono
+    // "mim"/"me"/"eu"/"dono"/"owner" → envia pro seu PV (como bot)
     if (/^(?:mim|me|eu|dono|owner)$/i.test(alvo)) {
       try {
-        usuarioDiscord = await dc.users.fetch(OWNER);
-      } catch {}
-      if (usuarioDiscord) {
-        try {
-          await usuarioDiscord.send(`💬 **Neon:** ${info.conteudo}`);
-          return `✅ Mensagem enviada para **${usuarioDiscord.username}**.`;
-        } catch (err) {
-          return `❌ Não consegui enviar DM pra você: ${err.message}`;
+        const u = await dc.users.fetch(OWNER);
+        if (u) {
+          await u.send(`💬 **Neon:** ${info.conteudo}`);
+          return `✅ Mensagem enviada para **${u.username}**.`;
         }
+      } catch {
+        return `❌ Não consegui enviar DM pra você.`;
       }
     }
 
-    // 1. Tenta buscar por ID diretamente
-    if (/^\d{17,19}$/.test(alvo)) {
+    // Rota Discord na SUA conta (via navegador): age como você, não como bot
+    // Confirma antes se DISCORD_UI_AUTONOMO não estiver ligado.
+    const config = require("./config");
+    if (config.DISCORD_UI_AUTONOMO) {
       try {
-        usuarioDiscord = await dc.users.fetch(alvo);
-      } catch {}
-    }
-
-    // 2. Procura no cache + fetch por username
-    if (!usuarioDiscord) {
-      for (const guild of dc.guilds.cache.values()) {
-        // Cache primeiro
-        let encontrado = guild.members.cache.find(m =>
-          m.user.username.toLowerCase() === alvo ||
-          (m.nickname && m.nickname.toLowerCase() === alvo) ||
-          (m.user.globalName && m.user.globalName.toLowerCase() === alvo)
-        );
-        if (encontrado) { usuarioDiscord = encontrado.user; break; }
-        // Se não achou no cache, tenta fetch da guild
-        try {
-          const membros = await guild.members.fetch();
-          encontrado = membros.find(m =>
-            m.user.username.toLowerCase() === alvo ||
-            (m.nickname && m.nickname.toLowerCase() === alvo) ||
-            (m.user.globalName && m.user.globalName.toLowerCase() === alvo)
-          );
-          if (encontrado) { usuarioDiscord = encontrado.user; break; }
-        } catch {
-          continue;
-        }
+        const discordUI = require("./discord_ui");
+        const r = await discordUI.enviarMensagem(info.alvo, info.conteudo);
+        if (r.ok) return `✅ Mensagem enviada na sua conta para **${r.usuario}**.`;
+        return `❌ ${r.erro || "Não consegui enviar na sua conta."}`;
+      } catch (err) {
+        return `❌ Erro ao enviar na sua conta: ${err.message}`;
       }
     }
 
-    if (!usuarioDiscord) return `❌ Não encontrei ninguém chamado "${info.alvo}".`;
-    try {
-      await usuarioDiscord.send(`💬 **Neon:** ${info.conteudo}`);
-      return `✅ Mensagem enviada para **${usuarioDiscord.username}**.`;
-    } catch (err) {
-      return `❌ Não consegui enviar DM para ${info.alvo}: ${err.message}`;
+    // Não-autônomo: pede confirmação antes de agir como você
+    if (userId) {
+      const user = getOrCreateUser(db, userId, "");
+      user.acaoPendente = { tipo: "discordUI", acao: "enviar", alvo: info.alvo, conteudo: info.conteudo };
+      await db.write();
     }
+    return `🤖 Posso mandar "${info.conteudo}" para **${info.alvo}** na sua conta do Discord. Confirmo? (sim/não)`;
   }
+
+  // Ligar (chamada de voz no Discord, na sua conta via navegador)
+  if (categoria === "ligar") {
+    const info = encontrarLigar(texto);
+    if (!info || !info.alvo) return "❌ Pra quem quer que eu ligue no Discord?";
+    const config = require("./config");
+    if (config.DISCORD_UI_AUTONOMO) {
+      try {
+        const discordUI = require("./discord_ui");
+        const r = await discordUI.ligar(info.alvo);
+        if (r.ok) return `📞 Ligando para **${r.usuario}** na sua conta.`;
+        return `❌ ${r.erro || "Não consegui ligar."}`;
+      } catch (err) {
+        return `❌ Erro ao ligar: ${err.message}`;
+      }
+    }
+    if (userId) {
+      const user = getOrCreateUser(db, userId, "");
+      user.acaoPendente = { tipo: "discordUI", acao: "ligar", alvo: info.alvo };
+      await db.write();
+    }
+    return `📞 Quer que eu ligue para **${info.alvo}** no Discord na sua conta? Confirmo? (sim/não)`;
+  }
+
 
   // YouTube — pesquisar e tocar vídeo
   if (categoria === "youtube") {
