@@ -116,6 +116,11 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
   const user = getOrCreateUser(db, userId, username);
   const convidado = isGuest(userId);
 
+  // Auto-aprendizado: detecta preferências/rotinas do dono e salva
+  if (isOwner(userId)) {
+    await require("./aprendizado").processar(userId, user, userInput).catch(() => {});
+  }
+
   const promptTruncado = userInput.slice(0, MAX_INPUT_LEN);
 
   const historico = resetHistorico ? "" : user.historico.slice(-8).flatMap((m) => [
