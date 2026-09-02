@@ -126,6 +126,15 @@ async function resumoDiario() {
     msg += `\`\`\`\n${info}\n\`\`\``;
 
     await owner.send(msg);
+
+    // Resumo matinal FALADO (voz no PC), só se habilitado — não invasivo por padrão
+    if (process.env.FALAR_RESUMO === "1") {
+      try {
+        const { falarResumoMatinal } = require("./tts");
+        await falarResumoMatinal(clima ? `${clima} ${sugerir}` : sugerir);
+      } catch {}
+    }
+
     log("INFO", "[MONITOR] Resumo diario enviado");
   } catch (err) {
     log("WARN", "[MONITOR] Erro no resumo diario", { erro: err.message });
