@@ -979,6 +979,64 @@ function iniciar(port = 3000) {
       return;
     }
 
+    // ===== NeonWatch (relogio) =====
+    if (req.url.split("?")[0] === "/api/watch/mensagens" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const watch = require("./watch");
+        responder(res, 200, { ok: true, dispositivo: watch.dispositivo(), mensagens: watch.listarParaRelogio() });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/watch/mensagem/ler" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const watch = require("./watch");
+        const r = watch.marcarLida(corpo && corpo.id ? String(corpo.id) : "");
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/watch/registro" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const watch = require("./watch");
+        const r = watch.registrarDispositivo(corpo && corpo.nome ? String(corpo.nome) : "");
+        responder(res, 200, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/watch/acao" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const watch = require("./watch");
+        const r = await watch.executarAcao(corpo && corpo.acao ? String(corpo.acao) : "", corpo?.parametros || {});
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/watch/mensagem" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const watch = require("./watch");
+        const r = watch.adicionarMensagem(
+          corpo && corpo.texto != null ? String(corpo.texto) : "",
+          corpo && corpo.de ? String(corpo.de) : "neon",
+          corpo && corpo.importancia ? String(corpo.importancia) : "normal"
+        );
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/clima" && req.method === "GET") {
       if (!exigeChave(req, res)) return;
       try {

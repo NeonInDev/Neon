@@ -42,3 +42,6 @@ data/poderes.json
 libs/librehardwaremonitor/*.sys
 
 _tmp*
+
+# NeonWatch
+watch.json
