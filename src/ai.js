@@ -10,6 +10,7 @@ const { isOwner, isGuest } = require("./perm"); // @chefe
 const visao = require("./visao");
 const skills = require("./skills");
 const memoria = require("./memoria");
+const projetosArquivos = require("./projetos_arquivos");
 
 const MAX_INPUT_LEN = 2000;
 const MAX_ITERACOES_FERRAMENTAS = 3;
@@ -131,7 +132,7 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
   const modo = getModo();
   const apelido = user.apelido ? ` O usuário pediu para ser chamado de "${user.apelido}".` : "";
   const hora = horaDoDia();
-  const问候 = saudacaoPorHora(hora);
+  const saudacao = saudacaoPorHora(hora);
   const afinidade = nivelAfinidade(user.afinidade || 0);
 
 const tratamentoChefe = isOwner(userId)
@@ -146,8 +147,9 @@ Modo atual: ${modo.toUpperCase()}${apelido}
 
 Contexto atual:
 - Hora: ${hora} (${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})
-- Greeting padrão: ${问候} (use naturalmente se for o início da conversa, mas NÃO comece toda resposta com问候)
+- Greeting padrão: ${saudacao} (use naturalmente se for o início da conversa, mas NÃO comece toda resposta com saudacao)
 - Relação com você: ${afinidade} (${user.afinidade || 0} pontos de afinidade)
+- Projetos do chefe: ${projetosArquivos.contextoResumido()} (posso abrir arquivos/pastas deles: "abre a impressora3d", "abre o plano da impressora")
 ${afinidade === "parceiro" ? "- Essa pessoa é muito próxima. Pode ser mais íntima, informal, usar gírias, piadas internas." : ""}
 ${afinidade === "amigo" ? "- Essa pessoa é amiga. Pode ser descontraída e natural." : ""}
 ${afinidade === "desconhecido" ? "- Essa pessoa é nova. Seja educada mas com personalidade." : ""}

@@ -50,6 +50,22 @@ const PROJETOS = [
       { chave: "versala", arquivo: "src\\imagens.js", tipo: "codigo", desc: "Funções de imagem" },
     ],
   },
+  {
+    nomes: ["impressora3d", "impressora", "impressora 3d", "impressao 3d", "impresso", "projeto 3d"],
+    base: path.join(HOME, "impressora3d"),
+    arquivos: [
+      { chave: "plano", arquivo: "plano.md", tipo: "documento", desc: "Plano da impressora 3D (fases)" },
+      { chave: "plano", arquivo: "PLANO_DEFINITIVO_v2.md", tipo: "documento", desc: "Plano definitivo v2" },
+      { chave: "proposta", arquivo: "proposta_completa.md", tipo: "documento", desc: "Proposta completa" },
+      { chave: "missao", arquivo: "MISSAO_01_09.md", tipo: "documento", desc: "Missão 01/09" },
+      { chave: "pecas", arquivo: "pecas_impressas.html", tipo: "navegador", desc: "Peças impressas (visual)" },
+      { chave: "visual", arquivo: "visual.html", tipo: "navegador", desc: "Visual da impressora" },
+      { chave: "visual3d", arquivo: "visual3d.html", tipo: "navegador", desc: "Visual 3D da impressora" },
+      { chave: "firmware", arquivo: "firmware\\esp32\\neon3d_esp32.ino", tipo: "codigo", desc: "Firmware ESP32 (Neon3D)" },
+      { chave: "marlin", arquivo: "firmware\\marlin\\configuration.h", tipo: "codigo", desc: "Config Marlin" },
+      { chave: "teste", arquivo: "fase1\\teste_motor_dvd.ino", tipo: "codigo", desc: "Teste motor de DVD (fase 1)" },
+    ],
+  },
 ];
 
 // Retorna o arquivo mais provável pro nome dado. Tenta casar do mais específico
@@ -104,7 +120,7 @@ function buscarPorNome(nome) {
   const limites = { [HOME]: 2 };
   const vistos = new Set();
   for (const raiz of pastasRaiz) {
-    const passos = new Set(raiz.split(path.sep).length + 1);
+    const passos = new Set([raiz.split(path.sep).length + 1]);
     const resultado = varrer(raiz, querys, 0, passos, vistos, limites[raiz] || 3);
     if (resultado) return resultado;
   }
@@ -151,4 +167,9 @@ function listar() {
   }));
 }
 
-module.exports = { resolver, listar, tipoDe };
+// Contexto curto dos projetos, pro prompt da Neon saber o que existe.
+function contextoResumido() {
+  return PROJETOS.map((p) => `${p.nomes[0]} (${p.arquivos.length} arquivos)`).join(", ");
+}
+
+module.exports = { resolver, listar, tipoDe, contextoResumido };
