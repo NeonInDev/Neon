@@ -166,6 +166,37 @@ async function transcreverAudio(caminhoAudio) {
   }
 }
 
+function limparParaTTS(texto) {
+  return texto
+    .replace(/\*\*/g, "")
+    .replace(/\*/g, "")
+    .replace(/`{1,3}[^`]*`{1,3}/g, "")
+    .replace(/https?:\/\/[^\s]+/g, "link")
+    .replace(/[>:]/g, "")
+    .replace(/#{1,6}\s/g, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/:[a-z_]+:/g, "")
+    .replace(/[^\w\sáàâãéèêíïóôõúüç.,!?;-]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200)
+}
+
+async function enviarTTSReply(msg, texto) {
+  const limpo = limparParaTTS(texto)
+  if (!limpo || limpo.length < 3) return
+  try {
+    const { gerarAudio } = require("./tts")
+    const audio = await gerarAudio(limpo)
+    if (!audio) return
+    const { AttachmentBuilder } = require("discord.js")
+    const att = new AttachmentBuilder(audio, { name: `neon_tts_${Date.now()}.mp3` })
+    await msg.channel.send({ files: [att] })
+  } catch (err) {
+    log("WARN", "[AUDIO] TTS falhou", { erro: err.message?.slice(0, 100) })
+  }
+}
+
 async function processarAudioMessage(msg) {
   const att = isAudioAnexo(msg)
   if (!att) return false
@@ -202,7 +233,7 @@ async function processarAudioMessage(msg) {
     const { add: addContexto } = require("./contexto")
     addContexto(authorId, authorName, texto, acao)
     await msg.reply(acao)
-    if (!isDM) { try { await pc.tts(acao.replace(/[*_~`]/g, "").slice(0, 200)) } catch {} }
+    await enviarTTSReply(msg, acao)
     return true
   }
 
@@ -211,7 +242,7 @@ async function processarAudioMessage(msg) {
   const { add: addContexto } = require("./contexto")
   addContexto(authorId, authorName, texto, reply)
   await msg.reply(reply)
-  if (!isDM) { try { await pc.tts(reply.replace(/[*_~`]/g, "").slice(0, 200)) } catch {} }
+  await enviarTTSReply(msg, reply)
   return true
 }
 

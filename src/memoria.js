@@ -114,4 +114,40 @@ function formatarParaPrompt() {
   return "Memorias:\n" + linhas.join("\n")
 }
 
-module.exports = { lembrar, esquecer, buscar, buscarPorCategoria, listar, limparExpiradas, estatisticas, formatarParaPrompt }
+function buscarRelevantes(textoUsuario, maxItens = 8) {
+  const data = carregar()
+  if (!data.memorias.length) return ""
+  const termos = textoUsuario.toLowerCase().split(/\s+/).filter(t => t.length > 2)
+  if (!termos.length) return formatarParaPrompt()
+
+  const pontuadas = data.memorias.map(m => {
+    let score = 0
+    const chaveLower = m.chave.toLowerCase()
+    const valorLower = (m.valor || "").toLowerCase()
+    const catLower = (m.categoria || "").toLowerCase()
+    for (const termo of termos) {
+      if (chaveLower.includes(termo)) score += 5
+      if (valorLower.includes(termo)) score += 3
+      if (catLower.includes(termo)) score += 1
+    }
+    score += (m.prioridade || 3) * 0.5
+    score += Math.min((m.acessos || 0) * 0.2, 2)
+    return { ...m, score }
+  })
+
+  const relevantes = pontuadas
+    .filter(m => m.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxItens)
+
+  if (!relevantes.length) {
+    return formatarParaPrompt()
+  }
+
+  const linhas = relevantes.map(m =>
+    `[${m.categoria || "outro"}] ${m.chave}: ${(m.valor || "").slice(0, 200)}`
+  )
+  return "Memorias relevantes:\n" + linhas.join("\n")
+}
+
+module.exports = { lembrar, esquecer, buscar, buscarPorCategoria, listar, limparExpiradas, estatisticas, formatarParaPrompt, buscarRelevantes }

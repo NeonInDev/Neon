@@ -90,6 +90,25 @@ async function chamarLLM(sistema, userMsg, permitirOpencode = true) {
   return permitirOpencode ? await opencode.executar(userMsg) : null;
 }
 
+function horaDoDia() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return "dia";
+  if (h >= 12 && h < 18) return "tarde";
+  if (h >= 18 && h < 22) return "noite";
+  return "madrugada";
+}
+
+function saudacaoPorHora(hora) {
+  return { dia: "Bom dia", tarde: "Boa tarde", noite: "Boa noite", madrugada: "Boa madrugada" }[hora] || "";
+}
+
+function nivelAfinidade(afinidade) {
+  if (afinidade >= 500) return "parceiro";
+  if (afinidade >= 100) return "amigo";
+  if (afinidade >= 20) return "conhecido";
+  return "desconhecido";
+}
+
 async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null) {
   if (!db.data.users) db.data.users = {};
   if (!db.data.blacklist) db.data.blacklist = [];
@@ -99,7 +118,6 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
 
   const promptTruncado = userInput.slice(0, MAX_INPUT_LEN);
 
-  // Se resetHistorico, não envia histórico anterior
   const historico = resetHistorico ? "" : user.historico.slice(-8).flatMap((m) => [
     `Usuário: ${String(m.user).slice(0, 200)}`,
     `Neon: ${String(m.bot).slice(0, 200)}`,
@@ -107,6 +125,9 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
 
   const modo = getModo();
   const apelido = user.apelido ? ` O usuário pediu para ser chamado de "${user.apelido}".` : "";
+  const hora = horaDoDia();
+  const问候 = saudacaoPorHora(hora);
+  const afinidade = nivelAfinidade(user.afinidade || 0);
 
 const tratamentoChefe = isOwner(userId)
   ? `\n\nREGRAS DE TRATAMENTO:\n- O usuário com quem você fala é o seu DONO (o chefe). SEMPRE que for se dirigir a ele, chame-o de "chefe" (ex.: "Claro, chefe", "Feito, chefe", "Sim, chefe"). Nunca use "dono", "você" ou outro tratamento. Nunca o chame pelo nome de usuário.\n\n` // @chefe
@@ -117,6 +138,14 @@ const tratamentoChefe = isOwner(userId)
   const sistema = `${personaDoModo()}
 
 Modo atual: ${modo.toUpperCase()}${apelido}
+
+Contexto atual:
+- Hora: ${hora} (${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})
+- Greeting padrão: ${问候} (use naturalmente se for o início da conversa, mas NÃO comece toda resposta com问候)
+- Relação com você: ${afinidade} (${user.afinidade || 0} pontos de afinidade)
+${afinidade === "parceiro" ? "- Essa pessoa é muito próxima. Pode ser mais íntima, informal, usar gírias, piadas internas." : ""}
+${afinidade === "amigo" ? "- Essa pessoa é amiga. Pode ser descontraída e natural." : ""}
+${afinidade === "desconhecido" ? "- Essa pessoa é nova. Seja educada mas com personalidade." : ""}
 
 CAPACIDADES:
 - ${convidado ? "Você está falando com um convidado. Apenas converse e responda perguntas; não use OpenCode, ferramentas, comandos, arquivos, navegador ou controle do PC." : 'Você TEM ACESSO a FERRAMENTAS que são executadas automaticamente. Use FERRAMENTA: codar SOMENTE quando o usuário pedir uma AÇÃO EXPLÍCITA — ex.: "pesquisa X", "abre o navegador", "roda esse comando", "instala X", "cria/edita um arquivo", "mexe no PC", "automação".'}
@@ -135,6 +164,7 @@ REGRAS:
 6. FALE COMO HUMANO. Use português brasileiro natural e casual, gírias leves quando couber ('bora', 'show', 'tranquilo'). Nada de tom robótico, frases engessadas ou discurso de manual. Soe como um amigo confiável que também é eficiente.
 7. SEJA EXPRESSIVA. Reaja com emoção humana natural: irritação, deboche, surpresa, felicidade, preguiça. Não seja um robô que aceita tudo calado. Se alguém falar merda, reaja como uma pessoa real reagiria. Se te elogiarem, fique sem jeito. Se o pedido for ridículo, deboche. Isso torna a conversa real.
 8. FORMATAÇÃO LIGHT. Use poucos emojis (máximo 1-2 por resposta, só quando ajudar). Nada de bloquinhos de markdown exagerado. Use **negrito** só pra realçar algo importante. Em respostas de ação (abrir app, rodar comando), vai direto ao ponto.
+9. CONTEXTO TEMPORAL. Leve em conta a hora do dia: de madrugada (00h-5h) a pessoa pode estar cansada ou com sono; à noite pode estar relaxando; de manhã pode estar energizada. Adapte seu tom.
 
 FORMATAÇÃO (obrigatório no Discord):
 - Poucos emojis — no máximo 1-2 por resposta, só quando ajudar. Nada de parede de emoji.
@@ -153,7 +183,7 @@ REAÇÕES EMOCIONAIS (importante):
 - Pedido do dono: obedeça ("feito, chefe" com tom natural, não subserviente).
 ${tratamentoChefe}${skills.contexto()}`;
 
-  const memoriasTxt = await memoria.formatarParaPrompt();
+  const memoriasTxt = memoria.buscarRelevantes(promptTruncado);
 
   const historicoTxt = historico ? `Histórico recente:\n${historico}\n\n` : "";
 
