@@ -400,13 +400,28 @@ async function processarLote(userId, lote) {
         ? await objetivo.executarObjetivo(userId, username, textoLimpo, avisarAtraso)
         : await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso, onProgress);
 
+      const textoResposta = reply || "";
       if (progresso.ok) {
-        await progresso.finalizar(reply?.slice(0, 100) || "Pronto!");
-      }
-      if (!message.replied) {
-        addContexto(userId, username, textoLimpo, reply);
-        auditar(userId, username, textoLimpo, reply?.slice(0, 100));
-        await enviarResposta(message, reply);
+        // A mensagem de progresso (já enviada) vira a resposta final, editada.
+        // Assim a Neon mostra a resposta "na mesma mensagem", sem mandar outra duplicada.
+        const textoEdit = String(textoResposta).slice(0, 2000);
+        await progresso.finalizar(textoEdit || "Pronto!");
+        // Se a resposta exceder 2000 chars, envia o restante como continuação.
+        const excedente = String(textoResposta).slice(2000);
+        if (excedente && !message.replied) {
+          addContexto(userId, username, textoLimpo, textoResposta);
+          auditar(userId, username, textoLimpo, textoResposta?.slice(0, 100));
+          for (const p of enquadrarPlano(excedente)) {
+            await message.channel.send(p);
+          }
+        } else {
+          addContexto(userId, username, textoLimpo, textoResposta);
+          auditar(userId, username, textoLimpo, textoResposta?.slice(0, 100));
+        }
+      } else if (!message.replied) {
+        addContexto(userId, username, textoLimpo, textoResposta);
+        auditar(userId, username, textoLimpo, textoResposta?.slice(0, 100));
+        await enviarResposta(message, textoResposta);
       }
     } catch (err) {
       log("ERROR", "Erro ao processar lote", { usuario: message.author.username, erro: err.message });
