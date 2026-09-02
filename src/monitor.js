@@ -107,11 +107,36 @@ async function resumoDiario() {
   try {
     const info = await pc.pcInfo();
     const owner = await client.users.fetch(OWNER);
-    await owner.send("☀️ **Bom dia!** Aqui está o resumo do seu PC:\n```\n" + info + "\n```");
+
+    // Clima da cidade configurada (se disponível) pra enriquecer a sugestão
+    let clima = "";
+    try {
+      const { clima: buscarClima } = require("./clima");
+      const cidade = process.env.CLIMA_CIDADE || "São Paulo";
+      const c = await buscarClima(cidade);
+      if (c && c.temperatura) clima = `🌤️ ${c.condicao}, ${c.temperatura} em ${c.cidade || cidade}`;
+    } catch {}
+
+    const agora = new Date();
+    const sugerir = sugestaoMatinal(agora.getHours());
+
+    let msg = `☀️ **Bom dia, chefe!** Vi que você ligou o PC por aqui.\n`;
+    if (clima) msg += `${clima}\n`;
+    msg += `💡 **Sugestão:** ${sugerir}\n`;
+    msg += `\`\`\`\n${info}\n\`\`\``;
+
+    await owner.send(msg);
     log("INFO", "[MONITOR] Resumo diario enviado");
   } catch (err) {
     log("WARN", "[MONITOR] Erro no resumo diario", { erro: err.message });
   }
+}
+
+function sugestaoMatinal(hora) {
+  if (hora < 6) return "ainda é de madrugada... se ainda estiver acordado, que tal uma pausa? 😴";
+  if (hora < 12) return "bom momento pra revisar os estudos/notas antes do restante do dia. 📚";
+  if (hora < 18) return "que tal dar uma olhada nas cotações ou anotar algo que ficou pra trás? 📈";
+  return "já entardecendo... bom momento pra relaxar, jogar um pouco ou fechar o dia. 🎮";
 }
 
 module.exports = { iniciar, parar };
