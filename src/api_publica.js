@@ -1509,9 +1509,20 @@ function iniciar(port = 3000) {
 
   server = http.createServer(handler);
 
-  server.listen(port, API_HOST, () => {
-    log("INFO", `[API] Rodando em http://${API_HOST}:${port}`);
+  server.on("error", (err) => {
+    // EADDRINUSE: outra instância já segura a porta. Não deve ficar em loop —
+    // loga e encerra limpo (o start.bat reinicia sozinho).
+    log("ERROR", `[API] Porta ${port} indisponível`, { erro: err.code || err.message });
+    try { process.exit(1); } catch {}
   });
+
+  try {
+    server.listen(port, API_HOST, () => {
+      log("INFO", `[API] Rodando em http://${API_HOST}:${port}`);
+    });
+  } catch (err) {
+    log("ERROR", "[API] Falha ao tentar escutar", { erro: err.message });
+  }
 
   if (fs.existsSync(SSL_PFX) && SSL_PASS) {
     try {
@@ -1519,6 +1530,10 @@ function iniciar(port = 3000) {
         { pfx: fs.readFileSync(SSL_PFX), passphrase: SSL_PASS },
         handler
       );
+      ssl.on("error", (err) => {
+        log("ERROR", `[API] Porta ${SSL_PORT} indisponível`, { erro: err.code || err.message });
+        try { process.exit(1); } catch {}
+      });
       ssl.listen(SSL_PORT, API_HOST, () => {
         log("INFO", `[API] Segura rodando em https://${API_HOST}:${SSL_PORT}`);
       });
