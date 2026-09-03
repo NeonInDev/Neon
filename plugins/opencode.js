@@ -285,4 +285,19 @@ function parar() {
   }
 }
 
-module.exports = { iniciarServer, executar, decidir, parar };
+// Reinicia o servidor opencode p/ recarregar config (ex.: MCPs novos).
+async function reiniciar() {
+  const anterior = serverPort;
+  if (serverProcess) {
+    try {
+      serverProcess.kill();
+    } catch {}
+    serverProcess = null;
+    serverPort = null;
+  }
+  await new Promise((r) => setTimeout(r, 800));
+  const porta = await iniciarServer();
+  return { reiniciado: !!porta, portaAnterior: anterior, novaPorta: porta };
+}
+
+module.exports = { iniciarServer, executar, decidir, parar, reiniciar };

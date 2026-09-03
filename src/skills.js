@@ -43,11 +43,25 @@ function proibida(skill) {
 }
 
 function contexto() {
+  let txt = "";
   const skills = carregar();
-  if (!skills.length) return "";
-  return "\n\nSKILLS APRENDIDAS E ATIVAS:\n" + skills
-    .map((s) => `- ${s.nome}: ${s.instrucoes}`)
-    .join("\n");
+  if (skills.length) {
+    txt += "\n\nSKILLS APRENDIDAS E ATIVAS:\n" + skills
+      .map((s) => `- ${s.nome}: ${s.instrucoes}`)
+      .join("\n");
+  }
+  const executaveis = ferramentasSkills();
+  if (executaveis) {
+    txt += `\n\nFERRAMENTAS DE SKILL (executáveis via FERRAMENTA: skill_...):\n${executaveis}`;
+  }
+  try {
+    const factory = require("./mcp-factory");
+    txt += "\n\nMCPS DO TEU OPENCODE (inventário atual do opencode.json):\n" + factory.inventarioEmTexto();
+    txt += "\nPara desenvolver um MCP novo quando o dono pedir uma capacidade que você não tem, use a skill skill_mcp_factory.";
+  } catch (err) {
+    log("WARN", "[SKILLS] Falha ao incluir inventário de MCPs", { erro: err.message });
+  }
+  return txt;
 }
 
 async function avisarOwner(skill, status, detalhe = "") {

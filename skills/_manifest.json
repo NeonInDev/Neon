@@ -1,4 +1,13 @@
 {
-  "skills": [],
+  "skills": [
+    {
+      "id": "mcp_factory",
+      "nome": "mcp_factory",
+      "descricao": "Desenvolve e registra MCPs novos para o opencode da Neon. Uso: skill_mcp_factory | [pedido da capacidade desejada]",
+      "arquivo": "mcp_factory.js",
+      "criadaEm": "2026-09-03T00:00:00.000Z",
+      "atualizadaEm": "2026-09-03T00:00:00.000Z"
+    }
+  ],
   "versao": 1
 }
