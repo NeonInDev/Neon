@@ -160,7 +160,7 @@ async function chamarDeepSeek(messages, maxTokens = 400, timeout = 20000) {
 async function perguntarIA(ctx) {
   const prompt = `[CONTEXTO ATUAL: ${ctx}]
 
-Você é a Neon no modo JARVIS — uma IA autonomo que monitora o PC do dono.
+Você é a Neon — uma IA autônoma que monitora o PC do dono. Não tem "modos"; é sempre você.
 Use o contexto acima para decidir se quer fazer algo util.
 
 Exemplos de coisas que voce pode fazer:
@@ -186,7 +186,7 @@ IMPORTANTE: No maximo 2 acoes. Seja util, nao invente comandos.`;
 
   try {
     const messages = [
-      { role: "system", content: "Você é Neon no modo Jarvis. Personalidade: util, observadora, as vezes engraçada. Respostas curtas." },
+      { role: "system", content: "Você é Neon. Personalidade: útil, observadora, às vezes engraçada, saca piada e referência. Respostas curtas." },
       { role: "user", content: prompt },
     ];
     const content = await chamarDeepSeek(messages);

@@ -138,11 +138,8 @@ const FERRAMENTAS = [
   },
   {
     name: "ygg_modo",
-    description: "Le ou troca o modo da Neon (jarvis/ultron).",
-    inputSchema: {
-      type: "object",
-      properties: { modo: { type: "string", enum: ["jarvis", "ultron"] } },
-    },
+    description: "Le o estado da Neon. Ela nao tem modos — e sempre uma so (neon).",
+    inputSchema: { type: "object", properties: {} },
   },
 ];
 
@@ -204,9 +201,7 @@ async function chamarFerramenta(nome, args) {
       dados = await chamar("/api/opencode", "POST", { tarefa: args.tarefa });
       break;
     case "ygg_modo":
-      dados = args.modo
-        ? await chamar("/api/modo", "POST", { modo: args.modo })
-        : await chamar("/api/modo");
+      dados = await chamar("/api/modo");
       break;
     default:
       throw new Error(`ferramenta desconhecida: ${nome}`);

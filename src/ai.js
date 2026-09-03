@@ -5,7 +5,7 @@ const opencode = require("../plugins/opencode");
 const toolsMod = require("./tools");
 const axios = require("axios");
 const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, GROQ_API_KEY, GROQ_MODEL, OMNIROUTE_API_KEY, OMNIROUTE_BASE_URL, OMNIROUTE_MODEL } = require("./config");
-const { getModo, personaDoModo } = require("./modo");
+const { personaDoModo } = require("./modo");
 const { isOwner, isGuest } = require("./perm"); // @chefe
 const visao = require("./visao");
 const skills = require("./skills");
@@ -129,7 +129,6 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
     `Neon: ${String(m.bot).slice(0, 200)}`,
   ]).join("\n");
 
-  const modo = getModo();
   const apelido = user.apelido ? ` O usuário pediu para ser chamado de "${user.apelido}".` : "";
   const hora = horaDoDia();
   const saudacao = saudacaoPorHora(hora);
@@ -141,9 +140,7 @@ const tratamentoChefe = isOwner(userId)
   ? `\n\nREGRAS DE TRATAMENTO:\n- O usuário é um CONVIDADO na casa. Chame-o de "convidado" (ex.: "Claro, convidado", "Feito, convidado"). Nunca use "chefe" com ele.\n\n`
   : "";
 
-  const sistema = `${personaDoModo()}
-
-Modo atual: ${modo.toUpperCase()}${apelido}
+  const sistema = `${personaDoModo()}${apelido}
 
 Contexto atual:
 - Hora: ${hora} (${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })})
