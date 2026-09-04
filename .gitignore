@@ -45,3 +45,6 @@ _tmp*
 
 # NeonWatch
 watch.json
+
+# AGENTS.md contem credenciais locais - nunca versionar
+AGENTS.md
