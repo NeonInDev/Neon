@@ -7,6 +7,22 @@
       "arquivo": "mcp_factory.js",
       "criadaEm": "2026-09-03T00:00:00.000Z",
       "atualizadaEm": "2026-09-03T00:00:00.000Z"
+    },
+    {
+      "id": "tirar_haru",
+      "nome": "tirar_haru",
+      "descricao": "Remove o Haru da casa com estilo (ban kick simulation)",
+      "arquivo": "tirar_haru.js",
+      "criadaEm": "2026-09-04T14:55:11.201Z",
+      "atualizadaEm": "2026-09-04T14:55:11.201Z"
+    },
+    {
+      "id": "baixar_jogo",
+      "nome": "baixar_jogo",
+      "descricao": "Baixa/instala um jogo. Primeiro procura na Steam (e instala se achar); se não tiver, abre o Hydra. Uso: skill_baixar_jogo | [nome do jogo]",
+      "arquivo": "baixar_jogo.js",
+      "criadaEm": "2026-09-04T00:00:00.000Z",
+      "atualizadaEm": "2026-09-04T00:00:00.000Z"
     }
   ],
   "versao": 1

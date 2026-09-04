@@ -130,6 +130,33 @@ const FERRAMENTAS = [
     },
   },
   {
+    name: "pc_abrir_launcher",
+    description: "Abre um launcher/jogo pelo atalho: hydra, riot, lol/league, steam, epic, gog.",
+    inputSchema: {
+      type: "object",
+      properties: { launcher: { type: "string", description: "Nome do launcher (hydra, riot, lol, steam, epic, gog)" } },
+      required: ["launcher"],
+    },
+  },
+  {
+    name: "pc_buscar_jogo_steam",
+    description: "Busca o AppID de um jogo na Steam pelo nome (ex: 'Hollow Knight: Silksong').",
+    inputSchema: {
+      type: "object",
+      properties: { nome: { type: "string", description: "Nome do jogo para pesquisar na Steam" } },
+      required: ["nome"],
+    },
+  },
+  {
+    name: "pc_instalar_jogo_steam",
+    description: "Instala um jogo na Steam pelo AppID via steam://install.",
+    inputSchema: {
+      type: "object",
+      properties: { appid: { type: "string", description: "AppID numérico da Steam" } },
+      required: ["appid"],
+    },
+  },
+  {
     name: "pc_fechar_apps",
     description: "Fecha aplicativos com janelas abertas, preservando Medal, Steam e a Neon.",
     inputSchema: { type: "object", properties: {} },
@@ -238,6 +265,15 @@ async function chamarFerramenta(nome, args) {
       break;
     case "pc_iniciar_jogo_steam":
       texto = JSON.stringify(await pc.iniciarJogoSteam(args.appid));
+      break;
+    case "pc_abrir_launcher":
+      texto = JSON.stringify(await pc.abrirAppPorNome(args.launcher));
+      break;
+    case "pc_buscar_jogo_steam":
+      texto = JSON.stringify(await pc.buscarJogoSteam(args.nome));
+      break;
+    case "pc_instalar_jogo_steam":
+      texto = JSON.stringify(await pc.instalarJogoSteam(args.appid));
       break;
     case "pc_fechar_apps":
       texto = JSON.stringify(await pc.fecharAppsExceto());

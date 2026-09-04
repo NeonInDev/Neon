@@ -722,6 +722,34 @@ async function cancelarDesligar() {
   return "✅ Desligamento cancelado.";
 }
 
+const LAUNCHERS = {
+  hydra: ["C:\\Users\\Pichau\\AppData\\Local\\Programs\\Hydra\\Hydra.exe"],
+  "riot": [
+    "C:\\Riot Games\\Riot Client\\RiotClientServices.exe",
+  ],
+  "lol": [
+    "C:\\Riot Games\\League of Legends\\LeagueClient.exe",
+    "C:\\Riot Games\\Riot Client\\RiotClientServices.exe",
+  ],
+  "league": [
+    "C:\\Riot Games\\League of Legends\\LeagueClient.exe",
+    "C:\\Riot Games\\Riot Client\\RiotClientServices.exe",
+  ],
+  steam: ["C:\\Program Files (x86)\\Steam\\steam.exe"],
+  "epic": ["C:\\Program Files (x86)\\Epic Games\\Launcher\\Portal\\Binaries\\Win64\\EpicGamesLauncher.exe"],
+  gog: ["C:\\Program Files (x86)\\GOG Galaxy\\GalaxyClient.exe"],
+};
+
+function caminhoLauncher(chave) {
+  const lista = String(chave || "").toLowerCase().trim().replace(/\s+/g, "");
+  for (const [nome, caminhos] of Object.entries(LAUNCHERS)) {
+    if (lista === nome || lista === nome + "games" || lista === nome + "client" || lista === "cliente" + nome) {
+      for (const c of caminhos) if (fs.existsSync(c)) return c;
+    }
+  }
+  return null;
+}
+
 async function abrirAppPorNome(nome) {
   const alvo = String(nome || "").trim();
   if (!alvo || /[\r\n]/.test(alvo)) {
@@ -731,7 +759,9 @@ async function abrirAppPorNome(nome) {
     return { ok: false, erro: "WhatsApp só pode ser aberto pelo comando explícito do WhatsApp." };
   }
 
-  const psAlvo = alvo.replace(/'/g, "''");
+  const launcher = caminhoLauncher(alvo);
+  const caminhoReal = launcher || alvo;
+  const psAlvo = caminhoReal.replace(/'/g, "''");
   return new Promise((resolve) => {
     const child = spawn("powershell.exe", [
       "-NoProfile",
@@ -826,6 +856,44 @@ async function iniciarJogoSteam(appid) {
   return { ok: true, mensagem: `Iniciando o jogo da Steam (AppID ${id}).` };
 }
 
+// Busca o AppID de um jogo na Steam pelo nome (usa a API pública da Steam).
+async function buscarJogoSteam(nome) {
+  const consulta = String(nome || "").trim();
+  if (!consulta || consulta.length < 2) {
+    return { ok: false, erro: "Nome do jogo inválido" };
+  }
+  try {
+    const axios = require("axios");
+    const url = `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(consulta)}&cc=br&l=portuguese`;
+    const resp = await axios.get(url, { timeout: 15000, headers: { "User-Agent": "Mozilla/5.0" } });
+    const lista = resp?.data?.items || [];
+    if (!lista.length) return { ok: false, erro: `Nenhum jogo '%${consulta}%' encontrado na Steam.` };
+    const item = lista[0];
+    return {
+      ok: true,
+      appid: String(item.id),
+      nome: item.name || consulta,
+      preco: item.price?.final_formatted || "grátis?",
+      imagem: item.small_captcha_image_url || null,
+      plataformas: item.platforms || null,
+    };
+  } catch (err) {
+    return { ok: false, erro: `Falha ao buscar na Steam: ${err.message?.slice(0, 150)}` };
+  }
+}
+
+// Instala um jogo na Steam pelo AppID via URI steam://install/<id>.
+async function instalarJogoSteam(appid) {
+  const id = String(appid || "").trim();
+  if (!/^\d+$/.test(id)) return { ok: false, erro: "AppID da Steam inválido" };
+  const uri = `steam://install/${id}`;
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath '${uri}'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+  return { ok: true, mensagem: `Iniciando a instalação do jogo na Steam (AppID ${id}).`, appid: id };
+}
+
 async function fecharAppsExceto() {
   const script = `
 $preservar = @('medal', 'steam', 'code', 'node', 'opencode', 'explorer', 'powershell', 'conhost', 'cmd', 'dwm')
@@ -896,7 +964,7 @@ module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
   dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, criarArquivo, resumoCommits, abrirWhatsApp, abrirUrl,
-  iniciarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyTocarPorId, spotifyControle,
+  iniciarJogoSteam, buscarJogoSteam, instalarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyTocarPorId, spotifyControle,
   moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, segurarBotao, soltarBotao, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   tamanhoTela, scroll,
