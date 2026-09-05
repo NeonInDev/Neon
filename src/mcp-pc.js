@@ -191,6 +191,23 @@ const FERRAMENTAS = [
     },
   },
   {
+    name: "pc_spotify_dispositivos",
+    description: "Lista os dispositivos do Spotify (celular, TV, outro PC, etc.) conectados à conta. Exige configurar SPOTIFY_CLIENT_ID/SECRET/REFRESH_TOKEN no .env.",
+    inputSchema: { type: "object", properties: {} },
+  },
+  {
+    name: "pc_spotify_tocar_em",
+    description: "Toca uma música/filtro em um dispositivo específico do Spotify (cross-device, ex: celular, TV). Recebe o ID do dispositivo (veja pc_spotify_dispositivos) e a busca/ID da faixa.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        dispositivoId: { type: "string", description: "ID do dispositivo do Spotify" },
+        busca: { type: "string", description: "Nome da música/artista (ex: 'Viva La Vida Coldplay')" },
+      },
+      required: ["busca"],
+    },
+  },
+  {
     name: "pc_janelas",
     description: "Lista as janelas abertas.",
     inputSchema: { type: "object", properties: {} },
@@ -286,6 +303,12 @@ async function chamarFerramenta(nome, args) {
       break;
     case "pc_spotify_controle":
       texto = JSON.stringify(await pc.spotifyControle(args.acao));
+      break;
+    case "pc_spotify_dispositivos":
+      texto = JSON.stringify(await pc.spotifyListarDispositivos());
+      break;
+    case "pc_spotify_tocar_em":
+      texto = JSON.stringify(await pc.spotifyBuscarTocarCross(args.busca, args.dispositivoId));
       break;
     case "pc_janelas":
       texto = JSON.stringify(await pc.listarJanelas());

@@ -960,11 +960,132 @@ async function spotifyControle(acao) {
     : { ok: false, erro: `Não consegui enviar o comando "${acao}" ao Spotify.` };
 }
 
+// ===================== SPOTIFY WEB API (cross-device) =====================
+
+// Usa a Web API do Spotify (token OAuth com refresh) para TOCAR EM OUTROS
+// DISPOSITIVOS (celular, TV, outra máquina). Exige credenciais no .env:
+//   SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REFRESH_TOKEN
+// Sem credenciais configuradas, as funções caem no comportamento LOCAL atual.
+
+let spotifyTokenCache = { token: null, expiraEm: 0 };
+
+async function spotifyToken() {
+  const clientId = process.env.SPOTIFY_CLIENT_ID;
+  const clientSecret = process.env.SPOTIFY_CLIENT_SECRET;
+  const refreshToken = process.env.SPOTIFY_REFRESH_TOKEN;
+  if (!clientId || !clientSecret || !refreshToken) return null;
+
+  const agora = Date.now();
+  if (spotifyTokenCache.token && spotifyTokenCache.expiraEm > agora + 60000) {
+    return spotifyTokenCache.token;
+  }
+
+  try {
+    const body = new URLSearchParams({
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+      client_id: clientId,
+      client_secret: clientSecret,
+    });
+    const resp = await fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    if (!data.access_token) return null;
+    spotifyTokenCache.token = data.access_token;
+    spotifyTokenCache.expiraEm = agora + (data.expires_in || 3600) * 1000;
+    return data.access_token;
+  } catch {
+    return null;
+  }
+}
+
+async function spotifyApi(path, opts = {}) {
+  const token = await spotifyToken();
+  if (!token) return null;
+  try {
+    const resp = await fetch(`https://api.spotify.com/v1${path}`, {
+      ...opts,
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(opts.headers || {}) },
+    });
+    if (resp.status === 401) {
+      spotifyTokenCache.token = null;
+      const token2 = await spotifyToken();
+      if (!token2) return null;
+      const resp2 = await fetch(`https://api.spotify.com/v1${path}`, {
+        ...opts,
+        headers: { Authorization: `Bearer ${token2}`, "Content-Type": "application/json", ...(opts.headers || {}) },
+      });
+      return { ok: resp2.ok, status: resp2.status, data: await resp2.json().catch(() => null) };
+    }
+    return { ok: resp.ok, status: resp.status, data: await resp.json().catch(() => null) };
+  } catch {
+    return null;
+  }
+}
+
+async function spotifyListarDispositivos() {
+  const r = await spotifyApi("/me/player/devices");
+  if (!r) return { ok: false, discreto: true, erro: "Spotify Web API não configurada (faltam SPOTIFY_CLIENT_ID/SECRET/REFRESH_TOKEN no .env). Configure para tocar em outros dispositivos." };
+  if (!r.ok) return { ok: false, erro: `Erro ao listar dispositivos (${r.status})` };
+  const devices = (r.data?.devices || [])
+    .filter(d => d.is_active || true)
+    .map(d => ({ id: d.id, nome: d.name, tipo: d.type, ativo: !!d.is_active, volume: d.volume_percent }));
+  return { ok: true, dispositivos: devices };
+}
+
+async function spotifyTocarEm(dispositivoId, buscaOuId) {
+  const busca = String(buscaOuId || "").trim();
+  // Identifica se veio ID/URL de faixa
+  const idFaixa = busca.match(/(?:spotify:track:|open\.spotify\.com\/track\/)([A-Za-z0-9]{22})/)?.[1] || (/^[A-Za-z0-9]{22}$/.test(busca) ? busca : null);
+
+  let contextUri = null;
+  let uris = null;
+  let iniciar = {};
+  if (idFaixa) {
+    uris = [`spotify:track:${idFaixa}`];
+  } else if (busca) {
+    // Busca no catálogo
+    const q = await spotifyApi(`/search?q=${encodeURIComponent(busca)}&type=track&limit=1`);
+    if (q?.ok && q.data?.tracks?.items?.length) {
+      uris = [q.data.tracks.items[0].uri];
+    } else {
+      return { ok: false, erro: "Música não encontrada no catálogo do Spotify." };
+    }
+  }
+  if (uris) iniciar.uris = uris;
+
+  if (dispositivoId) iniciar.device_id = dispositivoId;
+
+  const r = await spotifyApi("/me/player/play", { method: "PUT", body: JSON.stringify(iniciar) });
+  if (!r) return { ok: false, discreto: true, erro: "Spotify Web API não configurada. Configure SPOTIFY_CLIENT_ID/SECRET/REFRESH_TOKEN no .env." };
+  if (!r.ok) return { ok: false, erro: `Falha ao tocar no dispositivo (${r.status})` };
+  return { ok: true, mensagem: dispositivoId ? `Tocando no dispositivo selecionado.` : "Tocando no player ativo." };
+}
+
+async function spotifyBuscarTocarCross(busca, dispositivoId = null) {
+  const token = await spotifyToken();
+  if (!token) return spotifyBuscarTocar(busca); // fallback local atual
+
+  // Se pediu um dispositivo específico
+  if (dispositivoId) return spotifyTocarEm(dispositivoId, busca);
+
+  // Se não escolheu dispositivo, tenta tocar no dispositivo ATIVO via API;
+  // se a API não achar player ativo, cai no local atual.
+  const r = await spotifyTocarEm(null, busca);
+  if (r.ok) return { ok: true, mensagem: "Tocando via Spotify Web API." };
+  return spotifyBuscarTocar(busca);
+}
+
 module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
   dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, criarArquivo, resumoCommits, abrirWhatsApp, abrirUrl,
   iniciarJogoSteam, buscarJogoSteam, instalarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyTocarPorId, spotifyControle,
+  spotifyListarDispositivos, spotifyTocarEm, spotifyBuscarTocarCross,
   moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, segurarBotao, soltarBotao, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   tamanhoTela, scroll,

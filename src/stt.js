@@ -133,15 +133,19 @@ async function transcribeFile(wavPath, opts = {}) {
   const language = opts.language || DEFAULT_LANG;
   const timeout = opts.timeout || DEFAULT_TIMEOUT;
   try {
-    // Try local Whisper first
-    const local = await transcribeWithWhisper(wavPath, { language, model: opts.model, timeout });
-    if (local && local.text) return { text: local.text, provider: local.provider };
+    // OBS: para MENOR LATÊNCIA, tenta o Groq (whisper-large-v3-turbo) PRIMEIRO —
+    // roda na nuvem e é muito mais rápido que o Whisper local na CPU.
+    // Se o Groq não responder, cai pro Whisper local (offline) e depois OpenAI.
 
-    // Fall back to Groq
+    // 1) Groq (fast, cloud)
     const groq = await transcribeWithGroq(wavPath, { language, timeout });
     if (groq && groq.text) return { text: groq.text, provider: groq.provider };
 
-    // OpenAI
+    // 2) Whisper local (offline; ~sem latência de rede, mas lento na CPU)
+    const local = await transcribeWithWhisper(wavPath, { language, model: opts.model, timeout });
+    if (local && local.text) return { text: local.text, provider: local.provider };
+
+    // 3) OpenAI
     const openai = await transcribeWithOpenAI(wavPath, { language, timeout });
     if (openai && openai.text) return { text: openai.text, provider: openai.provider };
 

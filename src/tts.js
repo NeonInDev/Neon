@@ -105,18 +105,39 @@ async function falar(texto, voz = 'auto', velocidade = 1.0, tom = 0) {
   if (!mp3) return
   const ts = Date.now()
   const mp3File = path.join(TMP, `neon_tts_play_${ts}.mp3`)
-  const wavFile = path.join(TMP, `neon_tts_play_${ts}.wav`)
   fs.writeFileSync(mp3File, mp3)
   try {
-    await execAsync(`"${FFMPEG}" -y -i "${mp3File}" -f wav "${wavFile}"`, { timeout: 30000, windowsHide: true })
-    fs.unlinkSync(mp3File)
-    const safe = wavFile.replace(/'/g, "''")
-    await execAsync(`powershell -NoProfile -Command "(New-Object Media.SoundPlayer '${safe}').PlaySync()"`, { timeout: 60000, windowsHide: true })
-    try { fs.unlinkSync(wavFile) } catch {}
+    // Caminho rápido: toca direto o MP3 via WindowsMediaPlayer (evita ffmpeg + SAPI).
+    // Resulta em MUITO menos latência de reprodução.
+    const tocouDireto = await tocarMp3Direto(mp3File)
+    if (!tocouDireto) {
+      // Fallback: converte p/ WAV e toca com SoundPlayer (compatibilidade total)
+      const wavFile = path.join(TMP, `neon_tts_play_${ts}.wav`)
+      await execAsync(`"${FFMPEG}" -y -i "${mp3File}" -f wav "${wavFile}"`, { timeout: 30000, windowsHide: true })
+      fs.unlinkSync(mp3File)
+      const safe = wavFile.replace(/'/g, "''")
+      await execAsync(`powershell -NoProfile -Command "(New-Object Media.SoundPlayer '${safe}').PlaySync()"`, { timeout: 60000, windowsHide: true })
+      try { fs.unlinkSync(wavFile) } catch {}
+    } else {
+      try { fs.unlinkSync(mp3File) } catch {}
+    }
   } catch (err) {
     log('WARN', '[TTS] Play falhou', { erro: err.message?.slice(0, 200) })
     try { fs.unlinkSync(mp3File) } catch {}
-    try { fs.unlinkSync(wavFile) } catch {}
+  }
+}
+
+// Toca um MP3 direto usando a Windows Media Player (COM) em um processo.
+// Leve e rápido. Retorna true se conseguiu tocar.
+async function tocarMp3Direto(mp3File) {
+  const safe = String(mp3File).replace(/"/g, '\\"')
+  const cmd = `powershell -NoProfile -Command "$p = New-Object -ComObject WMPlayer.OCX; $p.settings.mute = 0; $p.URL = '${safe}'; do { Start-Sleep -Milliseconds 120 } while ($p.playState -eq 3 -and $p.currentMedia.duration -gt 0); Start-Sleep -Milliseconds 150; $p.close()"`
+  try {
+    await execAsync(cmd, { timeout: 60000, windowsHide: true })
+    return true
+  } catch (err) {
+    log('WARN', '[TTS] tocarMp3Direto falhou', { erro: err.message?.slice(0, 200) })
+    return false
   }
 }
 
@@ -163,4 +184,4 @@ async function falarResumoMatinal(resumo = null) {
   return falarComEmocao(texto, 'matinal')
 }
 
-module.exports = { gerarAudio, falar, falarComEmocao, vozDaEmocao, listarEmocoes, falarResumoMatinal, testar, TTS_VOICE_DEFAULT, TTS_VOICE_ULTRON }
+module.exports = { gerarAudio, falar, falarComEmocao, vozDaEmocao, listarEmocoes, falarResumoMatinal, testar, tocarMp3Direto, TTS_VOICE_DEFAULT, TTS_VOICE_ULTRON }
