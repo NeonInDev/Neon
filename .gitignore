@@ -22,6 +22,7 @@ logs/tailscale_watch_state.json
 logs/vigilante_ram.pid
 data/opencode_server.pid
 data/skills.json
+data/rpg_links.json
 data/guests.json
 google_credentials.json
 google_token.json

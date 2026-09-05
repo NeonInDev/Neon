@@ -23,6 +23,14 @@
       "arquivo": "baixar_jogo.js",
       "criadaEm": "2026-09-04T00:00:00.000Z",
       "atualizadaEm": "2026-09-04T00:00:00.000Z"
+    },
+    {
+      "id": "modo_rpg",
+      "nome": "modo_rpg",
+      "descricao": "Assistente de RPG de mesa (Ordem Paranormal) por texto. Abre/foca abas no navegador: \"zacarias\" (personagem), \"campanha\", \"escudo\" (escudo do mestre), \"mapa <link>\" (atualiza e abre o mapa), \"links\". Também ROLA dados: 1d20+3, 2d6, d100, d20 vantagem/desvantagem. E abre sites: \"abre <site/url>\". Uso: skill_modo_rpg | [comando]",
+      "arquivo": "modo_rpg.js",
+      "criadaEm": "2026-09-05T00:00:00.000Z",
+      "atualizadaEm": "2026-09-05T00:00:00.000Z"
     }
   ],
   "versao": 1
