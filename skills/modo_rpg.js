@@ -13,6 +13,10 @@
 //   skill_modo_rpg | rola 2d6
 //   skill_modo_rpg | 1d20+3
 //   skill_modo_rpg | d20 vantagem / d20 desvantagem
+//   skill_modo_rpg | rola Pontaria          → d20 + bônus da perícia (buff salvo)
+//   skill_modo_rpg | rola Pontaria+2        → com buff extra
+//   skill_modo_rpg | buffs                   → lista perícias + bônus
+//   skill_modo_rpg | buff <pericia> <b>      → ajusta o bônus de uma perícia
 //
 // SITES/RECURSOS:
 //   skill_modo_rpg | abre <site>  (dnd5e, ordem, tormenta, roll20, etc.)
@@ -26,6 +30,7 @@ const DEBUG_PORT = 9222;
 
 const DATA_DIR = path.join(__dirname, "..", "data");
 const ARQUIVO_LINKS = path.join(DATA_DIR, "rpg_links.json");
+const ARQUIVO_AGENTE = path.join(DATA_DIR, "rpg_agente.json");
 
 const LINKS_PADRAO = {
   zacarias:
@@ -198,6 +203,77 @@ function executarRoll(info) {
   return texto;
 }
 
+function carregarAgente() {
+  try {
+    if (!fs.existsSync(ARQUIVO_AGENTE)) return null;
+    return JSON.parse(fs.readFileSync(ARQUIVO_AGENTE, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function salvarAgente(agente) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(ARQUIVO_AGENTE, JSON.stringify(agente, null, 2), "utf8");
+}
+
+function normalizarNomePericia(txt) {
+  const t = String(txt || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const mapa = {
+    acrobacia: "Acrobacia", adestramento: "Adestramento", artes: "Artes",
+    atletismo: "Atletismo", atualidades: "Atualidades", ciencias: "Ciências",
+    crime: "Crime", diplomacia: "Diplomacia", enganacao: "Enganação",
+    fortitude: "Fortitude", furtividade: "Furtividade", iniciativa: "Iniciativa",
+    intimidacao: "Intimidação", intuicao: "Intuição", investigacao: "Investigação",
+    luta: "Luta", medicina: "Medicina", ocultismo: "Ocultismo",
+    percepcao: "Percepção", pilotagem: "Pilotagem", pontaria: "Pontaria",
+    profissao: "Profissão", reflexos: "Reflexos", religiao: "Religião",
+    sobrevivencia: "Sobrevivência", tatica: "Tática", tecnologia: "Tecnologia",
+    vontade: "Vontade",
+  };
+  return mapa[t] || (t.startsWith("percep") ? "Percepção" : null);
+}
+
+function formatarBuffs() {
+  const agente = carregarAgente();
+  if (!agente) return "❌ Nenhuma ficha de agente salva ainda.";
+  const linhas = Object.entries(agente.pericias)
+    .map(([nome, p]) => `• **${nome}** (${p.atributo}) → **+${p.bonus}**`)
+    .join("\n");
+  return [`📋 **Ficha: ${agente.agente}** (${agente.classe} · ${agente.origem} · NEX ${agente.nex})`, "", linhas].join("\n");
+}
+
+function definirBuff(alvo) {
+  const m = String(alvo || "").match(/^(.+?)\s+([+\-]?\d+)\s*$/);
+  if (!m) return "❌ Uso: `buff <perícia> <bônus>` (ex: `buff Pontaria 12`).";
+  const nome = normalizarNomePericia(m[1]);
+  const valor = parseInt(m[2], 10);
+  const agente = carregarAgente();
+  if (!agente) return "❌ Nenhuma ficha para editar buff.";
+  if (!nome || !agente.pericias[nome]) return `❌ Perícia "${m[1].trim()}" não encontrada.`;
+  agente.pericias[nome].bonus = valor;
+  salvarAgente(agente);
+  return `⚡ **${nome}** agora com **+${valor}**.`;
+}
+
+async function rolarPericia(pedido) {
+  const partes = String(pedido).replace(/^rola\w*/i, "").trim();
+  const resto = partes.replace(/\b(d20|d100|d6|d12|d8|d10|d4|d2)\b/i, "").trim();
+  const extraMatch = partes.match(/([+\-])\s*(\d+)\s*$/);
+  const extra = extraMatch ? (extraMatch[1] === "-" ? -parseInt(extraMatch[2], 10) : parseInt(extraMatch[2], 10)) : 0;
+  const textoPericia = extraMatch ? partes.slice(0, extraMatch.index).trim() : partes;
+  const nome = normalizarNomePericia(textoPericia);
+  const agente = carregarAgente();
+  if (!nome || !agente || !agente.pericias[nome]) return null;
+
+  const bonus = (agente.pericias[nome].bonus || 0) + extra;
+  const fmt = (m) => (m > 0 ? `+${m}` : m < 0 ? `-${Math.abs(m)}` : "");
+  const nat = rolar(20, 1)[0];
+  const total = nat + bonus;
+  const cr = nat === 20 ? " 🎉 CRÍTICO!" : nat === 1 ? " 💀 FALHA CRÍTICA!" : "";
+  return `🎲 **${nome}** (${agente.pericias[nome].atributo}${fmt(bonus)}): d20 → **${nat}** + ${bonus} = **${total}**${cr}`;
+}
+
 async function abrirSite(alvo) {
   const t = String(alvo || "").trim();
   if (t.startsWith("http")) {
@@ -225,6 +301,8 @@ async function executar(args) {
       "  *Manda `mapa <link>` pra atualizar o link do mapa.*",
       "",
       "**Rolls:** `1d20+3` · `2d6` · `d100` · `d20 vantagem` · `d20 desvantagem`",
+      "**Perícias (usam a ficha):** `rola Pontaria` · `rola Furtividade+2`",
+      "**Buffs:** `buffs` (lista) · `buff Pontaria 12` (ajusta)",
       "",
       "**Sites:** `abre dnd5e` · `abre ordem` · `abre roll20` · `abre <site>`",
     ].join("\n");
@@ -233,6 +311,9 @@ async function executar(args) {
   const lower = pedido.toLowerCase();
 
   if (lower === "links") return formatarLinks();
+
+  if (lower === "buffs" || lower === "ficha") return formatarBuffs();
+  if (lower.startsWith("buff ")) return definirBuff(pedido.replace(/^buff\s+/i, "").trim());
 
   if (lower === "zacarias") return abrirLink("zacarias");
   if (lower === "campanha") return abrirLink("campanha");
@@ -245,17 +326,23 @@ async function executar(args) {
   const abre = pedido.match(/^abre?\s+(.+)$/i);
   if (abre) return abrirSite(abre[1]);
 
+  // rola <perícia> => usa o buff salvo
+  if (/^rola\w*\s+/i.test(pedido)) {
+    const viaPericia = await rolarPericia(pedido);
+    if (viaPericia) return viaPericia;
+  }
+
   const info = interpretaRoll(pedido);
   if (info) {
     if (info.invalido) return `❌ ${info.invalido}`;
     return executarRoll(info);
   }
 
-  return "❌ Não entendi. Tenta: `1d20+3`, `2d6`, `d20 vantagem`, `zacarias`, `campanha`, `escudo`, `mapa <link>`, `links`, `abre dnd5e`.";
+  return "❌ Não entendi. Tenta: `rola Pontaria`, `1d20+3`, `2d6`, `d20 vantagem`, `buffs`, `buff Pontaria 12`, `zacarias`, `campanha`, `escudo`, `mapa <link>`, `links`, `abre dnd5e`.";
 }
 
 module.exports = {
   nome: "modo_rpg",
-  descricao: `Assistente de RPG de mesa (Ordem Paranormal) por texto. Abre/foca abas no navegador: "zacarias" (personagem), "campanha", "escudo" (escudo do mestre), "mapa <link>" (atualiza e abre o mapa), "links". Também ROLA dados: 1d20+3, 2d6, d100, d20 vantagem/desvantagem. E abre sites: "abre <site/url>". Uso: skill_modo_rpg | [comando]`,
+  descricao: `Assistente de RPG de mesa (Ordem Paranormal) por texto. Abre/foca abas: "zacarias", "campanha", "escudo", "mapa <link>", "links". ROLA dados e PERÍCIAS usando a ficha salva: "rola Pontaria" (usa o bônus), "1d20+3", "2d6", "d20 vantagem/desvantagem". "buffs" lista bônus; "buff <perícia> <b>" ajusta. "abre <site>". Uso: skill_modo_rpg | [comando]`,
   executar,
 };
