@@ -31,6 +31,14 @@
       "arquivo": "modo_rpg.js",
       "criadaEm": "2026-09-05T00:00:00.000Z",
       "atualizadaEm": "2026-09-05T00:00:00.000Z"
+    },
+    {
+      "id": "emergencia",
+      "nome": "emergencia",
+      "descricao": "PROTOCOLO DE EMERGÊNCIA: fecha todos os apps usando mais de 1 GB de RAM (limite configurável). Uso: skill_emergencia | [checar | fechar | fechar <MB> | limitar <MB>]",
+      "arquivo": "emergencia.js",
+      "criadaEm": "2026-09-05T00:00:00.000Z",
+      "atualizadaEm": "2026-09-05T00:00:00.000Z"
     }
   ],
   "versao": 1
