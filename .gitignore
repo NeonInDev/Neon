@@ -43,6 +43,8 @@ data/lockdown.json
 data/poderes.json
 libs/librehardwaremonitor/*.sys
 
+.playwright-mcp/
+data/emergencia.json
 _tmp*
 
 # NeonWatch
