@@ -14,22 +14,35 @@
 
 const http = require("http")
 const { exec } = require("child_process")
+const fs = require("fs")
+const path = require("path")
 
-const CLIENT_ID = process.env.SPOTIFY_CLIENT_ID
-const CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET
-const REDIRECT = "http://localhost:8888/callback"
+// Carrega o .env da Neon (sem depender de lib externa)
+try {
+  const envRaw = fs.readFileSync(path.join(__dirname, ".env"), "utf8")
+  for (const linha of envRaw.split(/\r?\n/)) {
+    const m = linha.match(/^([A-Z_]+)=(.*)$/)
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2]
+  }
+} catch {}
+
+const REDIRECT = process.env.SPOTIFY_REDIRECT || "http://127.0.0.1:8888/callback"
 const SCOPES = "user-read-playback-state user-modify-playback-state user-read-currently-playing streaming"
 
+let CLIENT_ID = process.env.SPOTIFY_CLIENT_ID
+let CLIENT_SECRET = process.env.SPOTIFY_CLIENT_SECRET
+
+// Suporte a: node spotify_auth.js <client_id> <client_secret>
+if (!CLIENT_ID && process.argv[2]) CLIENT_ID = process.argv[2]
+if (!CLIENT_SECRET && process.argv[3]) CLIENT_SECRET = process.argv[3]
+
 if (!CLIENT_ID || !CLIENT_SECRET) {
-  console.log("Defina SPOTIFY_CLIENT_ID e SPOTIFY_CLIENT_SECRET no .env primeiro.")
-  console.log("Mande: node spotify_auth.js <client_id> <client_secret>  (sem tocar no .env)")
-  if (process.argv.length >= 4) {
-    process.env.SPOTIFY_CLIENT_ID = process.argv[2]
-    process.env.SPOTIFY_CLIENT_SECRET = process.argv[3]
-  } else {
-    process.exit(1)
-  }
+  console.log("Defina SPOTIFY_CLIENT_ID e SPOTIFY_CLIENT_SECRET no .env (ou passe como argumentos).")
+  process.exit(1)
 }
+
+console.log("Client ID recebido:", CLIENT_ID.slice(0, 8) + "..." + CLIENT_ID.slice(-4))
+console.log("Redirect:", REDIRECT)
 
 const url = `https://accounts.spotify.com/authorize?client_id=${CLIENT_ID}&response_type=code&redirect_uri=${encodeURIComponent(REDIRECT)}&scope=${encodeURIComponent(SCOPES)}`
 
