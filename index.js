@@ -10,6 +10,7 @@ const { fechar: fecharBrowser } = require("./src/browser");
 const opencode = require("./plugins/opencode");
 const apiPublica = require("./src/api_publica");
 const monitor = require("./src/monitor");
+const economia = require("./src/economia");
 const proativo = require("./src/proativo");
 const agendados = require("./src/agendados");
 const alarmes = require("./src/lembrete_alarme");
@@ -21,6 +22,7 @@ async function desligar(sinal) {
   agendados.parar();
   proativo.parar();
   monitor.parar();
+  economia.parar();
   opencode.parar();
   alarmes.parar();
   try {
@@ -44,6 +46,7 @@ function iniciarAPI() {
 function iniciarModulos() {
   try { skills.iniciar(); } catch (err) { log("ERROR", "[SKILLS] Falha ao iniciar", { erro: err.message }); }
   try { monitor.iniciar(client); } catch (err) { log("ERROR", "[MONITOR] Falha ao iniciar", { erro: err.message }); }
+  try { economia.iniciar(client); } catch (err) { log("ERROR", "[ECONOMIA] Falha ao iniciar", { erro: err.message }); }
   if (PROATIVO) {
     try { proativo.iniciar(client).catch(err => log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message })); } catch (err) { log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message }); }
   } else {

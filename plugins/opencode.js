@@ -41,6 +41,11 @@ let serverPort = null;
 let desligando = false;
 let tentativasRestart = 0;
 let reiniciador = null;
+let economiaAtiva = false;
+
+function setEconomia(ativo) {
+  economiaAtiva = !!ativo;
+}
 
 function httpReq(method, port, pathname, body, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -185,6 +190,10 @@ function iniciarServer() {
 
 async function executar(tarefa) {
   if (!tarefa || !String(tarefa).trim()) return null;
+  if (economiaAtiva) {
+    log("INFO", "[OPENCODE] Pausado (modo economia)");
+    return null;
+  }
   const maxAttempts = 2;
   let tentativa = 0;
 
@@ -300,4 +309,4 @@ async function reiniciar() {
   return { reiniciado: !!porta, portaAnterior: anterior, novaPorta: porta };
 }
 
-module.exports = { iniciarServer, executar, decidir, parar, reiniciar };
+module.exports = { iniciarServer, executar, decidir, parar, reiniciar, setEconomia };

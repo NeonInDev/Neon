@@ -118,6 +118,25 @@ function interpretarObjetivo(message) {
   return true;
 }
 
+// "neon desliga" / "neon desligar" — desliga a Neon pelo Discord (só dono)
+function interpretarDesligarNeon(message) {
+  if (!isOwner(message.author.id)) return false;
+  const texto = (message.content || "").trim();
+  const m = texto.match(/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:desliga|desligar|se desliga|desligue-se|vai dormir|dorme)\b/i);
+  if (!m) return false;
+  const acao = m[1].toLowerCase();
+  message
+    .reply(`😴 Tá bom, chefe. Desligando a Neon agora... Até mais!`)
+    .catch(() => {});
+  setTimeout(() => {
+    try {
+      process.emit("SIGINT");
+    } catch {}
+  }, 1000);
+  log("INFO", "Neon desligada via Discord", { comando: acao, autor: message.author.tag });
+  return true;
+}
+
 function interpretarConvidado(message) {
   if (!isOwner(message.author.id)) return false;
   const texto = message.content || "";
@@ -451,6 +470,11 @@ module.exports = {
     }
 
     if (interpretarObjetivo(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
+    if (interpretarDesligarNeon(message)) {
       processando.delete(message.id);
       return;
     }
