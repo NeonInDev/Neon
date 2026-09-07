@@ -35,10 +35,10 @@
     {
       "id": "emergencia",
       "nome": "emergencia",
-      "descricao": "PROTOCOLO DE EMERGÊNCIA: fecha todos os apps usando mais de 1 GB de RAM (limite configurável). Uso: skill_emergencia | [checar | fechar | fechar <MB> | limitar <MB>]",
+      "descricao": "PROTOCOLO DE EMERGÊNCIA: mostra/fecha todos os apps usando mais de 1 GB de RAM (soma processos do mesmo app), IGNORANDO jogos instalados (por caminho) e launchers de jogo (Steam/Riot/Epic/GOG/Roblox). 'fechar' sempre AVISA antes o que será fechado e pede 'fechar confirmar'. Uso: skill_emergencia | [checar | fechar | fechar confirmar | fechar <MB> | fechar <MB> confirmar | limitar <MB>]",
       "arquivo": "emergencia.js",
       "criadaEm": "2026-09-05T00:00:00.000Z",
-      "atualizadaEm": "2026-09-05T00:00:00.000Z"
+      "atualizadaEm": "2026-09-07T00:00:00.000Z"
     }
   ],
   "versao": 1

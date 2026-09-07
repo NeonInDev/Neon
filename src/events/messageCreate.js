@@ -118,6 +118,57 @@ function interpretarObjetivo(message) {
   return true;
 }
 
+// "neon status" — mostra status do PC e do bot (só dono)
+function interpretarStatus(message) {
+  if (!isOwner(message.author.id)) return false;
+  const texto = (message.content || "").trim();
+  const m = texto.match(/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:status|status do pc|status do bot|situa[çc][ãa]o)\b/i);
+  if (!m) return false;
+  (async () => {
+    const os = require("os");
+    const { version } = require("../../package.json");
+    const linhas = [];
+
+    // PC
+    try {
+      const pc = require("../pc");
+      const out = await pc.pcInfoJson();
+      linhas.push(`🖥️ **PC**`);
+      linhas.push(`• CPU: **${Math.round(out.cpuUso ?? 0)}%** — ${String(out.cpuNome || "?").split("@")[0].trim()}`);
+      linhas.push(`• RAM: **${Math.round(out.ramUso ?? 0)}%** (${out.ramLivre ?? "?"} GB livres / ${out.ramTotal ?? "?"} GB)`);
+      if (out.discoLivre != null) linhas.push(`• Disco C: **${Math.round(out.discoUso ?? 0)}%** (${out.discoLivre} GB livres)`);
+      if (out.temperaturaDisponivel) linhas.push(`• Temp CPU: **${out.temperatura}°C**${out.temperaturaGpu ? ` · GPU: **${out.temperaturaGpu}°C**` : ""}`);
+      else linhas.push(`• Temp: indisponível`);
+    } catch {
+      linhas.push(`🖥️ **PC**: falha ao coletar.`);
+    }
+
+    // BOT
+    try {
+      const uptime = process.uptime();
+      const d = Math.floor(uptime / 86400), h = Math.floor((uptime % 86400) / 3600), min = Math.floor((uptime % 3600) / 60);
+      const ping = message.client.ws?.ping ?? 0;
+      const memoriaNeon = Math.round(process.memoryUsage().rss / 1024 / 1024);
+      linhas.push(``);
+      linhas.push(`🤖 **Bot**`);
+      linhas.push(`• Versão: **v${version}** · Uptime: **${d}d ${h}h ${min}m**`);
+      linhas.push(`• Ping: **${ping} ms** · RAM da Neon: **${memoriaNeon} MB**`);
+      linhas.push(`• RAM do sistema: **${os.freemem() ? Math.round((1 - os.freemem() / os.totalmem()) * 100) : "?"}%**`);
+      try {
+        const economia = require("../economia");
+        linhas.push(`• Modo economia: **${economia.estaAtivo() ? "ATIVO ⚠️" : "desativado"}**`);
+      } catch {}
+      const guilds = message.client.guilds?.cache?.size ?? 0;
+      linhas.push(`• Guildas: **${guilds}**`);
+    } catch {
+      linhas.push(`🤖 **Bot**: falha ao coletar.`);
+    }
+
+    try { await message.reply(linhas.join("\n")); } catch {}
+  })();
+  return true;
+}
+
 // "neon desliga" / "neon desligar" — desliga a Neon pelo Discord (só dono)
 function interpretarDesligarNeon(message) {
   if (!isOwner(message.author.id)) return false;
@@ -470,6 +521,11 @@ module.exports = {
     }
 
     if (interpretarObjetivo(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
+    if (interpretarStatus(message)) {
       processando.delete(message.id);
       return;
     }

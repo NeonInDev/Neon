@@ -1,12 +1,16 @@
 // Skill "emergencia" - PROTOCOLO DE EMERGÊNCIA da Neon.
 // Fecha todos os apps que estão consumindo mais de 1 GB de RAM somada
 // (soma todos os processos do mesmo app, ex.: Opera com vários filhos).
+// JOGOS instalados (por caminho) e launchers (Steam/Riot/Epic/GOG) são IGNORADOS.
+// Por segurança, "fechar" primeiro MOSTRA o que será fechado e pede "fechar confirmar".
 //
 // Uso:
-//   skill_emergencia | checar        → lista os apps > 1 GB (sem fechar)
-//   skill_emergencia | fechar        → fecha todos os apps > 1 GB
-//   skill_emergencia | fechar 1500   → fecha apps com > 1500 MB somados
-//   skill_emergencia | limitar 2000  → troca o limite padrão (ex.: 2 GB)
+//   skill_emergencia | checar            → lista os apps > 1 GB (sem fechar)
+//   skill_emergencia | fechar            → mostra o que seria fechado e pede confirmação
+//   skill_emergencia | fechar confirmar  → fecha de verdade todos os apps > 1 GB
+//   skill_emergencia | fechar 1500       → mostra apps com > 1500 MB somados
+//   skill_emergencia | fechar 1500 confirmar → fecha os apps com > 1500 MB
+//   skill_emergencia | limitar 2000      → troca o limite padrão (ex.: 2 GB)
 
 const { execFile } = require("child_process");
 const { readFileSync, writeFileSync, mkdirSync } = require("fs");
@@ -21,10 +25,33 @@ const SCRIPT_LISTA = `
 $Erro = $null
 try {
   $ignorar = @($IGNORAR_LISTA)
+  $launchers = @('steam','steamwebhelper','steamservice','steamerrorreporter','RiotClientServices','RiotClientCrashHandler','RiotClientUx','LeagueClient','LeagueClientUx','LeagueCrashHandler','EpicGamesLauncher','GOGGalaxy','GameOverlayUI','Battle.net','RobloxPlayerBeta','RobloxCrashHandler')
+  $dirJogos = @()
+  foreach ($raiz in @('C:\\Program Files (x86)\\Steam','C:\\Program Files\\Steam','D:\\SteamLibrary','D:\\Steam','E:\\SteamLibrary')) {
+    $common = Join-Path $raiz 'steamapps\\common'
+    if (Test-Path $common) { Get-ChildItem $common -Directory -ErrorAction SilentlyContinue | ForEach-Object { $dirJogos += $_.FullName.ToLower() } }
+  }
+  foreach ($d in @('C:\\Riot Games','D:\\Riot Games','C:\\Program Files\\Epic Games','D:\\Epic Games','C:\\GOG Games','C:\\GOG Galaxy\\Games')) {
+    if (Test-Path $d) { $dirJogos += $d.ToLower() }
+  }
   $sessao = (Get-Process -Id $PID).SessionId
   $procs = @(Get-Process -ErrorAction SilentlyContinue | Where-Object {
-    $_.Name -notin $ignorar -and $_.SessionId -eq $sessao
+    $_.Name -notin $ignorar -and $_.Name -notin $launchers -and $_.SessionId -eq $sessao
   })
+  $jogoIds = @{}
+  foreach ($p in $procs) {
+    try {
+      $cam = $p.Path
+      if (-not $cam) { $cam = $p.MainModule.FileName }
+    } catch { $cam = $null }
+    if ($cam) {
+      $lc = $cam.ToLower()
+      foreach ($j in $dirJogos) {
+        if ($lc.StartsWith($j)) { $jogoIds[$p.Id] = $true; break }
+      }
+    }
+  }
+  $procs = @($procs | Where-Object { -not $jogoIds.ContainsKey($_.Id) })
   $grupos = $procs | Group-Object Name | ForEach-Object {
     $soma = [math]::Round(($_.Group | Measure-Object WorkingSet64 -Sum).Sum / 1MB)
     [PSCustomObject]@{ nome = $_.Name; totalMb = $soma; cont = $_.Count; ids = (($_.Group | ForEach-Object { $_.Id }) -join ',') }
@@ -98,7 +125,24 @@ async function listarPesados(limiteMb) {
   return { ok: true, procs };
 }
 
-async function fecharPesados(limiteMb) {
+function previsaoDeFechamento(r, limiteMb) {
+  if (!r.ok) return `❌ Falha ao listar: ${r.erro}`;
+  if (!r.procs.length) return `✅ Nenhum app acima de **${limiteMb} MB** agora. Tudo tranquilo.`;
+  const total = r.procs.reduce((acc, p) => acc + p.mb, 0);
+  return [
+    `⚠️ **CONFIRMAÇÃO — PROTOCOLO DE EMERGÊNCIA** ⚠️`,
+    `**Limite:** apps com mais de **${limiteMb} MB** de RAM somada.`,
+    ``,
+    `**Isto será FECHADO (${r.procs.length}):**`,
+    ...r.procs.map((p) => `• **${p.nome}** — ${p.mb} MB (${p.n} procs)`),
+    ``,
+    `💾 Liberaria ~**${total} MB**.`,
+    ``,
+    `✅ Confirma? É só me dizer: \`skill_emergencia | fechar confirmar\`${limiteMb !== carregarLimite() ? ` (ou \`skill_emergencia | fechar ${limiteMb} confirmar\`)` : ""}`,
+  ].join("\n");
+}
+
+async function fecharPesadosReal(limiteMb) {
   const r = await listarPesados(limiteMb);
   if (!r.ok) return `❌ Falha ao listar: ${r.erro}`;
   if (!r.procs.length) return `✅ Nenhum app acima de **${limiteMb} MB** agora. Tudo tranquilo.`;
@@ -140,14 +184,21 @@ async function executar(args) {
       ``,
       ...r.procs.map((p, i) => `${i + 1}. **${p.nome}** — ${p.mb} MB (${p.n} procs)`),
       ``,
-      `Pra fechar: \`skill_emergencia | fechar\``,
+      `Pra fechar: \`skill_emergencia | fechar\` (sempre pede confirmação antes).`,
     ].join("\n");
   }
 
-  if (pedido === "fechar") return fecharPesados(limiteAtual);
+  if (pedido === "fechar" || pedido === "fechar confirmar") {
+    if (pedido === "fechar confirmar") return fecharPesadosReal(limiteAtual);
+    return previsaoDeFechamento(await listarPesados(limiteAtual), limiteAtual);
+  }
 
-  const fecharComLimite = pedido.match(/^fechar\s+(\d+)$/);
-  if (fecharComLimite) return fecharPesados(parseInt(fecharComLimite[1], 10));
+  const fecharComLimite = pedido.match(/^fechar\s+(\d+)(?:\s+confirmar)?$/) || pedido.match(/^fechar\s+(\d+)$/);
+  if (fecharComLimite) {
+    const lim = parseInt(fecharComLimite[1], 10);
+    if (pedido.includes("confirmar")) return fecharPesadosReal(lim);
+    return previsaoDeFechamento(await listarPesados(lim), lim);
+  }
 
   const limitar = pedido.match(/^limitar\s+(\d+)$/);
   if (limitar) {
@@ -156,11 +207,11 @@ async function executar(args) {
     return `🔧 Limite de emergência definido para **${lim} MB**. Vale pro próximo \`checar\`/\`fechar\`.`;
   }
 
-  return "❌ Uso: `checar`, `fechar`, `fechar <limite em MB>`, `limitar <limite em MB>`.";
+  return "❌ Uso: `checar`, `fechar`, `fechar confirmar`, `fechar <MB>`, `fechar <MB> confirmar`, `limitar <MB>`.";
 }
 
 module.exports = {
   nome: "emergencia",
-  descricao: `PROTOCOLO DE EMERGÊNCIA: fecha todos os apps usando mais de 1 GB de RAM (limite configurável, soma os processos do mesmo app). Uso: skill_emergencia | [checar | fechar | fechar <MB> | limitar <MB>]`,
+  descricao: `PROTOCOLO DE EMERGÊNCIA: mostra/fecha todos os apps usando mais de 1 GB de RAM (soma processos do mesmo app), IGNORANDO jogos instalados e launchers de jogo (Steam/Riot/Epic/GOG). "fechar" sempre avisa antes o que será fechado e pede "fechar confirmar". Uso: skill_emergencia | [checar | fechar | fechar confirmar | fechar <MB> | fechar <MB> confirmar | limitar <MB>]`,
   executar,
 };
