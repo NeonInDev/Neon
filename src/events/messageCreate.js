@@ -188,6 +188,48 @@ function interpretarDesligarNeon(message) {
   return true;
 }
 
+// "neon clipe" / "neon, me manda o clipe" — link do último clipe do Medal (só dono)
+function interpretarClipe(message) {
+  if (!isOwner(message.author.id)) return false;
+  const texto = (message.content || "").trim();
+  const m = texto.match(/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+.*\b(clipe|clip|clips|melhor jogada|destaque)\b/i);
+  if (!m) return false;
+  const clipFlag = /\bclipar?\b/i.test(texto);
+  const linkFlag = /\b(link|caminho|pasta|onde)\b/i.test(texto);
+  (async () => {
+    try {
+      const medal = require("../plugins/medal");
+      const item = medal.ultimaGravacao();
+      if (!item) {
+        message.reply("🎬 Não achei nenhum clipe gravado pelo Medal ainda.").catch(() => {});
+        return;
+      }
+      const seg = Math.floor((Date.now() - item.modificadoEm) / 1000);
+      const idade = seg < 60
+        ? `${seg}s atrás`
+        : seg < 3600
+          ? `${Math.floor(seg / 60)}min atrás`
+          : seg < 86400
+            ? `${Math.floor(seg / 3600)}h atrás`
+            : `${Math.floor(seg / 86400)}d atrás`;
+      const link = `http://100.115.96.52:3000/api/medal/clipe?key=${encodeURIComponent(MASTER_KEY)}`;
+      const podeLink = !clipFlag || linkFlag;
+      message.reply([
+        `🎬 **Último clipe do Medal** (${idade})`,
+        `📁 ${item.caminho}`,
+        clipFlag
+          ? podeLink
+            ? `🔗 Link: ${link}`
+            : `🗂️ ${item.tamanho > 0 ? Math.round(item.tamanho / 1024 / 1024) : "?"} MB`
+          : `🔗 Link: ${link}`,
+      ].join("\n")).catch(() => {});
+    } catch (err) {
+      message.reply(`❌ Erro ao buscar o clipe: ${err.message}`).catch(() => {});
+    }
+  })();
+  return true;
+}
+
 function interpretarConvidado(message) {
   if (!isOwner(message.author.id)) return false;
   const texto = message.content || "";
@@ -526,6 +568,11 @@ module.exports = {
     }
 
     if (interpretarStatus(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
+    if (interpretarClipe(message)) {
       processando.delete(message.id);
       return;
     }

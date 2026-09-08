@@ -188,6 +188,23 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/medal/clipe" && req.method === "GET") {
+      if (!temChave(req)) { responder(res, 401, { erro: "chave inválida" }); return; }
+      try {
+        const medal = require("../plugins/medal");
+        const item = medal.ultimaGravacao();
+        if (!item) { responder(res, 404, { erro: "nenhum clipe encontrado" }); return; }
+        const ext = path.extname(item.caminho).toLowerCase();
+        res.writeHead(200, {
+          "Content-Type": MIME[ext] || "video/mp4",
+          "Content-Length": item.tamanho,
+          "Cache-Control": "no-store",
+        });
+        fs.createReadStream(item.caminho).pipe(res);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url === "/global/health" && req.method === "GET") {
       responder(res, 200, { healthy: true, version: "2.0.0" });
       return;
