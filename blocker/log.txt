@@ -1,0 +1,2 @@
+[2026-09-08T14:09:39.723Z] NeonDNSBlock escutando UDP :53
+[2026-09-08T14:09:39.732Z] NeonDNSBlock escutando TCP :53

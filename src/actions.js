@@ -1130,15 +1130,27 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     }
 
     const erros = [];
-    const apps = [
-      { nome: "Spotify", cmd: "start spotify:" },
-      { nome: "Opera GX", cmd: "start opera:" },
-      { nome: "VS Code", cmd: "start code" },
-    ];
-    for (const app of apps) {
-      const r = await tentar(app.cmd);
-      if (!r.ok) erros.push(app.nome);
+
+    async function abrirSeNaoAberto(nome, processName, cmd) {
+      let aberto = false;
+      try {
+        const { stdout } = await exec(`powershell -NoProfile -Command "if (Get-Process -Name '${processName}' -ErrorAction SilentlyContinue) { '1' } else { '0' }"`, { timeout: 8000, windowsHide: true });
+        aberto = String(stdout || "").trim() === "1";
+      } catch { aberto = false; }
+      if (aberto) return true;
+      const r = await tentar(cmd);
+      if (!r.ok) erros.push(nome);
+      return false;
     }
+
+    const ligouSpotify = await abrirSeNaoAberto("Spotify", "spotify", "start spotify:");
+    const ligouSteam = await abrirSeNaoAberto("Steam", "steam", "start steam://open/main/");
+    const ligouMedal = await abrirSeNaoAberto("Medal", "Medal", 'start "" "C:\\Users\\Pichau\\AppData\\Local\\Medal\\Medal.exe"');
+    const states = {
+      "Spotify": ligouSpotify ? "já aberto" : (erros.includes("Spotify") ? "falhou" : "aberto"),
+      "Steam": ligouSteam ? "já aberto" : (erros.includes("Steam") ? "falhou" : "aberto"),
+      "Medal": ligouMedal ? "já aberto" : (erros.includes("Medal") ? "falhou" : "aberto"),
+    };
 
     let climaStr = "";
     try {
@@ -1163,9 +1175,9 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       `🕐 ${horaStr}`,
       climaStr ? `🌤 ${climaStr}` : "",
       "",
-      ">> Spotify:   " + (erros.includes("Spotify") ? "❌" : "✅"),
-      ">> Opera GX:  " + (erros.includes("Opera GX") ? "❌" : "✅"),
-      ">> VS Code:   " + (erros.includes("VS Code") ? "❌" : "✅"),
+      ">> Spotify:   " + (states["Spotify"] === "falhou" ? "❌" : states["Spotify"] === "já aberto" ? "✅ já aberto" : "✅"),
+      ">> Steam:     " + (states["Steam"] === "falhou" ? "❌" : states["Steam"] === "já aberto" ? "✅ já aberto" : "✅"),
+      ">> Medal:     " + (states["Medal"] === "falhou" ? "❌" : states["Medal"] === "já aberto" ? "✅ já aberto" : "✅"),
       "",
       `💡 ${dica}`,
       "```",
