@@ -368,6 +368,36 @@ async function interpretarLockdown(message) {
   return true;
 }
 
+// "Neon, expulse o (ID) do server" — dispara a skill `kick_member` pelo prefixo
+async function interpretarSkillPrefixo(message) {
+  try {
+    const skillsMod = require("../skills");
+    const hit = skillsMod.buscarPorPrefixo(message.content || "");
+    if (!hit) return false;
+    const { skill, args } = hit;
+    // Ações destrutivas (kick/ban): só dono ou alguém com a permissão correspondente no servidor
+    const perms = skill.permissoes || (skill.id === "kick_member" ? ["KickMembers"] : []);
+    const falta = perms.some((p) =>
+      message.channel.type !== ChannelType.DM &&
+      !isOwner(message.author.id) &&
+      !message.member?.permissions?.has(PermissionFlagsBits[p] || 0)
+    );
+    if (falta) {
+      message.reply(`🔒 Você não tem permissão pra isso (precisa de ${perms.join(" ou ")}).`).catch(() => {});
+      return true;
+    }
+    log("INFO", "[SKILLS] Skill disparada por prefixo", { id: skill.id, autor: message.author.tag });
+    if (!args.guildId && message.guild?.id) args.guildId = message.guild.id;
+    const res = await skillsMod.executarSkill(`skill_${skill.id}`, args);
+    await message.reply(String(res || "✅ Pronto.").slice(0, 2000));
+    return true;
+  } catch (err) {
+    log("ERROR", "[SKILLS] Erro no prefixo de skill", { erro: err.message });
+    message.reply(`❌ Erro ao executar skill: ${err.message}`).catch(() => {});
+    return true;
+  }
+}
+
 async function enviarResposta(message, texto) {
   if (!texto) { await message.reply("❌ erro interno"); return; }
 
@@ -596,6 +626,11 @@ module.exports = {
       return;
     }
     if (await interpretarLockdown(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
+    if (await interpretarSkillPrefixo(message)) {
       processando.delete(message.id);
       return;
     }

@@ -39,6 +39,22 @@
       "arquivo": "emergencia.js",
       "criadaEm": "2026-09-05T00:00:00.000Z",
       "atualizadaEm": "2026-09-07T00:00:00.000Z"
+    },
+    {
+      "id": "kick_member",
+      "nome": "kick-member",
+      "descricao": "Remove um membro de um servidor Discord pelo ID (não silencia, só expulsa)",
+      "prefixos": [
+        "Neon, expulse o (ID) do server",
+        "Neon, expulsa o (ID) do server",
+        "Neon, expulse o (ID) do servidor",
+        "Neon, expulsa o (ID) do servidor",
+        "Neon, expulsar o (ID) do server",
+        "Neon, tira o (ID) do server"
+      ],
+      "arquivo": "kick_member.js",
+      "criadaEm": "2026-09-09T13:21:58.185Z",
+      "atualizadaEm": "2026-09-09T13:21:58.185Z"
     }
   ],
   "versao": 1

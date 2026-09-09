@@ -124,12 +124,55 @@ function listarSkillsExecutaveis() {
   });
 }
 
+function prefixosDe(s) {
+  return Array.isArray(s.prefixos) ? s.prefixos.filter(Boolean) : [];
+}
+
 function ferramentasSkills() {
   const skills = listarSkillsExecutaveis();
   if (!skills.length) return "";
   return skills
-    .map((s) => `- skill_${s.id}: ${s.descricao}. Uso: skill_${s.id} | [argumentos]`)
+    .map((s) => {
+      const prefixos = prefixosDe(s);
+      const ativar = prefixos.length
+        ? ` Comando ativado quando o usuário diz (ex.: "${prefixos[0]}").`
+        : "";
+      return `- skill_${s.id}: ${s.descricao}${ativar} Uso: skill_${s.id} | [argumentos]`;
+    })
     .join("\n");
+}
+
+function limparDisparador(texto) {
+  return String(texto || "").trim().replace(/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]*/i, "").trim();
+}
+
+function regexDePrefixo(pre) {
+  const base = limparDisparador(pre);
+  const tokens = [];
+  let pattern = base.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  pattern = pattern.replace(/\\\(ID\\\)/gi, () => { tokens.push("ID"); return "(\\d{15,21})"; });
+  pattern = pattern.replace(/\\\(([^\\]+)\\\)/g, (m, g) => { tokens.push(String(g).toUpperCase()); return "(.+)"; });
+  return { regex: new RegExp(`^${pattern}$`, "i"), tokens };
+}
+
+function buscarPorPrefixo(texto) {
+  const limpo = limparDisparador(texto);
+  if (!limpo) return null;
+  for (const skill of listarSkillsExecutaveis()) {
+    for (const pre of prefixosDe(skill)) {
+      const { regex, tokens } = regexDePrefixo(pre);
+      const m = limpo.match(regex);
+      if (!m) continue;
+      const args = {};
+      tokens.forEach((nome, i) => {
+        const v = m[i + 1];
+        if (nome === "ID" && /^\d+$/.test(v)) args.userId = v;
+        else args[nome.toLowerCase()] = v;
+      });
+      return { skill, args };
+    }
+  }
+  return null;
 }
 
 async function executarSkill(nome, args) {
@@ -141,9 +184,13 @@ async function executarSkill(nome, args) {
   const mod = carregarModuloSkill(id);
   if (!mod || typeof mod.executar !== "function") return `❌ Skill "${id}" não pôde ser carregada.`;
 
-  log("INFO", "[SKILLS] Executando skill", { id, args: String(args || "").slice(0, 100) });
+  log("INFO", "[SKILLS] Executando skill", { id, args: String(args == null ? "" : (typeof args === "string" ? args : JSON.stringify(args))).slice(0, 100) });
   try {
-    const resultado = await mod.executar(args || "");
+    let entrada = args;
+    if (typeof entrada === "string" && entrada.trim().startsWith("{")) {
+      try { entrada = JSON.parse(entrada); } catch {}
+    }
+    const resultado = await mod.executar(entrada || "");
     return String(resultado || "").slice(0, 4000);
   } catch (err) {
     log("ERROR", "[SKILLS] Erro ao executar skill", { id, erro: err.message });
@@ -243,4 +290,6 @@ module.exports = {
   executarSkill,
   aprenderExecutavel,
   carregarModuloSkill,
+  buscarPorPrefixo,
+  limparDisparador,
 };
