@@ -197,11 +197,12 @@ const FERRAMENTAS = [
   },
   {
     name: "pc_spotify_tocar_em",
-    description: "Toca uma música/filtro em um dispositivo específico do Spotify (cross-device, ex: celular, TV). Recebe o ID do dispositivo (veja pc_spotify_dispositivos) e a busca/ID da faixa.",
+    description: "Toca uma música em um dispositivo específico do Spotify (cross-device). Aceita 'dispositivo' como apelido simples (celular, pc, tv, moto g24...) ou 'dispositivoId' (ID exato de pc_spotify_dispositivos). Se não informar dispositivo, toca no player ativo. Se o Spotify não estiver configurado, cai no player local do PC.",
     inputSchema: {
       type: "object",
       properties: {
-        dispositivoId: { type: "string", description: "ID do dispositivo do Spotify" },
+        dispositivo: { type: "string", description: "Apelido/nome do dispositivo (ex: 'celular', 'pc', 'moto g24', 'tv') — opcional" },
+        dispositivoId: { type: "string", description: "ID exato do dispositivo (de pc_spotify_dispositivos) — preferir isso quando o usuário citar nome exato" },
         busca: { type: "string", description: "Nome da música/artista (ex: 'Viva La Vida Coldplay')" },
       },
       required: ["busca"],
@@ -308,7 +309,7 @@ async function chamarFerramenta(nome, args) {
       texto = JSON.stringify(await pc.spotifyListarDispositivos());
       break;
     case "pc_spotify_tocar_em":
-      texto = JSON.stringify(await pc.spotifyBuscarTocarCross(args.busca, args.dispositivoId));
+      texto = JSON.stringify(await pc.spotifyBuscarTocarCross(args.busca, args.dispositivo || args.dispositivoId));
       break;
     case "pc_janelas":
       texto = JSON.stringify(await pc.listarJanelas());

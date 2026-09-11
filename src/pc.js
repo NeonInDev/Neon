@@ -1037,6 +1037,41 @@ async function spotifyListarDispositivos() {
   return { ok: true, dispositivos: devices };
 }
 
+// Resolve "celular", "pc", "moto g24" etc. pro ID de dispositivo do Spotify.
+// Aceita nome parcial, apelidos comuns ou ID. Retorna null se não achar.
+async function spotifyResolverDispositivo(alvo) {
+  const alvoNome = String(alvo || "").trim().toLowerCase();
+  if (!alvoNome) return null;
+  const alias = {
+    celular: ["celular", "phone", "smartphone", "motorola", "moto", "motog", "moto g24", "g24", "android", "moto g"],
+    pc: ["pc", "desktop", "computador", "notebook", "laptop", "windows", "wonder", "gabinete", "fonte"],
+    tv: ["tv", "televisao", "television", "chromecast", "tv"],
+  };
+  let cache = null;
+  async function lista() {
+    if (cache) return cache;
+    const r = await spotifyListarDispositivos();
+    cache = r.ok ? r.dispositivos : [];
+    return cache;
+  }
+  // 1) Tenta bater direto por ID
+  const porId = (await lista()).find(d => d.id === alvoNome);
+  if (porId) return porId;
+  // 2) Tenta bater por nome parcial do dispositivo
+  const porNome = (await lista()).find(d => d.nome.toLowerCase().includes(alvoNome));
+  if (porNome) return porNome;
+  // 3) Tenta pelos apelidos comuns (celular/pc/tv...)
+  const sinTipo = { celular: "Smartphone", pc: "Computer", tv: "TV" };
+  for (const [tipo, sinonimos] of Object.entries(alias)) {
+    if (sinonimos.includes(alvoNome)) {
+      const tipoSpotify = sinTipo[tipo];
+      const doTipo = (await lista()).filter(d => d.tipo === tipoSpotify || d.nome.toLowerCase().includes(tipo));
+      return doTipo.find(d => d.ativo) || doTipo[0] || null;
+    }
+  }
+  return null;
+}
+
 async function spotifyTocarEm(dispositivoId, buscaOuId) {
   const busca = String(buscaOuId || "").trim();
   // Identifica se veio ID/URL de faixa
@@ -1070,8 +1105,16 @@ async function spotifyBuscarTocarCross(busca, dispositivoId = null) {
   const token = await spotifyToken();
   if (!token) return spotifyBuscarTocar(busca); // fallback local atual
 
+  // Se veio NOME/apelido de dispositivo (ex: "celular", "pc", "moto g24"), resolve pro ID.
+  let idAlvo = dispositivoId ? String(dispositivoId).trim() : null;
+  if (idAlvo && !/^[A-Za-z0-9]{15,}$/.test(idAlvo)) {
+    const alvo = await spotifyResolverDispositivo(idAlvo);
+    if (alvo) idAlvo = alvo.id;
+    else return { ok: false, erro: `Não achei o dispositivo "${dispositivoId}". Use pc_spotify_dispositivos pra ver os disponíveis.` };
+  }
+
   // Se pediu um dispositivo específico
-  if (dispositivoId) return spotifyTocarEm(dispositivoId, busca);
+  if (idAlvo) return spotifyTocarEm(idAlvo, busca);
 
   // Se não escolheu dispositivo, tenta tocar no dispositivo ATIVO via API;
   // se a API não achar player ativo, cai no local atual.
@@ -1085,7 +1128,7 @@ module.exports = {
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
   dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, criarArquivo, resumoCommits, abrirWhatsApp, abrirUrl,
   iniciarJogoSteam, buscarJogoSteam, instalarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyTocarPorId, spotifyControle,
-  spotifyListarDispositivos, spotifyTocarEm, spotifyBuscarTocarCross,
+  spotifyListarDispositivos, spotifyTocarEm, spotifyBuscarTocarCross, spotifyResolverDispositivo,
   moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, segurarBotao, soltarBotao, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,
   tamanhoTela, scroll,
