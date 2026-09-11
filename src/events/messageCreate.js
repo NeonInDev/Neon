@@ -612,6 +612,13 @@ module.exports = {
       return;
     }
 
+    // Pings: avisa o dono (em voz/DM) quando alguém o menciona em servidores.
+    // Roda antes do rate limit/debounce e não "consome" a mensagem (retorna void).
+    try {
+      const pings = require("../pings");
+      pings.avisar(message).catch(() => {});
+    } catch {}
+
     const rl = verificarRateLimit(message.author.id);
     if (!rl.permitido) {
       processando.delete(message.id);

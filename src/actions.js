@@ -10,7 +10,7 @@ const pc = require("./pc");
 const som = require("./som");
 const { traduzir } = require("./translate");
 const { detectar: detectarCustom, adicionar: addCustom, remover: removeCustom, listar: listarCustom } = require("./custom_commands");
-const { criarLembrete } = require("./timers");
+const { criarLembrete, criarLembreteRecorrente, interpretarRecorrencia } = require("./timers");
 const memoriaModule = require("./memoria");
 const voice = require("./voice");
 const { db } = require("./db");
@@ -512,6 +512,8 @@ function encontrarTraducao(texto) {
 function encontrarLembrete(texto) {
   const lower = limparFiller(texto.toLowerCase().trim());
   if (/^(?:me\s+)?(?:lembra|lembrar|lembrete|alarme|alerta|timer|despertador|lembre)\s+(?:de|pra|para|em)/i.test(lower)) return true;
+  if (/^(?:me\s+)?(?:lembra|lembrar)\s+(?:todo\s*dia|diariamente|todos\s*os\s*dias|a\s+cada\s+\d+)/i.test(lower)) return true;
+  if (/^(?:me\s+)?(?:lembra|lembrar)\s+(?:tod[ao]s?\s+(?:as\s+)?(?:segunda|terca|terça|quarta|quinta|sexta|sabado|sábado|domingo)s?)/i.test(lower)) return true;
   return false;
 }
 
@@ -2167,8 +2169,28 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     try {
       if (!message) return "❌ Lembrete só funciona no Discord.";
       const lower = limparFiller(texto.toLowerCase().trim());
+
+      // Recorrência: "me lembra todo dia às 08:00 de X" / "toda segunda às 07:30 de X" / "a cada 3 horas de X"
+      const rec = interpretarRecorrencia(lower);
+      if (rec) {
+        const restante = lower
+          .replace(/^(?:me\s+le)(?:mbra|mbrar)\s+/, "")
+          .replace(/^(?:todo\s*dia|diariamente|todos\s*os\s*dias|a\s+cada\s+\d+(?:[.,]\d+)?\s*(?:minutos?|min|horas?|h|dias?|d|semanas?))\s*/, "")
+          .replace(/^(?:tod[ao]s?\s+(?:as\s+)?(?:segunda|terca|terça|quarta|quinta|sexta|sabado|sábado|domingo)s?\s*)/i, "")
+          .replace(/(?:às|as)\s+\d{1,2}:\d{2}\s*/, "")
+          .replace(/^(?:pra|para|em|de)\s+(?:me\s+)?(?:lembrar\s+)?(?:de\s+)?/, "")
+          .replace(/^lembra\s+(?:de\s+)?/, "")
+          .trim();
+        const mensagem = restante || texto;
+        const id = await criarLembreteRecorrente(message.author.id, message.channel, rec, mensagem);
+        const desc = rec.tipo === "intervalo"
+          ? `a cada ${Math.round(rec.ms / 3600000 * 10) / 10}h`
+          : `${rec.tipo === "diario" ? "todo dia" : `toda(s) ${["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"][rec.dia]}`} às ${rec.hora}`;
+        return `⏰ Lembrete recorrente criado (${desc}): "${mensagem}" — vou repetir automaticamente.`;
+      }
+
       const m = lower.match(/(\d+)\s*(?:min|minutos|minuto|s|seg|segundos|segundo|h|hora|horas)\s*(?:pra|para|em|de)?\s*(.+)/i);
-      if (!m) return "❌ Use: me lembra em X minutos de Y";
+      if (!m) return "❌ Use: me lembra em X minutos de Y (ou: me lembra todo dia às 08:00 de Y)";
       const valor = parseInt(m[1]);
       const unidade = m[2].includes("h") || /horas?/.test(m[2]) ? "h" : "min";
       // Extrai a mensagem após o tempo

@@ -107,6 +107,7 @@ async function resumoDiario() {
   try {
     const info = await pc.pcInfo();
     const owner = await client.users.fetch(OWNER);
+    const linhaHora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
     // Clima da cidade configurada (se disponível) pra enriquecer a sugestão
     let clima = "";
@@ -117,11 +118,64 @@ async function resumoDiario() {
       if (c && c.temperatura) clima = `🌤️ ${c.condicao}, ${c.temperatura} em ${c.cidade || cidade}`;
     } catch {}
 
+    // Previsão de chuva (usa o mesmo cálculo do plugin de alerta)
+    let chuva = "";
+    try {
+      const { vaiChover } = require("./clima");
+      const c = await vaiChover(process.env.CLIMA_CIDADE || "São Paulo");
+      if (c.ok) chuva = `🌧️ ${c.resposta}\n`;
+    } catch {}
+
     const agora = new Date();
     const sugerir = sugestaoMatinal(agora.getHours());
 
-    let msg = `☀️ **Bom dia, chefe!** Vi que você ligou o PC por aqui.\n`;
+    let msg = `☀️ **Bom dia, chefe!** (${linhaHora}) Vi que você ligou o PC por aqui.\n`;
     if (clima) msg += `${clima}\n`;
+    if (chuva) msg += `${chuva}\n`;
+
+    // Agenda de hoje (Google Calendar)
+    try {
+      const calendario = require("./calendario");
+      const r = await calendario.eventosHoje();
+      if (r && r.ok && r.eventos?.length) {
+        const itens = r.eventos
+          .slice(0, 6)
+          .map((e) => {
+            const h = String(e.inicio).slice(11, 16);
+            return `  • ${h} — ${e.titulo}`;
+          })
+          .join("\n");
+        msg += `📅 **Hoje na agenda:**\n${itens}\n`;
+      } else if (r && !r.ok) {
+        msg += `📅 Agenda: ${r.erro}\n`;
+      }
+    } catch {}
+
+    // Tarefas pendentes (Google Tasks)
+    try {
+      const google = require("./google");
+      if (google.tasks) {
+        const r = await google.tasks.listar();
+        if (r && r.ok && r.tarefas?.length) {
+          const resumo = r.tarefas.slice(0, 5).map((t) => `  • ${t.titulo}`).join("\n");
+          msg += `✅ **Tarefas pendentes:**\n${resumo}\n`;
+        }
+      }
+    } catch {}
+
+    // Boletim/notas do Versala (se configurado)
+    try {
+      const versala = require("./versala");
+      const r = await versala.pegarBoletim();
+      if (r && r.ok) {
+        const topo = r.disciplinas
+          .slice(0, 6)
+          .map((d) => `  • ${d.nome}: ${d.precisaSemPF > 0 ? `precisa ${d.precisaSemPF} pts` : "✅ zerou"}`)
+          .join("\n");
+        msg += `📚 **Notas (${r.serie}):**\n${topo}\n`;
+      }
+    } catch {}
+
     msg += `💡 **Sugestão:** ${sugerir}\n`;
     msg += `\`\`\`\n${info}\n\`\`\``;
 
@@ -131,7 +185,11 @@ async function resumoDiario() {
     if (process.env.FALAR_RESUMO === "1") {
       try {
         const { falarResumoMatinal } = require("./tts");
-        await falarResumoMatinal(clima ? `${clima} ${sugerir}` : sugerir);
+        const falado = [
+          clima || "Bom dia.",
+          sugerir,
+        ].filter(Boolean).join(" ");
+        await falarResumoMatinal(falado);
       } catch {}
     }
 

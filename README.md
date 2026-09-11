@@ -1,295 +1,205 @@
-# Neon — Bot de IA para Discord
+# Neon — IA Assistente Pessoal
 
-Assistente social com personalidade própria, memória de longo prazo, sistema de afinidade e processamento de imagens via OpenRouter.
+Neon é a assistente pessoal do dono: uma IA com personalidade própria, memória de longo prazo, controle total do PC/celular, integração com Discord, WhatsApp, Google, Spotify e muito mais — tudo conversando por linguagem natural.
 
 ## Stack
 
 | Camada | Tecnologia |
 |---|---|
 | Runtime | Node.js 25+ |
-| Discord API | discord.js v14 |
-| IA | OpenRouter (GPT-4o-mini) |
+| Discord API | discord.js v14 + @discordjs/voice |
+| IA | OpenRouter (multi-provedor), Groq, OmniRoute, DeepSeek (fallback) |
 | Banco | LowDB (JSON local) |
-| HTTP | Axios |
+| Browser | Playwright (Opera GX) |
+| WhatsApp | whatsapp-web.js (headful) |
+| Google | googleapis (Calendar, Tasks, Gmail, Drive) |
+| Voz | Edge TTS, Whisper local (@xenova/transformers), scrcpy/ADB |
 
-## Estrutura
-
-```
-├── index.js                  # Bootstrap — sobe o client, registra handlers de processo
-├── deploy-commands.js        # Registro dos slash commands na API do Discord
-├── .env                      # Variáveis de ambiente (gitignorado)
-├── memory.json               # Banco de dados (gitignorado)
-└── src/
-    ├── client.js             # Client Discord + registro dinâmico de eventos
-    ├── db.js                 # LowDB (path absoluto, independente de cwd)
-    ├── config.js             # Validação e exportação de env vars
-    ├── logger.js             # Log estruturado [timestamp] [LEVEL] msg {meta}
-    ├── ai.js                 # Lógica da OpenRouter — askNeon()
-    ├── user.js               # Criação e gerenciamento de usuários
-    ├── moderation.js         # Blacklist + detecção de jailbreak
-    ├── events/
-    │   ├── ready.js          # Inicialização do banco ao conectar
-    │   ├── messageCreate.js  # Processamento de mensagens (prefixo, reply, DM)
-    │   └── interactionCreate.js  # Roteamento de slash commands
-    └── commands/             # Um arquivo por comando
-        ├── index.js          # Registry automático (fs.readdirSync)
-        ├── neon.js           # /neon — conversar com a Neon
-        ├── blacklist.js      # /blacklist — bloquear usuário
-        ├── unblacklist.js    # /unblacklist — desbloquear
-        ├── afinidade.js      # /afinidade — alterar score
-        ├── mood.js           # /mood — alterar humor global
-        ├── apelido.js        # /apelido — definir apelido
-        ├── memoria.js        # /memoria — adicionar observação
-        ├── limparmemoria.js  # /limparmemoria — resetar memórias
-        ├── perfil.js         # /perfil — visualizar dados
-        ├── gostos.js         # /gostos — registrar interesse
-        ├── personalidade.js  # /personalidade — registrar traço
-        ├── convidar.js       # /convidar — link de invite do bot
-        └── revogar.js        # /revogar — remover acesso mestre
-```
-
-## Setup
-
-### 1. Pré-requisitos
-
-- Node.js 18+
-- Um bot no [Discord Developer Portal](https://discord.com/developers/applications)
-- Uma chave no [OpenRouter](https://openrouter.ai/)
-
-### 2. Instalar dependências
+## Início rápido
 
 ```bash
 npm install
+# preencha o .env (veja src/config.js)
+npm start          # sobe o bot + API/HUD
+node deploy-commands.js   # registra os slash commands
 ```
 
-### 3. Configurar ambiente
+## Comandos por linguagem natural
 
-Crie um arquivo `.env` na raiz:
+A Neon entende frases diretas no Discord (prefixo `neon`, `@Neon`, reply à mensagem dela ou DM). As principais categorias:
 
-```env
-TOKEN=seu_token_do_discord
-CLIENT_ID=id_do_seu_bot
-OPENROUTER_API_KEY=sk-or-v1-sua_chave
-MASTER_KEY=senha_secreta_mestra
-# API local; para acesso pelo celular, use apenas o IP Tailscale desta máquina
-API_HOST=127.0.0.1
-API_PORT=3000
-# Necessário somente se houver ssl/neon.pfx
-SSL_PASS=senha_do_certificado
-```
+### Rotina
+- `bom dia` — liga Spotify/Steam/Medal, clima e dica do dia
+- `boa noite` — previsão de amanhã + confirma desligar o PC
+- `daddy is home` — rotina de chegada em casa
 
-| Variável | Obrigatório | Descrição |
-|---|---|---|
-| `TOKEN` | Sim | Token do bot no Discord |
-| `CLIENT_ID` | Sim | ID numérico do bot |
-| `OPENROUTER_API_KEY` | Sim | Chave da API OpenRouter |
-| `MASTER_KEY` | Sim | Senha para ativar modo administrador |
-| `DOCS_PORT` | Não | Porta do servidor de documentação (default: 3000) |
-| `API_HOST` | Não | Interface da API; padrão seguro: `127.0.0.1` |
-| `API_PORT` | Não | Porta da API/HUD (default: 3000) |
-| `SSL_PASS` | Condicional | Senha do `ssl/neon.pfx`; necessária para iniciar HTTPS |
+### Controle do PC
+- `desligar` / `reiniciar` / `suspender` / `bloquear`
+- `status do pc` — CPU, RAM, disco, temperatura, bateria
+- `volume 20%` / `muta` / `print` / `clipboard`
+- `processos` (listar/matar), `rede`, `bateria`
+- `executa <comando>` (terminal), `digita <texto>`
 
-**Segurança:** A chave mestra só funciona em DM, nunca em canais públicos. Não publique o `.env`, certificados nem a `MASTER_KEY`.
+### Apps, jogos e navegador
+- `abrir spotify/steam/youtube/opera/whatsapp/...` (30+ apps)
+- `jogar cs2/gta/elden ring/...` (20+ jogos Steam)
+- `vai pra <url>` / `entra em <site>`
 
-### Acesso pelo celular via Tailscale
+### Spotify / YouTube
+- `toca <música>`, `pular`, `voltar`, `pausar`, `continuar`, `letra de <música>`
+- `coloca <vídeo> no youtube`, `tela cheia`, `PiP`
 
-Por padrão, a API aceita conexões apenas no próprio PC (`127.0.0.1`). Para usar o HUD no celular, instale e conecte o Tailscale nos dois dispositivos e defina o IP Tailscale do PC no `.env`:
+### Comunicação
+- `manda msg pra <alvo>: <texto>` (Discord DM)
+- `manda zap pra <contato>: <texto>` (WhatsApp)
+- `liga pra <alvo>` (chamada de voz Discord)
+- `muda status do discord` (online/idle/dnd/invisível/personalizado)
 
-```env
-API_HOST=100.x.y.z
-API_PORT=3000
-SSL_PASS=senha_do_certificado
-```
+### Celular (ADB/scrcpy)
+- `conecta o celular`, `espelha o celular`, `abre <app> no celular`
+- `print do celular`, `toca em X,Y`, `desliza`, `digita no celular`
 
-Reinicie a Neon e abra `https://100.x.y.z:3443/hud` no celular. Use somente o IP Tailscale — não configure `0.0.0.0`, não exponha portas no roteador e mantenha a `MASTER_KEY` exclusiva.
+### IA / Informação
+- `pesquisa <query>`, `o que é <termo> no wikipedia`
+- `quanto é <expressão>` (calculadora), `cotação <moeda/crypto/ação>`
+- `clima em <cidade>`, `vai chover?`, `cep <n>`, `qual meu ip`
+- `notícias`, `cinema <cidade>`, `define <palavra>`
 
-### 4. Registrar comandos
+### Entretenimento
+- `piada`, `conselho`, `trivia`, `gera imagem de <prompt>`
+- `mostra foto de <assunto>`, `gera qr code de <texto>`, `gera senha`
 
-```bash
-node deploy-commands.js
-```
+### Utilidades
+- `lembra de <texto>` / `me lembra em X minutos de Y` (+ recorrências: `todo dia às 08:00`, `toda segunda às 07:30`)
+- `traduz <texto> pra <idioma>`, `fala <texto>` (TTS), `remove fundo da imagem`
+- `notifica <título> <msg>`, `começa a gravar` (OBS)
 
-Registra todos os slash commands descobertos em `src/commands/` na API do Discord.
+### Escola / Estudo
+- `boletim` / `notas`, `versala`, flashcards (`criar deck`, `estudar <deck>`)
+- `o que tem na agenda` / `cria evento` (Google Calendar)
+- `cria tarefa <texto>` (Google Tasks), `quais emails não li` (Gmail)
 
-### 5. Iniciar
+### Gestão do servidor (dono/mod)
+- `protocolo lockdown @user [por N horas] [motivo]` / `unlockdown @user`
+- `protocolo emergência` (mata Chrome/Opera/Spotify)
+- `neon expulse <id>` (skill kick), `neon clipe` (último clipe do Medal)
 
-```bash
-npm start
-```
+## Slash commands
 
-### Documentação
-
-Ao iniciar, o bot sobe um servidor HTTP com a documentação interativa dos comandos em `http://localhost:3000` (ou porta definida em `DOCS_PORT`).
-
-## Comandos
-
-### Público
+Registrados pela pasta `src/commands/` (auto-descobertos). Destaques:
 
 | Comando | Descrição |
 |---|---|
-| `/neon <mensagem>` | Conversar com a Neon |
-| `/convidar` | Link para adicionar a Neon em servidores ou no perfil |
-| `/google` | Integração Google: calendário, tarefas, gmail e drive |
+| `/neon <msg>` | Conversar com a Neon |
+| `/google <ação>` | Calendar/Tasks/Gmail/Drive |
+| `/convidar` | Invite (guild ou perfil) |
+| `/blacklist` `/unblacklist` `/afinidade` `/mood` | Admin (requer master key) |
+| `/memoria` `/perfil` `/gostos` `/personalidade` | Perfil do usuário |
+| `/entrar` `/sair` `/voz` | Canal de voz Discord |
 
-### Admin (requer chave mestra)
+> Admin via **DM**: envie a `MASTER_KEY` no PV da Neon para ativar o modo mestre.
 
-| Comando | Descrição |
-|---|---|
-| `/blacklist <usuario>` | Bloquear acesso ao bot |
-| `/unblacklist <usuario>` | Desbloquear acesso |
-| `/afinidade <usuario> <valor>` | Definir afinidade (-1000 a 1000) |
-| `/mood <tipo>` | Alterar humor global do bot |
-| `/apelido <usuario> <apelido>` | Definir apelido (máx 50 caracteres) |
-| `/memoria <usuario> <texto>` | Adicionar observação ao perfil |
-| `/limparmemoria <usuario>` | Limpar todas as observações |
-| `/perfil <usuario>` | Exibir perfil completo |
-| `/gostos <usuario> <texto>` | Registrar interesse |
-| `/personalidade <usuario> <texto>` | Registrar traço de personalidade |
-| `/revogar <usuario>` | Remover acesso mestre de outro admin |
+## API HTTP / HUD (YGGDRASIL)
 
-### Ativar como mestre
+Servidor HTTP/HTTPS próprio (~70 endpoints), dashboard web em `/hud`, controle de gestos em `/gesture` e documentação OpenAPI em `/doc`.
 
-Envie a `MASTER_KEY` em **DM** para o bot. Após ativado, todos os comandos admin ficam disponíveis.
+- `POST /api/chat` — conversa com a Neon
+- `/api/pc/*`, `/api/gesture`, `/api/terminal`, `/api/arquivos/*` — controle remoto
+- `/api/whatsapp/*` — envio/status do WhatsApp
+- `/api/discord/*` — enviar canais, DMs, canais de voz
+- `/api/celular/*`, `/api/braco/*`, `/api/watch/*` — hardware
+- `POST /api/discord/enviar_canal` — enviar mensagem/arquivos para canal (ex.: tabelas, GIFs)
+- `/api/visao` — análise de imagem por IA
+- `/global/event` — WebSocket/SSE de eventos
 
-## User Install (App de Usuário)
+Acesso remoto seguro via **Tailscale** (ex.: `https://100.x.y.z:3443/hud`). Nunca exponha em `0.0.0.0` fora da VPN.
 
-A Neon pode ser instalada como **app de usuário**, permitindo usar `/neon` em qualquer DM — inclusive no meio da conversa com outra pessoa.
+## Integrações
 
-**Para instalar:** use `/convidar` e clique em "Perfil", ou acesse diretamente:
+Discord (API + UI do dono), WhatsApp, Google (Calendar/Tasks/Gmail/Drive), Notion, Spotify, YouTube, Steam, Medal.tv, Strava, OBS Studio, Blender, Tailscale, OpenCode (delegar código), termux/ADB, Neo Zero ARQUIMEDES, braço robótico, NeonWatch (relógio), HUD desktop, Poderes/lore do servidor RPG.
 
-```
-https://discord.com/oauth2/authorize?client_id=SEU_CLIENT_ID&integration_type=1&scope=applications.commands
-```
+## Voz
 
-Após autorizar, o comando `/neon` aparece no menu de slash commands de **qualquer DM**.
+TTS por Edge TTS (neural, PT-BR) e SAPI como fallback; STT local via Whisper. A Neon entra em canais de voz Discord, fala, escuta (`neon ...`) e responde. Emoções mudam tom/velocidade.
 
-> **Nota:** Comandos admin (`/blacklist`, `/afinidade`, etc.) só funcionam no PV do bot e em servidores, não em DMs de outros usuários.
+## Monitoramento proativo
 
-## Integração Google
+- **Resumo diário** às 07:00 em DM (PC, clima, agenda de hoje, previsões)
+- Alertas de RAM/CPU/disco/temperatura >90%
+- Detecção de desligamento inesperado (Event ID 41)
+- Modo Jarvis: ciclo a cada 15 min decide se faz algo útil
+- **Pings no Discord**: quando alguém menciona o dono, a Neon resume e avisa (voz ou DM)
 
-A Neon conversa com Google Calendar, Tasks, Gmail e Drive — por slash command ou por linguagem natural no `/neon` (ex.: "quais emails não li", "adiciona tarefa comprar pão", "cria evento amanhã às 14h").
+## Lembretes e recorrências
 
-### Setup (1 vez, na máquina da Neon)
-
-1. Crie as credenciais em [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → **Create OAuth client ID** → tipo **Desktop app** (ou Web com redirect `http://localhost:8787`). Baixe o JSON.
-2. Salve como `google_credentials.json` na raiz do projeto.
-3. Rode:
-   ```
-   node google_oauth_setup.js
-   ```
-   Abra a URL impressa, autorize e o token será salvo em `google_token.json` (não commite este arquivo).
-4. Reinicie a Neon e rode `/google status` para confirmar.
-
-> Escopos pedidos: `calendar`, `tasks`, `gmail.readonly`, `drive`. Variáveis de ambiente opcionais: `GOOGLE_CREDENTIALS_PATH`, `GOOGLE_TOKEN_PATH`, `GOOGLE_OAUTH_PORT`, `GOOGLE_REDIRECT_URI`.
-
-### Exemplos de uso
-
-| Frase | Efeito |
-|---|---|
-| "o que tem hoje na agenda?" | Eventos de hoje |
-| "próximos eventos" | Próximos 5 eventos |
-| "cria evento almoço amanhã às 12h" | Cria evento no Calendar |
-| "quais tarefas tenho pra fazer?" | Lista tarefas do Tasks |
-| "adiciona tarefa pagar o aluguel" | Cria tarefa |
-| "quais emails não li?" | Conta não lidos no Gmail |
-| "procura arquivo relatório no drive" | Busca no Drive |
+- `me lembra em 30 minutos de X`
+- `me lembra todo dia às 08:00 de X` — repete diariamente
+- `me lembra toda segunda às 07:30 de X` — semanal
+- `me lembra a cada 3 horas de X` — intervalo
 
 ## Arquitetura
+
+```
+index.js                  Bootstrap (client, handlers, plugins)
+src/
+  ai.js                   askNeon() — multi-provedor + tool calling
+  actions.js              Motor de ações por linguagem natural (50+ categorias)
+  timers.js               Lembretes + recorrências
+  proativo.js             Modo Jarvis (decide ações a cada 15min)
+  monitor.js              Resumo diário + alertas de sistema
+  pings.js                Resumo de menções ao dono
+  voz.js / voice.js       Canal de voz Discord (falar/ouvir) e microfone local
+  tts.js / stt.js         Text-to-Speech e Speech-to-Text
+  pc.js                   Controle do PC (info, volume, teclado, energia)
+  celular.js              ADB/scrcpy (espelhar, tocar, abrir apps)
+  browser.js              Playwright (navegação, Spotify, YouTube)
+  api.js / api_publica.js APIs externas + servidor HTTP/HUD
+  google/                 Calendar, Tasks, Gmail, Drive (OAuth2)
+  events/messageCreate.js Roteamento central de mensagens
+  events/interactionCreate.js  Slash commands
+  commands/               Um arquivo por comando (auto-descoberto)
+plugins/                  Notion, WhatsApp, OpenCode, Tailscale, Strava, Medal
+skills/                   Skills invocáveis pela IA
+public/hud/               Dashboard YGGDRASIL (web)
+hud-app/                  App desktop (NeonHud.exe / WebView2)
+data/                     Dados persistentes (skills, lore, guests...)
+```
 
 ### Fluxo de mensagens
 
 ```
 Mensagem → messageCreate.js
-  ├── É bot? → Ignora
-  ├── Está na blacklist? → Ignora
-  ├── É chave mestra? → Ativa admin, retorna
-  ├── Já está sendo processada? → Ignora (Set guard)
-  ├── ativou? (prefixo/reply/DM) → Aplica cooldown
-  │   └── askNeon() → OpenRouter → Histórico → Responde
-  └── Erro? → Log + mensagem de erro
+  ├── bot/blacklist → ignora
+  ├── chave mestra (DM) → ativa admin
+  ├── ping no dono → pings.js resume e avisa (voz/DM)
+  ├── ativou? (neon/@bot/reply/DM) → cooldown 3s + debounce 1.5s
+  │     └── askNeon() → resposta (com molde, arquivos, multi-parte)
+  └── senão → ignora (mas segue monitorando)
 ```
 
-### Sistema de comandos
+## Setup Google (1 vez)
 
-Cada comando em `src/commands/` exporta:
+1. Credenciais OAuth2 em [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → Desktop app
+2. Salve como `google_credentials.json` (raiz do projeto, gitignorado)
+3. `node google_oauth_setup.js` → autorize → token em `google_token.json`
+4. Reinicie e teste com `/google status` ou "o que tem hoje na agenda?"
 
-```js
-module.exports = {
-  data: SlashCommandBuilder,    // Definição para deploy
-  adminOnly: true,              // Requer auth? (true = só admin)
-  async execute(interaction) {} // Handler
-};
-```
+Escopos: `calendar`, `tasks`, `gmail.readonly`, `drive`.
 
-O `src/commands/index.js` descobre automaticamente todos os arquivos via `fs.readdirSync` e monta um `Map<nome, comando>`. O `deploy-commands.js` percorre o mesmo diretório para registrar na API do Discord — **garantia de que todo comando registrado tem handler e vice-versa**.
+## Segurança
 
-### Segurança
-
-- Chave mestra validada **só em DM**
-- Blacklist verificada **antes** da chave mestra
-- `adminOnly: true` bloqueia comandos no router central
-- Input do usuário truncado em 2000 caracteres antes da API
-- Observações limitadas a 200 entradas (FIFO)
-- Cooldown de 3s entre mensagens por usuário
-- `Set` de IDs evita processamento duplicado concorrente
-- `db.write()` executado no SIGINT/SIGTERM — sem perda de dados
-
-### Logs
-
-```
-[2026-05-14 23:51:31] [INFO] Client conectado {"tag":"Neon#1234","guilds":5}
-[2026-05-14 23:51:31] [INFO] Processando pergunta {"usuario":"Fulano","pergunta":"qual o sentido..."}
-[2026-05-14 23:51:31] [INFO] Resposta gerada {"usuario":"Fulano","tempo_ms":1234,"caracteres":432}
-[2026-05-14 23:51:31] [WARN] Chave mestra rejeitada — só funciona em DM
-[2026-05-14 23:51:31] [ERROR] Falha na OpenRouter {"tempo_ms":5000,"erro":"timeout"}
-```
-
-Níveis: `INFO`, `WARN`, `ERROR`.
+- `MASTER_KEY` só em DM; blacklist antes de tudo
+- Input truncado em 2000 chars; cooldown de 3s por usuário
+- `.env`, certificados, tokens e bancos **nunca** vão pro git
+- API exposta apenas via Tailscale (sem `0.0.0.0` público)
+- Persistência em `db.write()` no SIGINT/SIGTERM
 
 ## Manutenção
 
-### Adicionar um comando
-
-1. Crie `src/commands/meucomando.js`:
-
-```js
-const { SlashCommandBuilder, InteractionContextType, ApplicationIntegrationType } = require("discord.js");
-
-module.exports = {
-  data: new SlashCommandBuilder()
-    .setName("meucomando")
-    .setDescription("Descrição")
-    .setContexts(
-      InteractionContextType.Guild,
-      InteractionContextType.BotDM,
-      InteractionContextType.PrivateChannel
-    )
-    .setIntegrationTypes(
-      ApplicationIntegrationType.GuildInstall,
-      ApplicationIntegrationType.UserInstall
-    ),
-  adminOnly: true,
-  async execute(interaction) {
-    await interaction.reply("funciona!");
-  },
-};
-```
-
-2. Rode `node deploy-commands.js` para registrar na API.
-
-### Limpar histórico do git (secrets)
-
-Se o `.env` foi commitado acidentalmente:
-
-1. Revogue os tokens no Discord Developer Portal e OpenRouter
-2. Atualize o `.env` com os novos valores
-3. Use `git filter-branch` ou `git filter-repo` para remover do histórico
-
-```bash
-# Exemplo com git filter-repo
-pip install git-filter-repo
-git filter-repo --path .env --invert-paths
-```
+- **Novo comando**: crie `src/commands/nome.js` (exporta `data` + `execute`) e rode `node deploy-commands.js`
+- **Nova ação**: adicione categoria/regex em `src/actions.js`
+- **Nova skill**: crie em `skills/` com `_manifest.json`
+- **Logs**: `[timestamp] [LEVEL] msg {meta}` em `logs/`
 
 ## Licença
 
