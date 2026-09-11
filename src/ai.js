@@ -284,6 +284,10 @@ Agora responda ao usuário naturalmente com base nesses resultados. Se precisar 
     log("INFO", "Resposta", { usuario: username, tempo_ms: Date.now() - inicio, chars: final.length });
     return final;
   } catch (err) {
+    if (err?.abortado) {
+      log("INFO", "[AI] Processamento abortado pelo dono", { usuario: username });
+      return "🛑 Beleza, chefe, parei. 🙂";
+    }
     log("ERROR", "Falha", { erro: err.message });
     return "❌ Erro interno.";
   } finally {

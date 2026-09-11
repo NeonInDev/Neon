@@ -99,9 +99,35 @@ function interpretarAbortar(message) {
     clearTimeout(pendente.timer);
     mensagensPendentes.delete(message.author.id);
   }
-  opencode.parar();
+  opencode.abortar();
   require("../fila").limpar(message.author.id);
   message.reply("🛑 Parei o processamento atual da Neon e limpei a fila.").catch(() => {});
+  return true;
+}
+
+// Abortar respondendo (reply) a mensagem de progresso da Neon enquanto ela ainda
+// estiver decidindo/executando. Funciona com qualquer texto, sem comando.
+function interpretarAbortarReply(message) {
+  if (!isOwner(message.author.id)) return false;
+  const refId = message.reference?.messageId;
+  if (!refId) return false;
+  const progresso = require("../progresso");
+  if (!progresso.isMsgIdProgresso(refId)) return false;
+  const filaStatus = require("../fila").status(message.author.id);
+  const ocupada = processando.size > 0 || filaStatus.processing || filaStatus.queueLength > 0 || mensagensPendentes.get(message.author.id) !== undefined;
+  if (!ocupada) return false;
+
+  (async () => {
+    const pendente = mensagensPendentes.get(message.author.id);
+    if (pendente) {
+      clearTimeout(pendente.timer);
+      mensagensPendentes.delete(message.author.id);
+    }
+    opencode.abortar();
+    require("../fila").limpar(message.author.id);
+    await progresso.cancelarPorMsgId(refId, "Cancelado pelo chefe");
+    message.reply("🛑 Cancelei o que estava fazendo, chefe. Parei o processamento.").catch(() => {});
+  })();
   return true;
 }
 
@@ -607,6 +633,11 @@ module.exports = {
     processando.add(message.id);
 
     if (interpretarAbortar(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
+    if (interpretarAbortarReply(message)) {
       processando.delete(message.id);
       return;
     }

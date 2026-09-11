@@ -42,6 +42,7 @@ let desligando = false;
 let tentativasRestart = 0;
 let reiniciador = null;
 let economiaAtiva = false;
+let abortado = false;
 
 function setEconomia(ativo) {
   economiaAtiva = !!ativo;
@@ -194,11 +195,19 @@ async function executar(tarefa) {
     log("INFO", "[OPENCODE] Pausado (modo economia)");
     return null;
   }
+  abortado = false;
   const maxAttempts = 2;
   let tentativa = 0;
 
   while (tentativa < maxAttempts) {
     tentativa += 1;
+
+    if (abortado) {
+      log("INFO", "[OPENCODE] Execucao abortada pelo dono");
+      const e = new Error("ABORTED");
+      e.abortado = true;
+      throw e;
+    }
 
     if (!serverPort) {
       try {
@@ -237,6 +246,12 @@ async function executar(tarefa) {
         }
         throw new Error("resposta vazia do opencode serve");
       } catch (err) {
+        if (abortado) {
+          log("INFO", "[OPENCODE] Execucao abortada durante HTTP");
+          const e = new Error("ABORTED");
+          e.abortado = true;
+          throw e;
+        }
         const isConnErr = err.message?.includes("ECONNREFUSED") || err.message?.includes("ECONNRESET") || err.message?.includes("ENOTFOUND");
         log("WARN", `[OPENCODE] HTTP falhou (tentativa ${tentativa})`, { erro: err.message?.slice(0, 120), conn: isConnErr });
         if (tentativa >= maxAttempts) {
@@ -315,6 +330,12 @@ function parar() {
   }
 }
 
+// Aborto pelo dono: mata o servidor e marca o cancelamento pra tarefa em voo abortar.
+function abortar() {
+  abortado = true;
+  parar();
+}
+
 // Reinicia o servidor opencode p/ recarregar config (ex.: MCPs novos).
 async function reiniciar() {
   const anterior = serverPort;
@@ -330,4 +351,4 @@ async function reiniciar() {
   return { reiniciado: !!porta, portaAnterior: anterior, novaPorta: porta };
 }
 
-module.exports = { iniciarServer, executar, executarParalelo, decidir, parar, reiniciar, setEconomia };
+module.exports = { iniciarServer, executar, executarParalelo, decidir, parar, abortar, reiniciar, setEconomia };

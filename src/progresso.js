@@ -20,11 +20,6 @@ async function iniciar(messageObj, tituloInicial = "⏳ Processando...") {
       message: placeholder,
       chave: `${chave}_${Date.now()}`,
       atualizado: 0,
-    };
-    if (ativos.has(chave)) ativos.delete(chave);
-    ativos.set(chave, controlador);
-    return {
-      ok: true,
       async atualizar(novoTexto, emoji = "🔄") {
         controlador.atualizado++;
         try {
@@ -50,6 +45,14 @@ async function iniciar(messageObj, tituloInicial = "⏳ Processando...") {
         }
       },
     };
+    if (ativos.has(chave)) ativos.delete(chave);
+    ativos.set(chave, controlador);
+    return {
+      ok: true,
+      atualizar: controlador.atualizar,
+      finalizar: controlador.finalizar,
+      cancelar: controlador.cancelar,
+    };
   } catch (err) {
     log("WARN", "[PROGRESSO] Nao consegui enviar placeholder", { erro: err.message });
     return { ok: false, motivo: err.message };
@@ -63,4 +66,23 @@ function atualizarExistente(chave, novoTexto, emoji = "🔄") {
   return Promise.resolve();
 }
 
-module.exports = { iniciar, atualizarExistente };
+// Acha um controlador de progresso pela mensagem placeholder (a "mensagem da Neon").
+function encontrarPorMsgId(messageId) {
+  for (const c of ativos.values()) {
+    if (c.message?.id === messageId) return c;
+  }
+  return null;
+}
+
+function isMsgIdProgresso(messageId) {
+  return !!encontrarPorMsgId(messageId);
+}
+
+// Cancela (edita para "🚫 Cancelado") o placeholder cujo id é o informado.
+function cancelarPorMsgId(messageId, motivo = "Cancelado") {
+  const c = encontrarPorMsgId(messageId);
+  if (c) return c.cancelar(motivo);
+  return Promise.resolve();
+}
+
+module.exports = { iniciar, atualizarExistente, isMsgIdProgresso, cancelarPorMsgId };
