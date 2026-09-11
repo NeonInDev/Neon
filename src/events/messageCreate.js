@@ -169,6 +169,25 @@ function interpretarStatus(message) {
   return true;
 }
 
+// "neon resumo" / "neon resumo hoje" — manda o resumo do dia no chat (só dono)
+function interpretarResumo(message) {
+  if (!isOwner(message.author.id)) return false;
+  const texto = (message.content || "").trim();
+  const m = texto.match(/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:resumo|resumo hoje|sumario|o que tem pra hoje)\b/i);
+  if (!m) return false;
+  (async () => {
+    try {
+      const { montarResumo } = require("../monitor");
+      const { msg } = await montarResumo();
+      await message.reply(msg);
+    } catch (err) {
+      log("WARN", "Erro ao montar resumo sob demanda", { erro: err.message });
+      message.reply("⚠️ Falha ao montar o resumo agora.").catch(() => {});
+    }
+  })();
+  return true;
+}
+
 // "neon desliga" / "neon desligar" — desliga a Neon pelo Discord (só dono)
 function interpretarDesligarNeon(message) {
   if (!isOwner(message.author.id)) return false;
@@ -598,6 +617,10 @@ module.exports = {
     }
 
     if (interpretarStatus(message)) {
+      processando.delete(message.id);
+      return;
+    }
+    if (interpretarResumo(message)) {
       processando.delete(message.id);
       return;
     }

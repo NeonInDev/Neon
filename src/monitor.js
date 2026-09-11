@@ -102,12 +102,10 @@ if ($evt) {
   }
 }
 
-async function resumoDiario() {
-  if (!client?.isReady()) return;
-  try {
-    const info = await pc.pcInfo();
-    const owner = await client.users.fetch(OWNER);
-    const linhaHora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+// Monta o texto completo do resumo do dia (usado no resumo matinal e no comando "neon resumo").
+async function montarResumo() {
+  const info = await pc.pcInfo();
+  const linhaHora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
     // Clima da cidade configurada (se disponível) pra enriquecer a sugestão
     let clima = "";
@@ -179,6 +177,15 @@ async function resumoDiario() {
     msg += `💡 **Sugestão:** ${sugerir}\n`;
     msg += `\`\`\`\n${info}\n\`\`\``;
 
+    return { msg, clima, sugerir };
+}
+
+async function resumoDiario() {
+  if (!client?.isReady()) return;
+  try {
+    const owner = await client.users.fetch(OWNER);
+    const { msg, clima, sugerir } = await montarResumo();
+
     await owner.send(msg);
 
     // Resumo matinal FALADO (voz no PC), só se habilitado — não invasivo por padrão
@@ -206,4 +213,4 @@ function sugestaoMatinal(hora) {
   return "já entardecendo... bom momento pra relaxar, jogar um pouco ou fechar o dia. 🎮";
 }
 
-module.exports = { iniciar, parar };
+module.exports = { iniciar, parar, montarResumo };
