@@ -229,6 +229,7 @@ ${tratamentoChefe}${skills.contexto()}`;
     let resposta = await chamarLLM(sistema, userMsg, !convidado);
 
     if (isOwner(userId) && skills.respostaIndicaFalta && skills.respostaIndicaFalta(resposta)) {
+      if (typeof onProgress === "function") onProgress("Vivendo e Aprendendo...", "🧠");
       const skill = await skills.aprenderExecutavel(promptTruncado, resposta);
       if (skill) {
         const mod = skills.carregarModuloSkill(skill.id);
