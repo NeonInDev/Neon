@@ -642,6 +642,19 @@ module.exports = {
       return;
     }
 
+    // Whisper: se ativo, reenvia a mensagem do dono no mesmo chat (e apaga com "del").
+    try {
+      const whisper = require("../whisper");
+      if (await whisper.consumirMensagem(message)) {
+        processando.delete(message.id);
+        return;
+      }
+      if (whisper.interpretarComando(message)) {
+        processando.delete(message.id);
+        return;
+      }
+    } catch {}
+
     // Audio (voice message) — processa imediatamente, sem debounce
     const { processarAudioMessage } = require("../discord_audio");
     if (await processarAudioMessage(message)) {

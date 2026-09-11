@@ -259,6 +259,27 @@ async function executar(tarefa) {
   return null;
 }
 
+// Executa N tarefas ao mesmo tempo em sessões separadas do opencode serve
+// e devolve os resultados na mesma ordem (orquestração com "subagentes").
+const LIMITE_PARALELO = 6;
+
+async function executarParalelo(tarefas) {
+  const lista = (Array.isArray(tarefas) ? tarefas : []).filter((t) => t && String(t).trim()).slice(0, LIMITE_PARALELO);
+  if (!lista.length) return [];
+  if (economiaAtiva) {
+    log("INFO", "[OPENCODE] Paralelo pausado (modo economia)");
+    return lista.map(() => null);
+  }
+  log("INFO", "[OPENCODE] Executando em paralelo", { total: lista.length });
+  const resultados = await Promise.all(
+    lista.map((t) => executar(t).catch((err) => {
+      log("WARN", "[OPENCODE] Tarefa paralela falhou", { erro: err.message?.slice(0, 120) });
+      return null;
+    }))
+  );
+  return resultados;
+}
+
 async function decidir(tarefa) {
   const instrucoes = [
     "Você é o roteador de ações da Neon.",
@@ -309,4 +330,4 @@ async function reiniciar() {
   return { reiniciado: !!porta, portaAnterior: anterior, novaPorta: porta };
 }
 
-module.exports = { iniciarServer, executar, decidir, parar, reiniciar, setEconomia };
+module.exports = { iniciarServer, executar, executarParalelo, decidir, parar, reiniciar, setEconomia };
