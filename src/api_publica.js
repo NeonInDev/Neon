@@ -322,6 +322,63 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/memoria" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const memoria = require("./memoria");
+        const q = new URL(req.url, "http://x").searchParams.get("q");
+        if (q) {
+          const r = await memoria.buscar(q);
+          responder(res, 200, { memorias: r, estatisticas: await memoria.estatisticas() });
+        } else {
+          responder(res, 200, { memorias: await memoria.listar(), estatisticas: await memoria.estatisticas() });
+        }
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/memoria" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const memoria = require("./memoria");
+        const chave = String(corpo && corpo.chave || "").trim();
+        const valor = String(corpo && corpo.valor || "").trim();
+        if (!chave) { responder(res, 400, { erro: "chave é obrigatória" }); return; }
+        const r = await memoria.lembrar(
+          chave,
+          valor,
+          corpo && corpo.categoria ? String(corpo.categoria) : "outro",
+          corpo && corpo.prioridade != null ? Number(corpo.prioridade) : 3,
+          corpo && corpo.expira ? String(corpo.expira) : null
+        );
+        responder(res, 200, { ok: true, mensagem: r });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/memoria" && req.method === "DELETE") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const memoria = require("./memoria");
+        const chave = new URL(req.url, "http://x").searchParams.get("chave");
+        if (!chave) { responder(res, 400, { erro: "chave é obrigatória" }); return; }
+        const r = await memoria.esquecer(chave);
+        responder(res, 200, { ok: true, mensagem: r });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/memoria/limpar-expiradas" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const memoria = require("./memoria");
+        const removidas = await memoria.limparExpiradas();
+        responder(res, 200, { ok: true, removidas });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     // Serve um arquivo STL arbitrário do sistema p/ o viewer 3D (HOLOMAT)
     if (req.url.startsWith("/api/stl") && req.method === "GET") {
       if (!exigeChave(req, res)) return;

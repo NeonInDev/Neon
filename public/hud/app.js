@@ -414,7 +414,7 @@
 
   // ============ ABAS ============
   const tabs = document.querySelectorAll(".tab");
-  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode"), projetos: $("viewProjetos"), projetos3d: $("viewProjetos3d"), holomap: $("viewHolomap") };
+  const views = { chat: $("viewChat"), terminal: $("viewTerminal"), arquivos: $("viewArquivos"), historico: $("viewHistorico"), tela: $("viewTela"), celular: $("viewCelular"), opencode: $("viewOpencode"), memoria: $("viewMemoria"), projetos: $("viewProjetos"), projetos3d: $("viewProjetos3d"), holomap: $("viewHolomap") };
 
   tabs.forEach((t) => {
     t.addEventListener("click", () => {
@@ -627,6 +627,105 @@
     } catch (err) { toast(err.message); }
   });
 
+  // ============ MEMÓRIA GLOBAL ============
+  const memList = $("memList");
+  const memStats = $("memStats");
+  const memBusca = $("memBusca");
+
+  const CATS = ["pessoal", "preferencia", "config", "conhecimento", "lembrete", "outro"];
+
+  function memItem(m) {
+    const el = document.createElement("div");
+    el.className = "mem-item";
+    const criada = m.criada ? new Date(m.criada).toLocaleDateString("pt-BR") : "";
+    const prioridade = m.prioridade || 3;
+    el.innerHTML = `
+      <div class="mem-head">
+        <span class="mem-chave">${escapeHtml(m.chave)}</span>
+        <span class="mem-prio p${prioridade}">P${prioridade}</span>
+        <span class="mem-cat">${escapeHtml(m.categoria || "outro")}</span>
+      </div>
+      <div class="mem-valor">${escapeHtml(m.valor || "")}</div>
+      <div class="mem-meta">${criada ? `criada ${criada} · ` : ""}acessos ${m.acessos || 0}${m.expira ? ` · expira ${new Date(m.expira).toLocaleDateString("pt-BR")}` : ""}</div>
+      <div class="mem-acoes">
+        <button class="btn small" data-edit="${escapeHtml(m.chave)}">EDITAR</button>
+        <button class="btn small danger-b" data-del="${escapeHtml(m.chave)}">APAGAR</button>
+      </div>`;
+    el.querySelector("[data-del]").addEventListener("click", async () => {
+      if (!confirm(`Apagar a memória "${m.chave}"?`)) return;
+      try {
+        await api(`/api/memoria?chave=${encodeURIComponent(m.chave)}`, { method: "DELETE" });
+        carregarMemoria();
+        toast("Memória apagada");
+      } catch (err) { toast(err.message); }
+    });
+    el.querySelector("[data-edit]").addEventListener("click", () => novaMemoria(m));
+    return el;
+  }
+
+  function renderMemStats(estatisticas) {
+    if (!estatisticas) { memStats.innerHTML = ""; return; }
+    const cats = Object.entries(estatisticas.categorias || {}).map(([c, n]) => `${c}: ${n}`).join(" · ");
+    memStats.innerHTML = `<span>total <b>${estatisticas.total}</b></span> · <span>P4+ <b>${estatisticas.alta_prioridade}</b></span> · <span>expiradas <b>${estatisticas.expiradas}</b></span>${cats ? `<br><span class="dim">${cats}</span>` : ""}`;
+  }
+
+  async function carregarMemoria() {
+    const q = memBusca.value.trim();
+    memList.innerHTML = '<div class="hist-empty">carregando...</div>';
+    try {
+      const url = q ? `/api/memoria?q=${encodeURIComponent(q)}` : "/api/memoria";
+      const r = await api(url);
+      const data = await r.json();
+      const mems = data.memorias || [];
+      renderMemStats(data.estatisticas);
+      memList.innerHTML = "";
+      if (!mems.length) {
+        memList.innerHTML = '<div class="hist-empty">Nenhuma memória salva ainda.</div>';
+        return;
+      }
+      mems.slice().sort((a, b) => (b.prioridade || 3) - (a.prioridade || 3)).forEach((m) => memList.appendChild(memItem(m)));
+    } catch (err) {
+      memList.innerHTML = `<div class="hist-empty">${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  async function salvarMemoria(chave, valor, categoria, prioridade) {
+    try {
+      const r = await api("/api/memoria", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chave, valor, categoria, prioridade }),
+      });
+      const data = await r.json();
+      if (data.ok) { carregarMemoria(); toast("Memória salva"); }
+      else toast(data.erro || "falha ao salvar");
+    } catch (err) { toast(err.message); }
+  }
+
+  function novaMemoria(existente) {
+    const chave = prompt("Chave (identificador):", existente ? existente.chave : "");
+    if (!chave) return;
+    const valor = prompt("Valor:", existente ? existente.valor : "");
+    if (!valor) return;
+    const prioridade = parseInt(prompt("Prioridade 1-5:", String((existente && existente.prioridade) || 3)), 10) || 3;
+    const categoria = prompt(`Categoria (${CATS.join(", ")}):`, (existente && existente.categoria) || "pessoal") || "pessoal";
+    salvarMemoria(chave.trim(), valor.trim(), categoria.trim(), prioridade);
+  }
+
+  $("btnMemAdd").addEventListener("click", () => novaMemoria());
+  $("btnMemAtualizar").addEventListener("click", carregarMemoria);
+  $("btnMemBuscar").addEventListener("click", carregarMemoria);
+  memBusca.addEventListener("keydown", (e) => { if (e.key === "Enter") carregarMemoria(); });
+  $("btnMemLimparExpiradas").addEventListener("click", async () => {
+    if (!confirm("Remover todas as memórias expiradas?")) return;
+    try {
+      const r = await api("/api/memoria/limpar-expiradas", { method: "POST" });
+      const data = await r.json();
+      carregarMemoria();
+      toast(`Removidas: ${data.removidas}`);
+    } catch (err) { toast(err.message); }
+  });
+
   // ============ TELA AO VIVO ============
   const screenImg = $("screenImg");
   let telaTimer = null;
@@ -683,6 +782,7 @@
       if (v === "projetos") { const f = $("frameProjetos"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
       if (v === "projetos3d") { const f = $("frameProjetos3d"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
       if (v === "holomap") { const f = $("frameHolomap"); if (!f.src && f.dataset.src) f.src = f.dataset.src; }
+      if (v === "memoria") carregarMemoria();
     });
   });
   window.addEventListener("keydown", (e) => {

@@ -378,6 +378,32 @@ input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16p
 .hist-t { font-size: 10px; color: var(--dim); letter-spacing: 1px; margin-top: 4px; }
 .hist-empty { padding: 24px; text-align: center; color: var(--dim); font-size: 13px; }
 
+/* ============ MEMÓRIA ============ */
+.mem-stats { font-size: 12px; color: var(--dim); margin-bottom: 10px; line-height: 1.6; }
+.mem-stats b { color: var(--acc); }
+.mem-stats .dim { color: var(--dim); }
+.term-input {
+  flex: 1; min-width: 0; background: var(--glow-faint); border: 1px solid var(--line);
+  color: var(--text); border-radius: 6px; padding: 8px 12px; font-size: 12px; outline: none; font-family: inherit;
+}
+.term-input:focus { box-shadow: 0 0 10px var(--glow-soft); }
+.mem-list { display: flex; flex-direction: column; }
+.mem-item { padding: 10px 12px; border-bottom: 1px solid var(--glow-faint); }
+.mem-item:last-child { border-bottom: none; }
+.mem-item:hover { background: var(--glow-faint); }
+.mem-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+.mem-chave { font-size: 13px; color: var(--acc); font-weight: 600; word-break: break-word; flex: 1; }
+.mem-cat { font-size: 9px; letter-spacing: 1px; color: var(--dim); border: 1px solid var(--glow-faint); border-radius: 4px; padding: 2px 6px; text-transform: uppercase; }
+.mem-prio { font-size: 9px; letter-spacing: 1px; border-radius: 4px; padding: 2px 6px; font-weight: 700; }
+.mem-prio.p1, .mem-prio.p2 { color: var(--dim); border: 1px solid var(--glow-faint); }
+.mem-prio.p3 { color: var(--accent); border: 1px solid var(--glow-soft); }
+.mem-prio.p4, .mem-prio.p5 { color: var(--orange); border: 1px solid var(--orange); }
+.mem-valor { font-size: 13px; color: var(--text); word-break: break-word; margin-bottom: 4px; white-space: pre-wrap; }
+.mem-meta { font-size: 10px; color: var(--dim); letter-spacing: 1px; }
+.mem-acoes { display: flex; gap: 6px; margin-top: 6px; }
+.btn.danger-b { border-color: var(--red); color: var(--red); background: rgba(255, 51, 85, 0.08); flex: 0 0 auto; }
+.btn.danger-b:hover { background: rgba(255, 51, 85, 0.18); }
+
 /* ============ TELA AO VIVO ============ */
 .screen-wrap { position: relative; flex: 1; min-height: 0; border: 1px solid var(--line); border-radius: 8px; background: rgba(0, 0, 0, 0.5); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 .screen-wrap img { max-width: 100%; max-height: 100%; object-fit: contain; display: none; }
