@@ -1,0 +1,278 @@
+{
+  "fonte": "Tabelas oficiais do servidor NEW GENESIS/BNHA (postagens do forum - copiadas em 2026-09).",
+  "quirks": [
+    {
+      "id": "cria_equipamentos",
+      "nome": "Criação Improvisada de Equipamentos",
+      "alias": ["equipamento", "equipamentos", "improv", "improviso", "gadget", "io"],
+      "tipo": "Emissora",
+      "resumo": "Identifica qualquer objeto como equipamento/arma. Criação SEM oficina: Básico 2 turnos; Médio 4 turnos (500 Q.I.); Avançado 8 turnos (1000 Q.I.); Superior 16 turnos (1500 Q.I.); Tecnológico 32 turnos (3000 Q.I.). A cada 300 pontos de Q.I. reduz 1 turno no tempo de criação (mínimo 1 turno, começando num turno e terminando em outro). O turno INTEIRO deve ser dedicado à criação. Equipamentos improvisados duram apenas a luta (gambiarra); materiais são escassos - ex.: raio laser precisa de calor (achar objeto que tenha isso) e a gambiarra precisa fazer sentido pra ser aprovada."
+    },
+    {
+      "id": "flight",
+      "nome": "Flight",
+      "alias": ["voo", "fly"],
+      "tipo": "Emissora",
+      "resumo": "Barreira aerodinâmica que permite voar, reduzir danos e anular peso. Redução de danos = % de controle (1% = 1% de redução), cap 80% (90% em gatilho). Barreira distribuível entre aliados/estruturas, mas reduz proporcionalmente a própria barreira e a espessura (quanto mais dividida, mais fina/fraca). Anulação de peso: 1% de controle = 2% de anulação; 100% de anulação com 50% de controle. Sem anular totalmente, vira questão da força do usuário. Anulação e redução trabalham juntas: 100% de controle + anular totalmente = restam 50% de redução de danos. Velocidade de voo: 5 ups iniciais, +1 up a cada 10% (total 15 ups); despreza sistema de aceleração (velocidade máxima instantânea). Consumo de vigor: Anulação = usos do 'número 4' (100% anulação ocupa 100% de 4 = 4 turnos de vigor por turno segurando); Redução = 'número 2.5' (reduzir 80% usa 80% de 2.5 = 2 turnos, por golpes - volta pra redução a cada golpe, golpes consecutivos são a fraqueza)."
+    },
+    {
+      "id": "whirlwind",
+      "nome": "Whirlwind",
+      "alias": ["ventos", "tornado", "vendaval", "furacao", "furacão"],
+      "tipo": "Emissora",
+      "resumo": "Manipula somente ventos que tocam SEU corpo; NÃO altera intensidade após gerar o vento (só direção e parcialmente a forma, obrigatoriamente ondulada ou circular tipo tornado). Foco em versatilidade e erguer coisas pesadas, nunca impacto bruto. Força de arrasto: até 5 toneladas (50kg a cada 1%); usada pra desprender construções, erguer coisas do chão e duelos de força - JAMAS causar dano, no máximo empurrar. Dano = atributo base de força do usuário (prensa/destrói coisas só no que o atributo atual permite). Distância máxima: 100 metros (1m a cada 1%). Velocidade de manipulação: 20 ups nos 100% (1 up a cada 5%)."
+    },
+    {
+      "id": "wave_motion",
+      "nome": "Wave Motion",
+      "alias": ["onda de moção", "onda", "vibracao"],
+      "tipo": "Emissora",
+      "resumo": "Ondas de moção com alto potencial destrutivo (sobrecarrega adversários resistentes). Força: 50kg a cada 1% = 2500KG totais; a força da emissão NUNCA soma com a do portador. Velocidade: começa 25kmph, +10kmph a cada 20% (50kmph no fim); ignora sistema de aceleração. Pode envolver o corpo: reduz 1 turno de aceleração de velocidade no início e 2 turnos nos 80%. Distância: +10m a cada 20% de controle (dos 5% aos 10% vai de 5m para 10m), 50 metros nos 100%; a cada 10 metros a partir de ti, -20% de potência (aos 50m dano insignificante) - funciona como escopeta. Segue o sistema de golpes consecutivos (extremamente poderoso pela continuidade da emissão). Sacrificar 1 ranque de vigor inteiro = +500kg na conta final do atributo principal."
+    },
+    {
+      "id": "whale",
+      "nome": "Whale",
+      "alias": ["baleia", "cachalote"],
+      "tipo": "Mutante",
+      "resumo": "Transforma partes do corpo em partições de cachalote (ossos, órgãos etc.) ou o corpo inteiro, na escala do animal verdadeiro. Pele/carne/ossos são destroçados durante a transformação (sofrimento tremendo), recuperados ao desfazer. Atributos: +4 ups de força e resistência a cada 10%, até 40 ups nos 100%. Transformação COMPLETA só aos 50%; antes disso, 1 partição singular por vez (braço vira coluna vertebral, defesa com corpo grosso, vértebras como ataque a distância). Tempo da mudança: instantes (ataques inesperados). Tamanho: ~20 metros (como baleias cachalotes). Jato d'água e Onda Sonora liberadas aos 50% (forma completa): jato com pressão fortíssima = 10 ups acima da sua de força, mesma coisa velocidade, alcance máx 20m, 1 metro de diâmetro; onda sonora = 193dB fixos, mesma mecânica que o jato."
+    },
+    {
+      "id": "hellflames",
+      "nome": "Hellflames",
+      "alias": ["chamas", "fogo", "fogo dabi", "hell fire"],
+      "tipo": "Emissora",
+      "resumo": "Manipulação elemental clássica; controle máximo atingido aos 50% (ápice de manipulação cedo), depois só atributos brutos escalam até 100%. Temperatura: máxima 3000°C, +30°C por 1% de domínio. Força = temperatura dividida por 4. Alcance: 2.5 metros base, +1 metro por 1%. (Pode gerar incêndios maiores que o alcance manipulativo.) Velocidade das chamas: 75KM inicial, +5KM a cada 20%; em distâncias < 1/4 do alcance total é de milésimos. Tempo de uso: base 2 turnos antes de superaquecer, +1 turno por ranque de Vigor; Prodígio de Vigor +1, Prodígio de Resistência +1. Usar menos de 75% da temperatura = tempo até superaquecimento dobrado. Superaquecimento: ao atingir o limite não pode usar a quirk por 3 turnos; em gatilho não existe limite mas o fogo começa a causar danos no usuário (já inicia com uma quebra forte) - começa a se matar usando a quirk."
+    },
+    {
+      "id": "heavy_payload",
+      "nome": "Heavy Payload",
+      "alias": ["payload", "amplificação", "amplificador", "buff emissao"],
+      "tipo": "Emissora",
+      "resumo": "Amplifica QUALQUER emissão, independente da natureza; nenhum tipo de individualidade não-emissora é afetado. Amplificação por porcentagem: aos 5% +2% na emissão, 10% +4%... 100% = 40% de ampliação geral. NÃO melhora controle, somente potência. Distância: o buff abrange apenas uma emissão que esteja TOCANDO continuamente (ou pessoa com individualidade emissora em uso). Ao desencostar, perde-se o efeito."
+    },
+    {
+      "id": "hardening",
+      "nome": "Hardening",
+      "alias": ["endurecimento", "kirishima", "rocha"],
+      "tipo": "Transformação",
+      "resumo": "Endurece músculos e carne (Kirishima). Resistência colossal: 50 ups de resistência total (1 up a cada 2%). Força também é adquirida mas sempre fica em 1/4 da resistência (no ápice: 25 ups de força). (Nota: o texto original cita '60 de resistência' no ápice - manter 50 ups de resistência / 25 de força como padrão.)"
+    },
+    {
+      "id": "hhhc",
+      "nome": "HHHC (Half Hot Half Cold)",
+      "alias": ["meio quente meio frio", "shoto", "gelo e fogo", "half cold"],
+      "tipo": "Emissora",
+      "resumo": "Fusão de dois extremos que anulam as desvantagens das duas. SISTEMA DE FOCO: escolhe se especializar em FOGO ou GELO - a parte escolhida segue a tabela correspondente (fogo = Hellflames; gelo = Frost). Alcance (sem técnicas): Gelo +1m a cada 1% (100m totais); Fogo +50cm a cada 1% (50m). Temperatura: +20°C a cada 1% no fogo (2000°C aos 100%); gelo -1°C a cada 2% (-50°C aos 100%). Velocidade: 75KM inicial, +5KM a cada 20%, milésimos se <1/4 do alcance. Manipulação (controle de fogo/gelo): só o que foi visto no anime a partir dos 40%. Resfriamento/Aquecimento: cada turno usando só um lado acumula Calor ou Frio; ao atingir 5 turnos consecutivos de um lado só, começa a queimar/sofrer queimaduras (de gelo ou fogo), temperatura batendo na resistência e começando com quebra Forte. Usar o lado oposto reduz o acúmulo negativo de um lado mas aumenta o do outro. Usar os DOIS ao mesmo tempo = nenhum acúmulo, mas consome o DOBRO do vigor."
+    },
+    {
+      "id": "gigantification",
+      "nome": "Gigantification",
+      "alias": ["gigante", "grande", "tamanho"],
+      "tipo": "Transformação",
+      "resumo": "Aumento de tamanho com força sobre-humana comparada a outros gigantes; o custo sempre vem. TAMANHO: limite 15x a sua altura, +2x a cada 10%; peso aumenta até 20x na utilização máxima (para cada X de altura, quatro de peso). ATRIBUTOS: soma o peso à força normal (golpes destrutivos); resistência soma 75% do peso. Desvantagem: a cada 1000kg obtidos perde 10% de aceleração nos ataques (máx de subtração = 20% - consulte as contas); velocidade de viagem continua a mesma (na real até aumenta). Limites: força máx 5500kg, resistência máx 4000kg."
+    },
+    {
+      "id": "gearshift",
+      "nome": "Gearshift (OFA)",
+      "alias": ["marchas", "velocidade", "gear", "ofa"],
+      "tipo": "Transformação",
+      "resumo": "4ª individualidade velocista mais poderosa (na opinião do autor). Multiplicadores de velocidade: +0,25x a cada 25% - 1ª marcha 1,25x, 2ª 1,50x, 3ª 1,75x, Top 2,0x (sobre o ATRIBUTO de velocidade; ups de privilégio que vão à base — Clamor da Alma, Ninja Urbano, Devastação etc — também são multiplicados). Usuário NÃO recebe agilidade pra enxergar enquanto usa. LOW GEAR (marcha lenta): aceleração instantânea, 1,25x, sem paralisia muscular (cansaço leve), spamável, -1/2 turno vigor extra. SECOND GEAR (30%): 1,5x, atribui velocidade a terceiros (metade do valor total da sua); troca de marcha exige 2 turnos SÓ para alvos externos (você não tem cooldown); pra aumentar velocidade em terceiros precisa REVESAR os toques (gear 1 touch, gear 2 touch... nos 4 turnos com os 4 toques o alvo tem Top Gear); pode usar o gear anterior pra buffar aliado (divide por 2); -1 turno vigor extra +1 por pessoa extra. THIRD GEAR (50%): 1,75x, diminui velocidade de outros ou a própria até zero, sem rebote/danos (cansaço corpóreo e mental); em outros = desaceleração de metade do valor da sua velocidade na marcha; paralisia começa no próprio corpo (limite de uso = ranques de resistência); -2 turnos vigor extra. TOP GEAR (75%): 2,0x, paralisia grotesca (limite = 3/4 dos ranques de resistência), perde 1/3 do ar dos pulmões, corpo quase em colapso; -4 turnos vigor extra. Obrigatório o movimento de 'passada de marcha' com as mãos a cada marcha nova."
+    },
+    {
+      "id": "frost",
+      "nome": "Frost",
+      "alias": ["gelo", "congelar", "criogenia"],
+      "tipo": "Emissora",
+      "resumo": "Manipulação elemental clássica; ápice de controle aos 50%, depois só atributos brutos. Cria 1 metro de gelo por 1% (100m no ápice). Velocidade: 75KM/h inicial, +5 a cada 20%; velocidade usada pra movimentação só deslizando no gelo (gerando pra trás como impulso). Temperatura: -25 inicial, -1 a cada 2% (-50 no ápice). Força: expulsar o gelo com ímpeto gera força - a cada -5 graus, 120kg de força no impacto. Tempo de uso: base 2 turnos antes de esfriar, +1 por ranque de Vigor; Prodígio de Vigor +1, Prodígio de Resistência +1; usar menos de 75% da temperatura = tempo até esfriamento dobrado. HIPOTERMIA: ao atingir o limite não usa a quirk por 3 turnos; em gatilho sem limite mas o gelo causa danos (já inicia com quebra forte). RESISTÊNCIA DO GELO: inicial = atributo do usuário; +20KG a cada -1 grau (quanto mais frio, mais resistente; mais difícil destruir paredes/pilares/escudos/esculturas)."
+    },
+    {
+      "id": "foldabody",
+      "nome": "Foldabody",
+      "alias": ["dobras", "dobravidades", "espessura", "fineza"],
+      "tipo": "Transformação",
+      "resumo": "Manipula a espessura do corpo: afinar ou achatar, esticar, agilidade e flexibilidade incomparáveis. Espessura: inicialmente só 1cm, +1 nível a cada 20% até 5cm (vira invisível a olho nu). DOBRAS: 5 dobradas iniciais, +5 a cada 10%; cada dobra = +15km/h (até 150km/h); 1 dobra = 1 metro de esticamento; controle de espessura de partes do corpo no início, influência completa aos 50%. Como fio: perfura quase tudo, ignora até 70% da resistência do alvo (1% no início, evolui até 70%). INEXISTÊNCIA: anular resistência anula você - cada uso dos 70% perde 20% da massa corporal (5 usos = morte); usar só 50% da redução = -10% da massa (10 usos); recupera 10% da massa após 24h on rp (precisa de tempo em casa). Ao estar fino, resistência fixa em D (podem partir você em dois/vários)."
+    },
+    {
+      "id": "floragrowth",
+      "nome": "Floragrowth",
+      "alias": ["planta", "flores", "kunieda", "verbs"],
+      "tipo": "Emissora",
+      "resumo": "Cultiva/controla plantas arroxeadas (trepadeiras, flores, carnívoras, fungos gigantes); parasita a vítima consumindo sua gordura pra ficar mais poderosa. Reprodução via fungos que soltam esporos pelo ar - onde atingir vira raiz/planta; inalado pela vítima = planta interna. Usuário NÃO controla a proliferação - ativar condena o local inteiro (praga mata tudo ao alcance dos esporos); única forma de parar: chamas matando tudo rápido antes dos novos fungos propagarem; mesmo se você desmaiar/morrer/ter a quirk apagada a proliferação continua. Tempo: esporo → 1 turno flor pequena → próximo turno planta adulta; cada fungo cria até 20 plantas novas, infinitamente. Manipulação por pensamento (mente colmeia); 2 plantas simultâneas por 1% (200 nos 100%); plantas se movem mas não saem de onde nasceram. Atributos de cada planta: 1000Kgf força (10kg/1%), 100km/h (1km/1%), 1200Kg resistência (12kg/1%). Consome 500g do alvo por turno; >metade do peso = morte por desnutrição (efeitos anteriores podem virar técnica); consumir 1kg = +1% nos atributos da planta criada daquele corpo (alvo 100kg+ consumido = planta 100% mais forte). Tamanho: 50cm naturais por planta; videiras/raízes/galhos até 5m (aumentam proporcionalmente a gordura consumida)."
+    },
+    {
+      "id": "fierce_wings",
+      "nome": "Fierce Wings",
+      "alias": ["penas", "asas", "hawks", "plumas"],
+      "tipo": "Mutante",
+      "resumo": "Atributos/efeitos alocados nas penas e na agilidade do usuário. Penas rígidas e flexíveis (uma pena move uma pessoa); variam em tamanho, resistência e capacidade de corte. PENAS: 25 iniciais, +5 a cada 1% até os 50% (150 penas no máximo). Força/resistência das penas = 75% dos atributos físicos do usuário (nos respectivos atributos). Tamanho da pena: +1m a cada 25% (4m nos 100%); cada metro = +2 ups temporários em força e resistência na pena. Sensorial: usa a agilidade do personagem + ups adquiridos (+2 ups de agilidade a cada 20%, não começa com nenhum). Regeneração: descansar 1 dia completo = +25% das penas perdidas. Controle telecinético = 75% do atributo base; velocidade = 75% da velocidade de voo. ASAS: possuem o dobro da altura do usuário (crescem com o corpo); a cada 15 penas usadas pra moldar asas, +1 up de velocidade (no voo apenas)."
+    },
+    {
+      "id": "fa_jin",
+      "nome": "Fa Jin",
+      "alias": ["energia cinetica", "acúmulo", "acumulo", "kinetic"],
+      "tipo": "Emissora",
+      "resumo": "Gera/acumula energia cinética em todo movimento. Porcentagem define quanto pode acumular com segurança. ULTRAPASSAR a porcentagem de acumulação causa dano da própria individualidade (usar 50% tendo 25%); acima de 60% da capacidade a resistência é desconsiderada - sempre há danos. Usar até a própria capacidade (ex.: 100% usar 40%) = sem dano. Danos = 75% da força do ataque contra sua resistência. Esse sistema só vale pra sua porcentagem; limite de ultrapassagem = DOBRO da sua % atual (10% permite 20% de Fa Jin), danos garantidos nesse nível extra. Parado: perde metade da acumulação por turno. Prodígio em FORÇA: +10% no limite de ultrapassagem. AUMENTOS: +15kgf e +2kmph por 1% acumulado (1500kgf e 200kmph nos 100%). ACÚMULO por movimento: Leves (corridas curtas, socos fracos, pulos pequenos) +2%; Intensos (impulsos distantes, golpes com mais da metade da força, corridas aceleradas) +5%; Explosivos (tudo de si do corpo) +10%."
+    },
+    {
+      "id": "explosion",
+      "nome": "Explosion",
+      "alias": ["explosao", "bakugo", "bombas"],
+      "tipo": "Emissora",
+      "resumo": "Ondas de choque ígneas destrutivas, versátil em curto/médio/longo alcance. ALCANCE: longo, 100m totais base, +1m a cada 1% de controle; área além de 50% do alcance total tem 50% menos força (ex.: 100m de alcance, os 51-100m = 50% da força). POTÊNCIA: 25 a cada 1% = 2500kgf no impacto; velocidade de propagação da onda de choque = 250, fixa, mesma da locomoção; temperatura baixa (quase irrelevante). Fator quirk: completamente imune à própria explosão (explosão megalomaníaca = só um soco forte). FRAQUEZA FRIO: ignição da nitroglicerina mais lenta (propagação pela metade - funciona como motor que precisa aquecer). REBOTE: braços expostos a impactos brutais com dor a longo prazo; explosões >80% da potência causam desgaste da resistência; 2 usos em uma luta = quebra de resistência nos braços; esse valor aumenta em 2 a cada 2 ranques de resistência (até 10 explosões de alta potência antes de quebra de postura). DESPERTAR (CLUSTER): suor gerado por todo o corpo impregna o ambiente - basta uma fagulha pra destruir tudo; exige movimentos frenéticos e tempo (quanto mais tempo sem usar, mais forte). A cada turno espalhando suor +1 tonelada na explosão (2 turnos = 3500kg); explosões regulares com o despertar = 3000kg; não usar aumenta a Força até 3x = 6000kg. Alcance no despertar: dobra o padrão; com suor espalhado exploda toda a extensão. FRAQUEZA do despertar: forçar suor força o corpo - vigor cortado pela metade, exaustão em dobro, e ao fim do gatilho com 80% a menos de vigor VOCÊ MORRE; zerar vigor também morre."
+    },
+    {
+      "id": "engine",
+      "nome": "Engine",
+      "alias": ["motores", "ido", "pernas", "tenya"],
+      "tipo": "Transformação",
+      "resumo": "Motores orgânicos nas pernas com propulsão extrema (fluido corporal tipo combustível). Controle define equilíbrio entre potência, estabilidade e tempo de uso (superaquecimento/consumo irregular reduzem desempenho). Sempre acompanha a própria velocidade no quesito reação, mas precisa treinar agilidade pra controlar deslocamentos bruscos. VELOCIDADE: 2% = +1km/h; começa com +15KM/h extra, +10KM/h extras aos 50%, finaliza 75KM/h base. Combustível natural: único e inalterável (escolhe um suco, refrigerante, etc.). FORÇA: usando a parte propulsionada (ou qualquer parte na velocidade máxima) +30 ups de força (1 a cada 5%, começa com 10). TROCA DE MOTORES: possível 1 vez a cada 20% atingido; fornece fixamente +1 up de velocidade; após o processo, repouso por 2 dias off RP pra se recuperar."
+    },
+    {
+      "id": "air_wall",
+      "nome": "Air Wall",
+      "alias": ["parede de ar", "muro", "barreira de ar", "reflexão"],
+      "tipo": "Emissora",
+      "resumo": "Solidifica o ar na frente das palmas; ao absorver um ataque, devolve ar com alta pressão baseado na força absorvida. Só devolve após absorver; barreiras sempre próximas das mãos (posição controlada movendo as mãos). QUANTIDADE: até 6 barreiras uma à frente da outra (2 iniciais +1 a cada 25%). Resistência NÃO soma entre barreiras em sequência - só reduz o dano sofrido pela subsequente baseado na resistência da que quebrou primeiro. DEVOLUÇÃO: sempre devolve 25% da força do ataque absorvido + acréscimo da tabela (+2 ups a cada 10%, até +20 ups na força absorvida). RESISTÊNCIA: própria das barreiras (não soma com atributo); ápice 70 ups = 1750KgF de durabilidade; início 5 ups, +7 ups a cada 10%; ao atingir 70 para de evoluir - só volta a evoluir em quebra de porcentagem (>100%)."
+    },
+    {
+      "id": "electrification",
+      "nome": "Electrification",
+      "alias": ["eletricidade", "choque", "raio", "kaminari"],
+      "tipo": "Emissora",
+      "resumo": "Acumula eletricidade e libera como aura protetora ao redor do corpo ou em direções. Ao ultrapassar a resistência do corpo fica demente (burro e inofensivo, incapaz de usar a quirk). Sem fator de manipulação - só libera pelo corpo, não altera a forma. WATTS: +30 watts a cada 1% = 3000 watts nos 100% (super shock). Ajusta a potência da liberação (mais fraca ou mais forte). AGILIDADE: liberar eletricidade perde agilidade como troca - cada 300 watts usados = -1 up de agilidade, até zerar completamente (demente, incapaz de acessar a quirk)."
+    },
+    {
+      "id": "blackhole",
+      "nome": "Black Hole",
+      "alias": ["buraco negro", "sucção", "thirteen"],
+      "tipo": "Emissora",
+      "resumo": "Destruição total (sistema de quebra de resistência e golpes consecutivos). ALCANCE²: potência inicia em 5%, alcança 2,5m, +0,75m a cada 10%; largura do alcance sem equipamento correto pode ficar descomunal (10m iniciais +10m a cada 10%) - uso descontrolado onde o primeiro alvo é você mesmo. O que aumenta a força são os DEDOS. FORÇA³: 10 ups fixos por dedo = 100 ups disponíveis desde o início, não evolui. Funcionamento³: começa com equipamento básico (ideal: traje estilo Thirteen); sucções contam como golpes consecutivos (força aumenta pelo sistema); resistência do traje importa (destruído = arriscado manter ativa sem morrer); a cada 2 dedos usados +1 turno de vigor (até 6 turnos por ação: 5 da individualidade + 1 da ação própria). Equipamento equilibra a largura em 1m, +1m a cada 10% até 10."
+    },
+    {
+      "id": "elasticity",
+      "nome": "Elasticity",
+      "alias": ["elásticos", "trampolim", "elasticidade"],
+      "tipo": "Emissora",
+      "resumo": "Transforma qualquer coisa tocada (líquidos, sólidos, até o ar) em trampolim que devolve danos físicos diretos. QUANTIDADE: 20 elásticos nos 100% (+1 a cada 4%). TAMANHO: 1cm a cada 1% = 10m nos 100% (pode tornar um prédio uma gelatina). RESISTÊNCIA: 10 ups iniciais +2 a cada 10% = 30 ups (NÃO soma com atributos do usuário); impactos Físicos completamente negados e devolvidos na mesma direção (apenas ataques desarmados/não perfurantes; é preciso receber o ataque diretamente e não dá pra escolher a direção). PESO: aguenta grande quantia (elásticos esticam pra distribuir o peso) = triplo da resistência = 60 ups fixos imutáveis. VELOCIDADE/ARREMESSO: 15 ups (1 a cada 10%, começa com 5); agilidade NÃO é ganha ao ser arremessado. DURAÇÃO: 2 turnos iniciais +1 turno a cada ranque de vigor; Prodígio +2 turnos. Limitação: NÃO pode retirar elásticos colocados - espera 11 turnos pra voltarem até você (são invisíveis)."
+    },
+    {
+      "id": "blackwhip",
+      "nome": "Blackwhip",
+      "alias": ["chicote", "chicotes", "energia preta", "garras"],
+      "tipo": "Emissora",
+      "resumo": "Chicotes de energia que grudam em superfícies (tipo gosma), controlados pelos movimentos. Atrelada ao emocional - gatilho desbloqueia potencial absurdo. Estado fortificado só durante gatilho; chicotes saem de qualquer parte do corpo (usáveis pra reforçar o próprio corpo). QUANTIDADE: 4 chicotes iniciais +2 a cada 10% = 24 máx simultâneos; gatilho = +metade do valor atual de chicotes. FORÇA: soma com a sua, 10 ups iniciais +3 a cada 10% = 40 ups no máx; gatilho +10 ups em cada chicote. NÃO SOMA se fundir chicotes (pra prender/esmagar usa golpes consecutivos a cada turno com o alvo preso). Feita principalmente pra puxar/suportar pesos, não bater. RESISTÊNCIA: 5 ups base +2 a cada 10% = 25 (lida bem com ataques físicos). VELOCIDADE: saem +5 ups fixos mais rápido que o portador (acrescentável à própria velocidade pra se impulsionar). ALCANCE: 10m iniciais +4m a cada 10% = 40m; pode gerar chicotes de chicotes (direcionáveis por controle manual do corpo ou do chicote inicial)."
+    },
+    {
+      "id": "dragon",
+      "nome": "Dragon",
+      "alias": ["dragão", "drago", "wylbur"],
+      "tipo": "Transformação",
+      "resumo": "Transforma o corpo COMPLETAMENTE em dragão alado preservando características humanóides (rosto). Transformação sempre total (nunca parcial; despertares podem desbloquear parcialidades), sempre no máximo do tamanho atual. FORÇA: 5 ups base +4 a cada 10% = 45 ups somatórios. RESISTÊNCIA (mais elevada): 20 ups passivos base +1 a cada 2% = 70 ups adicionais. VELOCIDADE (inversa): 8 ups iniciais na velocidade de vôo (SÓ vôo), cai pra 4 ups acima de 60%. TAMANHO: 4m base +2m a cada 20% = 12m. PESO: +500 quilos natural, +1 tonelada a cada 50% (fecha em 2.500). Peso não soma na força - usado separadamente em ações específicas."
+    },
+    {
+      "id": "blast",
+      "nome": "Blast",
+      "alias": ["luz", "laser", "projéteis de luz", "emissão luminosa"],
+      "tipo": "Emissora",
+      "resumo": "Emissão de energia luminosa que explode alvos ao acertar; a luz prejudica até o próprio portador se exposto em excesso (proteção ocular pode ser vantagem ou desvantagem). QUANTIDADE: 5 projéteis por turno, +5 a cada 25% = 25 disparos/turno nos 100%. Ultrapassar metade dos disparos/turno = vigor consumido em dobro (2 turnos). Usar a quantidade máxima é extremamente exaustivo (deve aguardar). ATRIBUTOS: força própria da emissão (NÃO soma com a sua) = 3 ups base +3 a cada 10% = 33 ups nos disparos. Velocidade própria dos projéteis = 6 ups base +1 a cada 10% = 16 ups no ápice. Força dos projéteis não soma; considere o sistema de golpes consecutivos ao acertar."
+    },
+    {
+      "id": "double",
+      "nome": "Double",
+      "alias": ["clone", "clones", "twice", "duplicata"],
+      "tipo": "Transformação",
+      "resumo": "Clona qualquer pessoa/objeto/si mesmo DUAS vezes (uma por mão) desde que tenha as medidas EXATAS (milimétricas: altura, largura, peso, tamanho do pé, comprimento capilar, tamanho das unhas das mãos e pés). Clone espelha TODAS as habilidades, privilégios, atributos, consciência e individualidade do original (uso livre), EXCETO a resistência (dividida). Clones NÃO geram clones (limitado a 3 pessoas em campo: você + 2 duplicatas; diferente da obra, sem 'potencial de destruir o mundo'). Clones têm consciência própria (imutável) - podem trair se o dono narrar, se sentirem ameaçados ou perceberem que são clones. 1º clone = resistência ÷2; 2º clone = ÷4. Até o clone morrer, não é possível criar outro. Reforço: precisa de TODAS as medidas, milimetricamente calculadas."
+    },
+    {
+      "id": "decay",
+      "nome": "Decay (base)",
+      "alias": ["decaimento", "tomura", "shigaraki", "podridão", "apodrecer"],
+      "tipo": "Emissora",
+      "resumo": "Deterioração por contato. ESTÁGIOS: 5-25%: incapaz de desintegrar ser vivo por inteiro - no máximo descasca a superfície (corroendo como apodrecimento lento, envelhecendo até o interior exposto). 26-40%: desfaz as 3 camadas da pele em contato prolongado (expõe ossos/arcabouço; segundos narrativos). 41-70%: transforma a superfície em pó deslizando o toque (nem ossos resistem em segundos). 71%+: toque atravessa humanos/casa instantaneamente. SEM PROPAGAÇÃO - só o que toca + área ao redor da palma, não a estrutura inteira. TEMPO: estágio 1 = 4 turnos de contato, estágio 2 = 3 turnos, ... último estágio = 1 toque na ação e tudo rui. DEDOS: requer os 5 dedos pressionados; -1 dedo a cada 25% = 1 dedo no ápice. DESPERTARES (escolhe 1 por vez, pode ter os 3): PROLIFERAÇÃO - espalha por toda superfície e o que estiver em contato (limitado ao contato): 5m a cada 1% = 500m; ainda limitado pelos dedos (ápice: cada dedo = 100m; princípio: 1 metro por dedo; usa todos pro alcance total). POTÊNCIA - proliferação reduzida a um único alvo: desintegra a estrutura inteira com UM toque (exemplo do texto: 'explosão letal' vs proliferação 'ação lenta em cadeia'; reduz tempo - 1 min base aos 5% - até ausente no máximo). REPARAÇÃO - reconstrói SOMENTE o que você mesmo destruiu: a cada 25% traz 'uma parcela' (ex.: desfez braços + pernas, devolve um por toque); 100% = restitui do zero com um toque."
+    },
+    {
+      "id": "bombify",
+      "nome": "Bombify",
+      "alias": ["explodir corpo", "auto explosão", "curar explodindo"],
+      "tipo": "Transformação",
+      "resumo": "Explode próprias partes do corpo pra causar dano e se cura gradualmente. Explosão restrita ao próprio - NÃO separa partes pra explodir depois. Coração e cérebro NÃO curam pelos próprios danos (se a conexão entre esses órgãos ou eles mesmos forem comprometidos, não se cura); cura apenas de danos AUTO infligidos, não externos. REGENERAÇÃO: 4 turnos (leves), 8 (medianos), 10 (graves); -1 turno a cada 25% = 1 turno leve, 4 mediano, 6 grave nos 100%. Danos novos/cérebro/coração durante a cura reiniciam o tempo. FORÇA: explosões cobrem poucos centímetros do corpo; +3 ups a cada 10% começando com 10 = 40 ups no aumento de força (SOMA com o atributo do usuário). Mesma força para todas as explosões (detonar por completo não soma as forças)."
+    },
+    {
+      "id": "brainwashing",
+      "nome": "Brainwashing",
+      "alias": ["lavagem cerebral", "controle mental", "shinso", "hipnose"],
+      "tipo": "Emissora",
+      "resumo": "Controla o corpo dos outros quando TEM um diálogo RESPONDIDO (ativa pela fala). Funciona em múltiplos alvos, mas quanto mais alvos pior o controle. DURAÇÃO: 4 turnos, +1 a cada 20% = 9 turnos; -1 turno por pessoa adicional sob controle. POTÊNCIA em 4 níveis: 1º (5-25%) CONFUSÃO - só coordena movimentos superficiais (lentos, sinais de estranheza, sem natureza no comportamento - escudos de carne). 2º (26-40%) CONTROLE - ações mais complexas e movimentos gerais, falam com dificuldade, mais neutros (dá pra falsificar informações). 3º (41-70%) PERDIÇÃO - parecem pessoas normais, agem sem dificuldade, lutar vira viável (servos de verdade). 4º (71%+) LAVAGEM CEREBRAL - controle total e deliberado sobre as ações."
+    },
+    {
+      "id": "cell_activation",
+      "nome": "Cell Activation Type O",
+      "alias": ["regeneração", "cura", "cells", "regen", "tipo o"],
+      "tipo": "Emissora",
+      "resumo": "Ativa células pra se dividirem rápido e curar pele/osso/músculo. VELOCIDADE por nível de ferimento: Superficiais: 6 turnos inicial, -1 a cada 25% + -1 extra aos 100% = 1 turno no 100%. Agravantes: 8 turnos inicial, -1 a cada 20%. Mortais: 10 turnos, -1 a cada 25% = 5 turnos no 100%. ACELERAR com vigor: sacrifica vigor pras feridas - antes dos 50% reduz 1 turno, após 50% 1,5 turno (por ranque de vigor sacrificado); após 60% vira meio ranque; reduzir 3 turnos = 1 ranque inteiro após 60%. POTÊNCIA em etapas a cada 25%: LEVE - pequenos cortes, hematomas, pequenas fraturas de ossos, alivia dor, repara fibras musculares rompidas; BÁSICA - ossos quebrados, cortes médios e hemorragias apaziguados; AVANÇADA - cortes profundos cicatrizam, ferimentos internos tratados, regenera membros perdidos e órgãos de danos irreversíveis EXCETO cérebro e alvos mortos (perdeu um braço? poucos segundos e volta)."
+    },
+    {
+      "id": "dark_shadow",
+      "nome": "Dark Shadow",
+      "alias": ["sombra", "tokoyami", "sombra negra"],
+      "tipo": "Transformação",
+      "resumo": "Manifesta um Dark Shadow com 'energia escura' acumulada em ambientes escuros (desperto; não acumula dormindo). ACÚMULO: +1 nível por hora em ambiente escuro (máx 4); em batalha +1 nível a cada 10 turnos. ATRIBUTOS: +7,5kg de força por 1% (750kg no 100%); +1 up de resistência a cada 10% (inicia em 6 = 16 no 100%); +1 up de velocidade a cada 25% (4 ups). TAMANHO: 1m em todas as dimensões (forma alterável livremente - é sombra), +1m a cada 20%. NÍVEIS: 1º = 750 força / 16 resistência; 2º = 1500 / 32; 3º = 2250 / 48; 4º = 3750 / 80. Valores não somam com a força do usuário (só com privilégios de espírito ou maestrias como artes marciais/armas). Todos os valores no 100% (evolução = força bruta multiplicada). Tamanho também escala. ESGOTAMENTO por luz: Luz Intensa (fogo corpo a corpo, feixes de luz, eletricidade) = 3 turnos; Luz Fraca (dia, sol na cabeça) = 6; Sombra (cortina tampando, guarda-sol) = 12; Luar (lua apenas) = 24; Escuridão Total = eterno (até o corpo não aguentar). Na escuridão total um ataque de luz destrói o Dark Shadow (iluminar o cenário inteiro por 3 turnos OU um ataque absurdamente potente - ex.: Prominence Burn ou raio de Wave Motion). Perder um braço: gasta 2 turnos de existência pra regenerar. Nível alto sob luz alta = pior desempenho (último nível em lugar abaixo de 'Sombra' consome 4 turnos inteiros)."
+    },
+    {
+      "id": "chimera",
+      "nome": "Chimera",
+      "alias": ["quimera", "animais", "chojuro"],
+      "tipo": "Transformação",
+      "resumo": "Unifica características animalescas - escolhe 5 animais. O primeiro (criatura inicial) dita o foco; explorar TODAS as características dele. Os outros 4 animais: 1 característica apenas cada. Após criar/usar um animal não dá pra descartar e trocar. EVOLUÇÃO: +1 animal a cada 25% (ao desbloquear, técnica explicando criatura + característica aplicada); 100% = criatura MÍTICA, com 1 particularidade emissora inspirada na escolha (dragão = rajada de fogo, wendigo = petrificar no olhar...), potência Near Meta (convencionais = média). ATRIBUTOS (bases por foco): FORÇA = 100 ups/20 resist/10 vel; RESISTÊNCIA = 120 resist/20 força/10 vel; VELOCIDADE = 35 vel/20 força/20 resist; AGILIDADE = 40 agil/20 no restante. LIBERTAÇÃO TOTAL: tudo sobe um tier de força (mítica vira Meta, outras Near Meta; definir na técnica) mas perde o TRIPLO de vigor por turno."
+    },
+    {
+      "id": "comic",
+      "nome": "Comic",
+      "alias": ["onomatopeias", "cara de balão", "balão de fala", "comics"],
+      "tipo": "Emissora",
+      "resumo": "Gera onomatopeias espelhadas num balão de fala PRESENTE NA TUA CABEÇA (diferente da obra) - a onomatopeia é espelhada no balão ANTES de ser criada (se a fala for interrompida ou o balão destruído, sem efeito temporariamente). Balão recompõe-se em 2 turnos em batalha ou 2 horas fora. QUANTIDADE: até 16 onomatopeias por técnicas; 2 base +1 a cada 10%, +2 aos 50%, +2 aos 100%. Não contam pro limite de técnicas (só via slots da própria tabela). POTÊNCIA: Força entre 35 e 70 ups (máx se puramente destrutiva; metade se tiver outro atributo) - 4 ups base, +6 a cada 10%; NÃO soma com seus atributos. Velocidade 10-20 ups próprios (idem; se foca num, outro fica metade). Resistência 20-40 ups adicionais no balão/onomatopeia (mesma fórmula). Atributo parcelado = metade (ex.: foco em força com os três = 30 força / 8 velocidade / 5 resistência - metade da metade). Efeitos de eletricidade/calor têm limites definidos nas técnicas. DURABILIDADE: 4 ups base +2 a cada 10% = 24 ups próprios (não soma). Onomatopeia focada em resistência deve ser SÓ resistência (soma pouco com a durabilidade)."
+    },
+    {
+      "id": "cremation",
+      "nome": "Cremation",
+      "alias": ["dabi", "chamas azuis", "queimar"],
+      "tipo": "Emissora",
+      "resumo": "Mais forte e volátil emissão de calor (Dabi). Ausência de resistência às próprias chamas = fraqueza; pequeno aumento de 35% de redução a danos de temperatura (sistema de Sem acesso). FORÇA = total da temperatura dividida por 4. GRAUS: 1000°C no começo, +3°C a cada 1% até 4000°C (evolução NATURAL para; privilégios/fatores externos podem ultrapassar). GATILHO: +60°C a cada 1% (emoções explosivas); 2º gatilho (quase morte) +80°C a cada 1%. ALCANCE: 100m bruto (+1m/1%); tamanho máx 50m (+1m a cada 2%). MANIPULAÇÃO: só aos 40% (brusca - chamas grossas, robustas, violentas, não lineares como Endeavor). VELOCIDADE: ocupa 1/4 da área em milésimos (alcançou); 75km/h base +5km/h a cada 10%; usável pra voos/avanços desconsiderando atributos. TÉCNICAS: normais usam os 4000°C; em gatilho usa 30% da temperatura adquirida no gatilho (2º gatilho = até 1800°C pra técnica). DESPERTAR (floco de neve no peito, após 100% e situação extrema/morte): resfriar o próprio corpo - a cada 2% reduz -1°C, total -50°C (bloqueio térmico de ~2000 graus descontados das chamas antes do dano). Duração: +1 turno a cada 33% = 3 turnos próprios em sequência POR COMBATE (usou tudo, descansa até o próximo combate - corpo quente demais)."
+    },
+    {
+      "id": "compress",
+      "nome": "Compress",
+      "alias": ["comprimir", "bolinhas de gude", "mr compress", "compression"],
+      "tipo": "Emissora",
+      "resumo": "Comprime tudo que toca em bolinhas de gude guardáveis (liberta depois). Precisa tocar o alvo primo, mas o que é comprimido pode ser além do tocado (ex.: Dabi + chamas/areia ao redor). COMPRIMIR: força padrão PRÓPRIA (não soma com a sua) = 5 ups base +7 a cada 10% = 80 ups (2000kg). Oponente mais forte: mais toques ou turnos de contato (2000 vs 4000 = 2 toques em ações diferentes ou 2 turnos de contato direto). Velocidade da compressão = instantânea desde que você supere a força (se jogarem algo, só precisar superar pra tocar). TAMANHO: até 10m por esfera (10cm a cada 1%); zona de compressão = metade do seu tamanho máx de armazenamento (~5m de área nos 100%) além do alvo tocado; ainda precisa tocar o alvo primário pra ativar."
+    },
+    {
+      "id": "zombie_virus",
+      "nome": "Zombie Virus",
+      "alias": ["zumbi", "virus", "gás rosado", "mordida"],
+      "tipo": "Emissora",
+      "resumo": "Libera gás rosado do corpo; inalado transforma vítimas em zumbis temporários (aparência cadavérica; perseguem/mordem só não infectados; quirks de usuários infectados disparam aleatórias e instáveis; retêm fragmentos de personalidade mas função cognitiva zero). Transmissível por MORDIDA (infectados viram vetores independentes). Usuário NÃO é imune ao próprio gás - máscara obrigatória. EMISSÃO: raio +5m a cada 10%, de 5m (10%) a 50m (100%); gás dissipa 3 turnos fora do alcance; persiste indefinidamente enquanto emite. Evitável: prender respiração, máscaras, filtros, ataques que dispersem o gás. ZOMBIFICAÇÃO: 12 turnos aos 10% para completa, -1 a cada 10% (mín 2 nos 100%). ATRIBUTOS dos zumbis: +2 força e +2 resistência a cada 10% (+20 cada nos 100%). TRANSMISSÃO: mordida = +2 turnos sobre o tempo base (2 turnos no seu máx, 4 na mordida). DURAÇÃO: estado zumbi 2 turnos aos 20%, +2 a cada 20% = 10 nos 100%; fim: volta ao normal sem sequelas físicas, memória fragmentada. LIMITAÇÕES: usuário não imune; inerte contra alvos sem sistema respiratório funcional; prender a respiração sempre viável (até o fim?); qualquer ser com aparência zumbi é reconhecido e ignorado pelos infectados."
+    },
+    {
+      "id": "mummification",
+      "nome": "Mummification",
+      "alias": ["múmias", "mumia", "faixas", "bandagens"],
+      "tipo": "Emissora",
+      "resumo": "Cria/controla múmias de faixas que obedecem comandos diretos. Múmias somam velocidade à do usuário e podem se afastar no máximo 10-20m em qualquer % (máx 20m). DIFERENCIAL: objeto mumificado retém os atributos do que foi transformado (carro = massa/resistência/função de carro; metal = atributos do metal) - soma aos ganhos da tabela; raridade segue o sistema de equipamentos do servidor. ESCALONAMENTO: 5-10%: até 50cm, sem ups, controle 2 múmias; 10-20%: 1,5m, +4 Força/+1 Vel, 4 múmias; 20-30%: 2,5m, +7/+1, 6; 30-40%: 5m, +10/+1, 8; 40-60%: 8m, +13/+1, 10; 60-80%: 10m, +16/+1, 15; 80-90%: 15m, +20/+1, 20; 90-100%: 20m, +22/+1 (soma à velocidade do equipamento), 25 múmias. GATILHO: +5 múmias adicionais acima do limite + todas recebem +5 Força e +2 Velocidade. LIMITAÇÕES: máx 20m de distância; raridade do item é determinante (sem raridade = básico); perder foco/concentração desativa múmias ativas."
+    },
+    {
+      "id": "helical_scythe",
+      "nome": "Helical Sythe",
+      "alias": ["apendices", "helice", "serras", "helicoidal"],
+      "tipo": "Mutante",
+      "resumo": "12 apêndices helicoidais controláveis (10 nos dedos + 2 na testa, tipo chifres), todos disponíveis desde o início. Movimento helicoidal permite REDIRECIONAR fogo, água e ar já presentes (SEM gerar; apenas manipula/re-direciona; se não há fogo no ambiente não há manipulação de fogo). REGENERAÇÃO dos apêndices: 7 dias inicial, -1 dia a cada 15% (mín 1 dia aos 95%). FORÇA: +4 ups a cada 10% = +40 (=1000kg por apêndice). VELOCIDADE: 2 ups iniciais +1 a cada 10% = +12 (=60km/h acima da base). PERFURAÇÃO CONTÍNUA: golpes consecutivos no mesmo alvo adicionam +15% da força total do apêndice no impacto daquele turno (rotação aprofundando o contato); ignoram 10 ups de resistência do alvo; zera o acúmulo ao mudar de alvo ou perder contato por um turno inteiro. ALCANCE: 1m a cada 2% = 50m no 100%; cada apêndice age independente sem afetar os demais. REDIRECIONAMENTO: puramente tático (deflectir ataques de volta, redirecionar correntes/chamas ativas); construções complexas dependem de técnicas. LIMITAÇÕES: perda de apêndice reduz capacidade; ramificações excessivas comprometem os atributos do apêndice; sem elementos no ambiente o redirecionamento é inoperante."
+    },
+    {
+      "id": "copy",
+      "nome": "Copy",
+      "alias": ["copia", "copiar quirk", "monoma"],
+      "tipo": "Emissora",
+      "resumo": "Usa a individualidade do oponente pelo CONTATO físico direto. Armazena múltiplas quirks no corpo; copia várias ao mesmo tempo mas usa UMA por vez; trocar entre elas = -1 turno de duração. ARMAZENAMENTO: +1 quirk a cada 20% = 6 no total aos 100%. Ao copiar, considera SÓ A SUA porcentagem (não a do alvo). DURAÇÃO: 3 turnos iniciais +1 a cada 10% = 10 turnos máx; a duração é consumida mesmo sem estar em uso; off rp converte turnos em horas."
+    }
+  ]
+}

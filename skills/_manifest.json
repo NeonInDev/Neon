@@ -55,6 +55,20 @@
       "arquivo": "kick_member.js",
       "criadaEm": "2026-09-09T13:21:58.185Z",
       "atualizadaEm": "2026-09-09T13:21:58.185Z"
+    },
+    {
+      "id": "quirk_tabela",
+      "nome": "quirk_tabela",
+      "descricao": "Consulta a métrica/tabela oficial de uma quirk do servidor BNHA/NEW GENESIS pelo nome. Uso: skill_quirk_tabela | [nome da quirk | listar]",
+      "prefixos": [
+        "Neon, qual a tabela da (QUIRK)",
+        "Neon, qual a métrica da (QUIRK)",
+        "Neon, me fala a métrica da (QUIRK)",
+        "Neon, como funciona a quirk (QUIRK)"
+      ],
+      "arquivo": "quirk_tabela.js",
+      "criadaEm": "2026-09-11T00:00:00.000Z",
+      "atualizadaEm": "2026-09-11T00:00:00.000Z"
     }
   ],
   "versao": 1
