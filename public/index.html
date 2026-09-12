@@ -6,7 +6,16 @@
 <title>Neon</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
-<script src="/socket.io/socket.io.js"></script>
+<script>
+function hudKey() {
+  let k = localStorage.getItem("hud_key");
+  if (!k) {
+    k = prompt("Digite a chave de acesso (MASTER_KEY do .env):");
+    if (k) localStorage.setItem("hud_key", k);
+  }
+  return k;
+}
+const OWNER_ID = "1442928336329379925"
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{--bg:#0a0a0f;--card:#12121a;--border:#1e1e30;--text:#c0c0d0;--dim:#606080;--neon:#6c5ce7;--neon2:#00cec9;--danger:#ff4757;--success:#00d68f;--warn:#fdcb6e}
@@ -204,9 +213,13 @@ document.querySelectorAll('.tab').forEach(tab => {
   })
 })
 
-async function fetchAPI(url, body) {
+async function fetchAPI(url, body, usarChave) {
   try {
     const opts = body ? { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) } : {}
+    if (usarChave) {
+      const k = hudKey()
+      if (k) { opts.headers = opts.headers || {}; opts.headers['X-Hud-Key'] = k }
+    }
     const r = await fetch(url, opts)
     return await r.json()
   } catch { return null }
@@ -306,9 +319,9 @@ async function send(msg) {
   tabChat.click()
   addMsg(msg, 'user')
   addMsg('', 'neon typing')
-  const data = await fetchAPI('/api/ask', { userId:OWNER_ID, username:'Dono', message:msg })
+  const data = await fetchAPI('/api/chat', { userId:OWNER_ID, usuario:'Dono', mensagem:msg }, true)
   removeTyping()
-  if (data) { addMsg(data.reply || '(sem resposta)', 'neon'); speak(data.reply || '') }
+  if (data) { addMsg(data.resposta || data.reply || '(sem resposta)', 'neon'); speak(data.resposta || data.reply || '') }
   else addMsg('Erro ao contactar Neon', 'neon')
 }
 function sendChat(e) {
@@ -337,8 +350,8 @@ function removeTyping() { const t = document.querySelector('.typing'); if (t) t.
 
 // === Logs ===
 async function loadLogs() {
-  const data = await fetchAPI('/api/logs')
-  if (data) allLogs = data
+  const data = await fetchAPI('/api/logs', null, true)
+  if (data && Array.isArray(data.logs)) allLogs = data.logs
 }
 function renderLogs() {
   const filter = (document.getElementById('logFilter').value || '').toLowerCase()
@@ -379,21 +392,9 @@ document.addEventListener('keydown', (e) => {
 })
 
 async function toggleVoice() {
-  const data = await fetchAPI('/api/voice/toggle', { userId:OWNER_ID })
-  voiceOn = data?.ativo || false
+  const data = await fetchAPI('/api/modo', { modo: 'jarvis' }, true)
+  voiceOn = data?.modo?.jarvis ? true : false
 }
-
-// === WebSocket ===
-const socket = io()
-socket.on('connect', () => console.log('[WS] Conectado'))
-socket.on('log', (entry) => {
-  const allLogs = window._neonLogs || []
-  allLogs.push(entry)
-  if (allLogs.length > 500) allLogs.splice(0, allLogs.length - 500)
-  window._neonLogs = allLogs
-  renderLogs()
-})
-socket.on('disconnect', () => console.log('[WS] Desconectado'))
 
 // === Init ===
 renderQuickActions()

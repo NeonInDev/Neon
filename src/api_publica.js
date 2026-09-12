@@ -35,6 +35,32 @@ const MIME = {
 
 let server = null;
 
+let pcStatusCache = null;
+let pcStatusTs = 0;
+async function pcStatusMetricas() {
+  const agora = Date.now();
+  if (pcStatusCache && agora - pcStatusTs < 2500) return pcStatusCache;
+  try {
+    const pc = require("./pc");
+    const info = await pc.pcInfoJson();
+    pcStatusCache = {
+      cpuUso: info.cpuUso ?? null,
+      ramUso: info.ramUso ?? null,
+      ramLivre: info.ramLivre ?? null,
+      ramTotal: info.ramTotal ?? null,
+      discoUso: info.discoUso ?? null,
+      discoLivre: info.discoLivre ?? null,
+      discoTotal: info.discoTotal ?? null,
+      temperatura: info.temperaturaDisponivel ? info.temperatura : null,
+      temperaturaGpu: info.temperaturaGpu ?? null,
+    };
+    pcStatusTs = agora;
+    return pcStatusCache;
+  } catch {
+    return null;
+  }
+}
+
 const ORIGENS_PERMITIDAS = [
   /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
   /^https:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/,
@@ -281,7 +307,18 @@ function iniciar(port = 3000) {
     }
 
     if (req.url === "/api/status" && req.method === "GET") {
-      responder(res, 200, { status: "online", versao: "2.0.0" });
+      const metricas = await pcStatusMetricas();
+      responder(res, 200, { status: "online", versao: "2.0.0", ...(metricas || {}) });
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/logs" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { getLogs } = require("./logger");
+        const nivel = new URL(req.url, "http://x").searchParams.get("nivel") || undefined;
+        responder(res, 200, { logs: getLogs(nivel) });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
       return;
     }
 
