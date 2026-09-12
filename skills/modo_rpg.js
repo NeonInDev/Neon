@@ -28,6 +28,8 @@ const pc = require("../src/pc.js");
 
 const DEBUG_PORT = 9222;
 
+const OPERA_GX = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe";
+
 const DATA_DIR = path.join(__dirname, "..", "data");
 const ARQUIVO_LINKS = path.join(DATA_DIR, "rpg_links.json");
 const ARQUIVO_AGENTE = path.join(DATA_DIR, "rpg_agente.json");
@@ -68,10 +70,43 @@ async function conectarOpera() {
   return b;
 }
 
-function abrirUrlTimeouter(url) {
+function operaRodando() {
+  try {
+    const { execSync } = require("child_process");
+    const out = execSync('powershell -NoProfile -NonInteractive -Command "if(Get-Process -Name opera -ErrorAction SilentlyContinue){1}else{0}"', { windowsHide: true, timeout: 8000 }).toString().trim();
+    return out === "1";
+  } catch {
+    return false;
+  }
+}
+
+async function portaDebugAberta() {
+  return new Promise((resolve) => {
+    const http = require("http");
+    const req = http.get({ host: "127.0.0.1", port: DEBUG_PORT, path: "/json/version", timeout: 1500 }, (res) => {
+      res.resume();
+      resolve(res.statusCode === 200);
+    });
+    req.on("error", () => resolve(false));
+  });
+}
+
+async function esperarPortaDebug(tempoMs = 25000) {
+  const inicio = Date.now();
+  return new Promise((resolve) => {
+    const check = async () => {
+      if (await portaDebugAberta()) return resolve(true);
+      if (Date.now() - inicio > tempoMs) return resolve(false);
+      setTimeout(check, 500);
+    };
+    check();
+  });
+}
+
+function abrirNoOpera(url) {
   return new Promise((resolve) => {
     const child = exec(
-      `powershell -NoProfile -NonInteractive -Command "Start-Process -FilePath '${url.replace(/'/g, "''")}'"`,
+      `powershell -NoProfile -NonInteractive -Command "Start-Process -FilePath '${OPERA_GX.replace(/'/g, "''")}' -ArgumentList '${url.replace(/'/g, "''")}'"`,
       { windowsHide: true },
       (err, stdout, stderr) => resolve({ ok: !err, erro: stderr || (err && err.message) })
     );
@@ -82,27 +117,45 @@ function abrirUrlTimeouter(url) {
 
 async function focarNaAba(url) {
   const alvo = String(url || "");
-  let b = null;
-  try {
-    b = await conectarOpera();
-    const pages = await b.pages();
-    for (const page of pages) {
-      let atual = "";
-      try { atual = await page.url(); } catch {}
-      const normalizada = (u) => (u || "").replace(/\/+$/, "");
-      if (atual && normalizada(atual) === normalizada(alvo)) {
-        try { await page.bringToFront(); } catch {}
-        try { b.disconnect(); } catch {}
-        return { ok: true, focada: true, url: atual };
-      }
+
+  // 1) Se o Opera não está rodando, sobe com porta de debug pra poder focar abas.
+  if (!operaRodando() && fs.existsSync(OPERA_GX)) {
+    try {
+      exec(
+        `powershell -NoProfile -NonInteractive -Command "Start-Process -FilePath '${OPERA_GX.replace(/'/g, "''")}' -ArgumentList '--remote-debugging-port=${DEBUG_PORT}'"`,
+        { windowsHide: true }
+      );
+      await esperarPortaDebug(15000);
+    } catch (err) {
+      console.error("[MODO_RPG] falha ao subir Opera GX com debug", err.message);
     }
-    try { b.disconnect(); } catch {}
-  } catch (err) {
-    console.error("[MODO_RPG] falha ao conectar no Opera", err.message);
-    if (b) { try { b.disconnect(); } catch {} }
   }
 
-  const r = await abrirUrlTimeouter(alvo);
+  // 2) Se a porta de debug está aberta, conecta via Puppeteer e foca a aba existente.
+  if (await portaDebugAberta()) {
+    let b = null;
+    try {
+      b = await conectarOpera();
+      const pages = await b.pages();
+      for (const page of pages) {
+        let atual = "";
+        try { atual = await page.url(); } catch {}
+        const normalizada = (u) => (u || "").replace(/\/+$/, "");
+        if (atual && normalizada(atual) === normalizada(alvo)) {
+          try { await page.bringToFront(); } catch {}
+          try { b.disconnect(); } catch {}
+          return { ok: true, focada: true, url: atual };
+        }
+      }
+      try { b.disconnect(); } catch {}
+    } catch (err) {
+      console.error("[MODO_RPG] falha ao conectar no Opera", err.message);
+      if (b) { try { b.disconnect(); } catch {} }
+    }
+  }
+
+  // 3) Fallback: abre no Opera GX (nunca no navegador padrão).
+  const r = await abrirNoOpera(alvo);
   if (r.ok) return { ok: true, focada: false, url: alvo };
   return { ok: false, erro: r.erro || "Falha ao abrir." };
 }
