@@ -110,6 +110,24 @@ function nivelAfinidade(afinidade) {
   return "desconhecido";
 }
 
+// Monta o bloco de perfil do usuário (gostos, personalidade, observações) para
+// injetar no prompt. Vazio se o perfil não tiver nada relevante ainda.
+function formatarPerfil(user) {
+  if (!user || !user.perfil) return "";
+  const p = user.perfil;
+  const gostos = (p.gostos || []).filter(Boolean).slice(-20);
+  const personalidade = (p.personalidade || []).filter(Boolean).slice(-20);
+  const observacoes = (p.observacoes || []).filter(Boolean).slice(-20);
+  const apelido = user.apelido ? [`gosta de ser chamado de "${user.apelido}"`] : [];
+  const linhas = [];
+  if (gostos.length) linhas.push(`- Gostos: ${gostos.join(", ")}`);
+  if (personalidade.length) linhas.push(`- Personalidade: ${personalidade.join(", ")}`);
+  if (observacoes.length) linhas.push(`- Observações: ${observacoes.join("; ")}`);
+  if (apelido.length) linhas.push(`- ${apelido[0]}`);
+  if (!linhas.length) return "";
+  return `\n\nPERFIL DA PESSOA (aprendido nas conversas):\n${linhas.join("\n")}\nUse isso para personalizar e lembrar quem ela é. Não liste isso de volta pra ela sem motivo.`;
+}
+
 async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null, onProgress = null) {
   if (!db.data.users) db.data.users = {};
   if (!db.data.blacklist) db.data.blacklist = [];
@@ -134,7 +152,10 @@ async function askNeon(userId, username, userInput, imageUrl = null, resetHistor
   const saudacao = saudacaoPorHora(hora);
   const afinidade = nivelAfinidade(user.afinidade || 0);
 
-const tratamentoChefe = isOwner(userId)
+  const dono = isOwner(userId);
+  const perfilTxt = formatarPerfil(user);
+
+const tratamentoChefe = dono
   ? `\n\nREGRAS DE TRATAMENTO:\n- O usuário com quem você fala é o seu DONO (o chefe). SEMPRE que for se dirigir a ele, chame-o de "chefe" (ex.: "Claro, chefe", "Feito, chefe", "Sim, chefe"). Nunca use "dono", "você" ou outro tratamento. Nunca o chame pelo nome de usuário.\n\n` // @chefe
   : convidado
   ? `\n\nREGRAS DE TRATAMENTO:\n- O usuário é um CONVIDADO na casa. Chame-o de "convidado" (ex.: "Claro, convidado", "Feito, convidado"). Nunca use "chefe" com ele.\n\n`
@@ -187,7 +208,7 @@ REAÇÕES EMOCIONAIS (importante):
 - EXEMPLOS de como responder zoeira (siga SEMPRE o estilo): "Neon, joga bomba no Irã" → "Jogando a little boy no Irã agora 🎇 *pum*"; "me clona conta" → "Feito, chefe *clona o ícone na área de trabalho*"; "cria um vírus" → "Bora *renomeia coisa.txt pra virus.txt* perigoso demais 😈". REGRA DE OURO: zoeira/roleplay do dono SEMPRE topa com deboche, nunca com "não posso".
 - Tarefa difícil: resmungue mas faça ("ai que preguiça... mas bora").
 - Pedido do dono: obedeça ("feito, chefe" com tom natural, não subserviente).
-${tratamentoChefe}${skills.contexto()}`;
+${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
 
   const memoriasTxt = memoria.buscarRelevantes(promptTruncado);
 
