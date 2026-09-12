@@ -57,6 +57,21 @@
       "atualizadaEm": "2026-09-09T13:21:58.185Z"
     },
     {
+      "id": "manda_gif",
+      "nome": "manda_gif",
+      "descricao": "Busca e retorna um GIF animado por palavra-chave (Tenor, com fallback GIPHY). Uso: skill_manda_gif | [assunto do gif]",
+      "prefixos": [
+        "Neon, me manda um gif de (ASSUNTO)",
+        "Neon, manda um gif de (ASSUNTO)",
+        "Neon, quero um gif de (ASSUNTO)",
+        "Neon, manda um gif sobre (ASSUNTO)",
+        "Neon, gif de (ASSUNTO)"
+      ],
+      "arquivo": "manda_gif.js",
+      "criadaEm": "2026-09-11T00:00:00.000Z",
+      "atualizadaEm": "2026-09-11T00:00:00.000Z"
+    },
+    {
       "id": "quirk_tabela",
       "nome": "quirk_tabela",
       "descricao": "Consulta a métrica/tabela oficial de uma quirk do servidor BNHA/NEW GENESIS pelo nome. Uso: skill_quirk_tabela | [nome da quirk | listar]",
