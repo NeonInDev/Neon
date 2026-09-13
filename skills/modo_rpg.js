@@ -344,7 +344,15 @@ async function abrirSite(alvo) {
 }
 
 async function executar(args) {
-  const pedido = String(args || "").trim();
+  let pedido;
+  if (typeof args === "string") {
+    pedido = args.trim();
+  } else if (args && typeof args === "object") {
+    if (args.rol !== undefined) pedido = `rola ${String(args.rol).trim()}`;
+    else pedido = String(args.comando != null ? args.comando : args.pedido != null ? args.pedido : "").trim();
+  } else {
+    pedido = String(args || "").trim();
+  }
 
   if (!pedido) {
     return [
