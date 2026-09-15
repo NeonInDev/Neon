@@ -107,29 +107,10 @@ async function montarResumo() {
   const info = await pc.pcInfo();
   const linhaHora = new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-    // Clima da cidade configurada (se disponível) pra enriquecer a sugestão
-    let clima = "";
-    try {
-      const { clima: buscarClima } = require("./clima");
-      const cidade = process.env.CLIMA_CIDADE || "São Paulo";
-      const c = await buscarClima(cidade);
-      if (c && c.temperatura) clima = `🌤️ ${c.condicao}, ${c.temperatura} em ${c.cidade || cidade}`;
-    } catch {}
-
-    // Previsão de chuva (usa o mesmo cálculo do plugin de alerta)
-    let chuva = "";
-    try {
-      const { vaiChover } = require("./clima");
-      const c = await vaiChover(process.env.CLIMA_CIDADE || "São Paulo");
-      if (c.ok) chuva = `🌧️ ${c.resposta}\n`;
-    } catch {}
-
     const agora = new Date();
     const sugerir = sugestaoMatinal(agora.getHours());
 
     let msg = `☀️ **Bom dia, chefe!** (${linhaHora}) Vi que você ligou o PC por aqui.\n`;
-    if (clima) msg += `${clima}\n`;
-    if (chuva) msg += `${chuva}\n`;
 
     // Agenda de hoje (Google Calendar)
     try {
@@ -177,14 +158,14 @@ async function montarResumo() {
     msg += `💡 **Sugestão:** ${sugerir}\n`;
     msg += `\`\`\`\n${info}\n\`\`\``;
 
-    return { msg, clima, sugerir };
+    return { msg, sugerir };
 }
 
 async function resumoDiario() {
   if (!client?.isReady()) return;
   try {
     const owner = await client.users.fetch(OWNER);
-    const { msg, clima, sugerir } = await montarResumo();
+    const { msg, sugerir } = await montarResumo();
 
     await owner.send(msg);
 
@@ -193,7 +174,7 @@ async function resumoDiario() {
       try {
         const { falarResumoMatinal } = require("./tts");
         const falado = [
-          clima || "Bom dia.",
+          "Bom dia.",
           sugerir,
         ].filter(Boolean).join(" ");
         await falarResumoMatinal(falado);

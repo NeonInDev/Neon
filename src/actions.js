@@ -870,6 +870,14 @@ function encontrarNeoZero(texto) {
   return null;
 }
 
+function encontrarProbabilidade(texto) {
+  const lower = limparFiller(texto.toLowerCase().trim());
+  if (/(?:probabilidade|chance|por\s*cento|%)/.test(lower)) return true;
+  if (/(?:quanto|qual)\s+(?:ta|está|esta|e|é|eh)\s+o\s+(?:meu|meus)?\s*%|quantos\s*(?:por\s*cento|%)/i.test(lower)) return true;
+  if (/(?:eu\s+vou\s+ganhar|eu\s+tenho\s+chances?|ser[aá]\s+que\s+eu\s+ganho)\s+de|vou\s+ganhar\s+(?:do|de)\s+/i.test(lower)) return true;
+  return false;
+}
+
 function permitido(userId) {
   return isOwner(userId);
 }
@@ -943,6 +951,7 @@ function detectarCategoria(texto) {
   if (encontrarMemoria(texto)) return "memoria";
   if (isWin() && encontrarObsIniciar(texto)) return "obs_iniciar";
   if (isWin() && encontrarObsParar(texto)) return "obs_parar";
+  if (encontrarProbabilidade(texto)) return "probabilidade";
   return null;
 }
 
@@ -1059,11 +1068,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     if (!r2.ok) erros.push("Steam");
     const now = new Date();
     const hora = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    let climaStr = "";
-    try {
-      const c = await clima("São Paulo");
-      climaStr = `${c.condicao}, ${c.temperatura}`;
-    } catch {}
     return [
       "```",
       "╔══════════════════════════════════╗",
@@ -1071,7 +1075,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       "╚══════════════════════════════════╝",
       "",
       `🕐 ${hora}`,
-      climaStr ? `🌡 ${climaStr}` : "",
       "",
       ">> Spotify:   " + (r1.ok ? "✅" : "❌"),
       ">> Steam:     " + (r2.ok ? "✅" : "❌"),
@@ -1090,18 +1093,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       return `⚠️ Ainda são ${horaStr}, mas ok... boa noite também! 🌙`;
     }
 
-    let climaStr = "";
-    try {
-      const { data } = await require("axios").get("https://wttr.in/São+Paulo?format=j1", { timeout: 10000 });
-      if (data?.weather?.[1]) {
-        const amanha = data.weather[1];
-        const max = amanha.maxtempC;
-        const min = amanha.mintempC;
-        const cond = amanha.hourly?.[0]?.lang_pt?.[0]?.value || amanha.hourly?.[0]?.weatherDesc?.[0]?.value || "";
-        climaStr = `Amanhã: ${cond} ${min}°C ~ ${max}°C`;
-      }
-    } catch {}
-
     const user = getOrCreateUser(db, userId, "");
     user.acaoPendente = { tipo: "boaNoite" };
     await db.write();
@@ -1113,7 +1104,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       "╚══════════════════════════════════╝",
       "",
       `🕐 ${horaStr}`,
-      climaStr ? `🌤 ${climaStr}` : "",
       "",
       "Quer desligar o PC? (sim/nao)",
       "```",
@@ -1154,12 +1144,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       "Medal": ligouMedal ? "já aberto" : (erros.includes("Medal") ? "falhou" : "aberto"),
     };
 
-    let climaStr = "";
-    try {
-      const c = await clima("São Paulo");
-      climaStr = `${c.condicao}, ${c.temperatura}`;
-    } catch {}
-
     const dica = [
       "Lembre-se de beber água! 💧",
       "Hoje é um bom dia pra codar! 💻",
@@ -1175,7 +1159,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       "╚══════════════════════════════════╝",
       "",
       `🕐 ${horaStr}`,
-      climaStr ? `🌤 ${climaStr}` : "",
       "",
       ">> Spotify:   " + (states["Spotify"] === "falhou" ? "❌" : states["Spotify"] === "já aberto" ? "✅ já aberto" : "✅"),
       ">> Steam:     " + (states["Steam"] === "falhou" ? "❌" : states["Steam"] === "já aberto" ? "✅ já aberto" : "✅"),
@@ -1747,6 +1730,20 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     } catch (err) {
       return `❌ Não consegui verificar a chuva: ${err.message}`;
     }
+  }
+
+  // Probabilidade
+  if (categoria === "probabilidade") {
+    const pct = Math.floor(Math.random() * 101);
+    const frases = pct >= 80
+      ? ["Tá praticamente garantido!", "Pode ir com tudo!", "Muita chance, vai com fé!"]
+      : pct >= 50
+        ? ["Boa chance! Confia.", "Mais pra sim do que pra não.", "Vai dar certo, acredita!"]
+        : pct >= 20
+          ? ["Hmm, não tá fácil mas não é impossível.", "Depende do teu esforço...", "Arriscado, mas vai que vai!"]
+          : ["Eita... tá complicado.", "Não vou mentir, tá feio.", "Melhor nem sonhar... brincadeira, tenta mesmo assim!"];
+    const frase = frases[Math.floor(Math.random() * frases.length)];
+    return `🎲 **Probabilidade: ${pct}%**\n${frase}`;
   }
 
   // Flashcards (repetição espaçada)

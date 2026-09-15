@@ -94,6 +94,22 @@
       "arquivo": "quirk_tabela.js",
       "criadaEm": "2026-09-11T00:00:00.000Z",
       "atualizadaEm": "2026-09-11T00:00:00.000Z"
+    },
+    {
+      "id": "musica",
+      "nome": "musica",
+      "descricao": "Toca músicas no Spotify (desktop ou celular), avalia links do Spotify e extrai informações. Uso: skill_musica | [tocar <música> | celular <música> | avaliar <link>]",
+      "prefixos": [
+        "Neon, toca no celular (MÚSICA)",
+        "Neon, play no celular (MÚSICA)",
+        "Neon, toca (MÚSICA)",
+        "Neon, play (MÚSICA)",
+        "Neon, avaliar link (LINK)",
+        "Neon, qual link é esse (LINK)"
+      ],
+      "arquivo": "musica.js",
+      "criadaEm": "2026-09-15T00:00:00.000Z",
+      "atualizadaEm": "2026-09-15T00:00:00.000Z"
     }
   ],
   "versao": 1
