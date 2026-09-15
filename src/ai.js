@@ -4,7 +4,7 @@ const { log } = require("./logger");
 const opencode = require("../plugins/opencode");
 const toolsMod = require("./tools");
 const axios = require("axios");
-const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, GROQ_API_KEY, GROQ_MODEL, OMNIROUTE_API_KEY, OMNIROUTE_BASE_URL, OMNIROUTE_MODEL } = require("./config");
+const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, GROQ_API_KEY, GROQ_MODEL, GROQ_CLASSIFIER_MODEL, OMNIROUTE_API_KEY, OMNIROUTE_BASE_URL, OMNIROUTE_MODEL } = require("./config");
 const { personaDoModo } = require("./modo");
 const { isOwner, isGuest } = require("./perm"); // @chefe
 const visao = require("./visao");
@@ -16,15 +16,11 @@ const MAX_INPUT_LEN = 2000;
 const MAX_ITERACOES_FERRAMENTAS = 3;
 
 async function chamarCompletions(url, apiKey, model, messages, timeoutMs) {
+  const body = { model, messages, temperature: 0.7, max_tokens: 1000 };
+  if (url.includes("deepseek.com")) body.reasoning = { enabled: false };
   const resp = await axios.post(
     url,
-    {
-      model,
-      reasoning: { enabled: false },
-      messages,
-      temperature: 0.7,
-      max_tokens: 1000,
-    },
+    body,
     {
       headers: { Authorization: `Bearer ${apiKey}` },
       timeout: timeoutMs,
@@ -33,21 +29,44 @@ async function chamarCompletions(url, apiKey, model, messages, timeoutMs) {
   return resp?.data?.choices?.[0]?.message?.content?.trim() || null;
 }
 
-async function chamarGroq(messages) {
-  const resp = await axios.post(
-    "https://api.groq.com/openai/v1/chat/completions",
-    {
-      model: GROQ_MODEL,
-      messages,
-      temperature: 0.7,
-      max_tokens: 1000,
-    },
-    {
-      headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
-      timeout: 45000,
-    }
-  );
-  return resp?.data?.choices?.[0]?.message?.content?.trim() || null;
+// Classifica a intenção da mensagem de forma BARATA (Groq rápido, ~300ms)
+// retornando "acao" | "pass" | null (null = classificador falhou → deixa decidir)
+async function classificarIntencao(texto) {
+  if (!GROQ_API_KEY || !GROQ_CLASSIFIER_MODEL) return null;
+  try {
+    const resp = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: GROQ_CLASSIFIER_MODEL,
+        messages: [
+          {
+            role: "system",
+            content:
+              "Você é o roteador de ações da Neon. Classifique a mensagem do usuário.\n" +
+              "Responda com EXATAMENTE uma palavra:\n" +
+              "- ACTION se a mensagem pedir para EXECUTAR algo no computador/PC/navegador/código/arquivos/apps (abrir programa, rodar comando, pesquisar na web, criar/editar arquivo, automação, mexe no PC, WhatsApp, Discord, celular, WhatsApp, música, baixar, instalar, enviar).\n" +
+              "- PASS se for pura conversa, pergunta de conhecimento, cumprimento, piada, opinião, texto/escrita sem execução.\n" +
+              "Em caso de dúvida, responda ACTION.",
+          },
+          { role: "user", content: String(texto).slice(0, 2000) },
+        ],
+        temperature: 0,
+        max_tokens: 5,
+      },
+      {
+        headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+        timeout: 8000,
+      }
+    );
+    const palavra = (resp?.data?.choices?.[0]?.message?.content || "").trim().toUpperCase();
+    log("DEBUG", "[CLASSIF] intencao", { palavra, msg: String(texto).slice(0, 60) });
+    if (palavra.includes("ACTION")) return "acao";
+    if (palavra.includes("PASS")) return "pass";
+    return null;
+  } catch (err) {
+    log("WARN", "[CLASSIF] falhou, usando decidir completo", { erro: err.message?.slice(0, 100) });
+    return null;
+  }
 }
 
 async function chamarLLM(sistema, userMsg, permitirOpencode = true) {
@@ -56,35 +75,20 @@ async function chamarLLM(sistema, userMsg, permitirOpencode = true) {
     { role: "user", content: userMsg },
   ];
 
-  if (DEEPSEEK_API_KEY) {
-    try {
-      return await chamarCompletions("https://api.deepseek.com/chat/completions", DEEPSEEK_API_KEY, DEEPSEEK_MODEL, messages, 90000);
-    } catch (err) {
-      log("WARN", "DeepSeek falhou, tentando OpenRouter", { erro: err.message?.slice(0, 100) });
-    }
-  }
+  const tentativas = [
+    DEEPSEEK_API_KEY && { nome: "DeepSeek", url: "https://api.deepseek.com/chat/completions", key: DEEPSEEK_API_KEY, model: DEEPSEEK_MODEL, ms: 90000 },
+    GROQ_API_KEY && { nome: "Groq", url: "https://api.groq.com/openai/v1/chat/completions", key: GROQ_API_KEY, model: GROQ_MODEL, ms: 45000 },
+    OMNIROUTE_API_KEY && { nome: "OmniRoute", url: OMNIROUTE_BASE_URL + "/chat/completions", key: OMNIROUTE_API_KEY, model: OMNIROUTE_MODEL, ms: 60000 },
+    OPENROUTER_API_KEY && { nome: "OpenRouter", url: "https://openrouter.ai/api/v1/chat/completions", key: OPENROUTER_API_KEY, model: OPENROUTER_MODEL, ms: 45000 },
+  ].filter(Boolean);
 
-  if (GROQ_API_KEY) {
+  for (const t of tentativas) {
     try {
-      return await chamarGroq(messages);
+      const conteudo = await chamarCompletions(t.url, t.key, t.model, messages, t.ms);
+      if (conteudo) return conteudo;
+      log("WARN", `[LLM] ${t.nome} retornou vazio, tentando proximo`);
     } catch (err) {
-      log("WARN", "Groq falhou, tentando OmniRoute", { erro: err.message?.slice(0, 100) });
-    }
-  }
-
-  if (OMNIROUTE_API_KEY) {
-    try {
-      return await chamarCompletions(OMNIROUTE_BASE_URL + "/chat/completions", OMNIROUTE_API_KEY, OMNIROUTE_MODEL, messages, 60000);
-    } catch (err) {
-      log("WARN", "OmniRoute falhou, tentando OpenRouter", { erro: err.message?.slice(0, 100) });
-    }
-  }
-
-  if (OPENROUTER_API_KEY) {
-    try {
-      return await chamarCompletions("https://openrouter.ai/api/v1/chat/completions", OPENROUTER_API_KEY, OPENROUTER_MODEL, messages, 45000);
-    } catch (err) {
-      log("WARN", "OpenRouter falhou, tentando opencode", { erro: err.message?.slice(0, 100) });
+      log("WARN", `[LLM] ${t.nome} falhou`, { erro: err.message?.slice(0, 100) });
     }
   }
 
@@ -226,7 +230,17 @@ ${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
 
   try {
     if (typeof onProgress === "function") onProgress("Decidindo como executar...", "🧠");
-    const decisao = convidado ? { acao: false, resposta: null } : await opencode.decidir(promptTruncado);
+    let decisao = { acao: false, resposta: null };
+    if (!convidado) {
+      // Classificação barata primeiro: só roda o agente completo se houver
+      // indício de ação. Conversa pura vai direto pro chat.
+      const intencao = await classificarIntencao(promptTruncado);
+      if (intencao === "acao") {
+        decisao = await opencode.decidir(promptTruncado);
+      } else if (intencao === null && isOwner(userId)) {
+        decisao = await opencode.decidir(promptTruncado);
+      }
+    }
     if (decisao.acao && decisao.resposta) {
       user.historico.push({ user: userInput, bot: decisao.resposta.slice(0, 500) });
       if (user.historico.length > 200) user.historico.shift();
@@ -333,4 +347,4 @@ async function visaoDaImagem(imageUrl) {
   }
 }
 
-module.exports = { askNeon, chamarLLM };
+module.exports = { askNeon, chamarLLM, classificarIntencao };

@@ -62,7 +62,7 @@ function enquadrarPlano(texto) {
 const processando = new Set();
 const cooldowns = new Map();
 const COOLDOWN_MS = 3000;
-const DEBOUNCE_MS = 1500;
+const DEBOUNCE_MS = 1000;
 const mensagensPendentes = new Map();
 
 async function verificarChaveMestra(message) {

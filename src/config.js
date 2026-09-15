@@ -22,6 +22,7 @@ module.exports = {
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL || "nvidia/nemotron-3-nano-30b-a3b:free",
   GROQ_MODEL: process.env.GROQ_MODEL || "llama-3.3-70b-versatile",
+  GROQ_CLASSIFIER_MODEL: process.env.GROQ_CLASSIFIER_MODEL || "qwen/qwen3.8-27b",
   OMNIROUTE_API_KEY: process.env.OMNIROUTE_API_KEY,
   OMNIROUTE_BASE_URL: process.env.OMNIROUTE_BASE_URL || "http://localhost:20128/v1",
   OMNIROUTE_MODEL: process.env.OMNIROUTE_MODEL || "auto",
