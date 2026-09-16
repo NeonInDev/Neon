@@ -19,6 +19,10 @@ let fechamento = null;
 let inicializando = false;
 const gruposConhecidos = {};
 
+// Limite de reinícios automáticos: evita loop infinito abrindo o navegador (Edge).
+let tentativasAuto = 0;
+const MAX_AUTO_RESTARTS = 3;
+
 function assinar(texto) {
   const limpo = String(texto || "").replace(/\s*_Enviado pela Neon_\s*$/i, "").trim();
   return `${limpo}${ASSINATURA}`;
@@ -36,10 +40,15 @@ function agendarWatchdog() {
   watchdog = setTimeout(() => {
     watchdog = null;
     if (estado !== "conectado" && client) {
-      log("WARN", "[WHATSAPP] Restauração travou — reinicializando cliente");
       client.destroy().catch(() => {});
       client = null;
       estado = "desconectado";
+      if (tentativasAuto >= MAX_AUTO_RESTARTS) {
+        log("WARN", `[WHATSAPP] Limite de ${MAX_AUTO_RESTARTS} reinicios automaticos atingido — pausando (evita abrir navegador em loop).`);
+        return;
+      }
+      tentativasAuto++;
+      log("WARN", `[WHATSAPP] Restauração travou — reinicializando cliente (${tentativasAuto}/${MAX_AUTO_RESTARTS})`);
       setTimeout(() => iniciar().catch(() => {}), 3000);
     }
   }, 45000);
@@ -56,7 +65,7 @@ function agendarFechamento() {
 }
 
 async function garantirIniciado() {
-  if (!client && !inicializando) await iniciar();
+  if (!client && !inicializando) { tentativasAuto = 0; await iniciar(); }
   while (inicializando) await sleep(250);
 }
 
@@ -92,6 +101,7 @@ async function iniciar() {
 
   client.on("ready", () => {
     estado = "conectado";
+    tentativasAuto = 0;
     limparWatchdog();
     log("INFO", "[WHATSAPP] Conectado e pronto!");
     setTimeout(() => {
@@ -145,7 +155,12 @@ async function iniciar() {
     try { await client.destroy(); } catch {}
     client = null;
     estado = "desconectado";
-    setTimeout(() => iniciar().catch(() => {}), 12000);
+    if (tentativasAuto >= MAX_AUTO_RESTARTS) {
+      log("WARN", `[WHATSAPP] Falha repetida (${MAX_AUTO_RESTARTS}x) — nao vou tentar de novo automaticamente.`);
+    } else {
+      tentativasAuto++;
+      setTimeout(() => iniciar().catch(() => {}), 12000);
+    }
   }
 
   } finally {
