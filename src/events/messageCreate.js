@@ -248,6 +248,19 @@ async function interpretarParcerias(message) {
   const parcerias = require("../parcerias");
   const resto = texto.slice(m[0].length);
 
+  // rank/contagem por membro
+  if (/^\s*(?:rank|ranking|contagem|contar|mais)\s+(?:de\s+)?parcerias?\b/i.test(resto)) {
+    const dados = parcerias.contarPorMembro();
+    if (!dados.length) {
+      message.reply("📭 Nenhuma parceria registrada ainda pra contar.").catch(() => {});
+      return true;
+    }
+    const medalhas = ["🥇", "🥈", "🥉"];
+    const itens = dados.map((d, i) => `${medalhas[i] || "•"} <@${d.id || ""}>${d.tag ? ` (${d.tag})` : " (desconhecido)"} — **${d.total}** parceria${d.total !== 1 ? "s" : ""}`);
+    message.reply(`🏆 **Rank de parcerias por membro**\n${itens.join("\n")}`).catch(() => {});
+    return true;
+  }
+
   // lista
   if (/^\s*(?:lista|listar|ver|mostra|mostrar)\s+(?:as\s+)?parcerias?\b/i.test(resto)) {
     const ativas = parcerias.listar();
@@ -285,7 +298,7 @@ async function interpretarParcerias(message) {
       message.reply("❌ Faltou o nome do servidor. Uso: `neon parceria com <Nome> discord.gg/xxxx`").catch(() => {});
       return true;
     }
-    parcerias.registrar({ nome, invite });
+    parcerias.registrar({ nome, invite, porId: message.author.id, porTag: message.author.username });
     const an = await parcerias.anunciar(message.client, { nome, invite });
     message.reply(an.ok
       ? `✅ Parceria com **${nome}** registrada e anunciada no #parcerias!`

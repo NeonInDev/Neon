@@ -36,16 +36,29 @@ function listar() {
   return carregar().parcerias;
 }
 
-function registrar({ nome, invite }) {
+function registrar({ nome, invite, porId = null, porTag = null }) {
   const dados = carregar();
   dados.parcerias.push({
     nome: String(nome).trim(),
     invite: String(invite).trim(),
+    porId,
+    porTag,
     data: Date.now(),
   });
   salvar(dados);
-  log("INFO", "[PARCERIAS] Parceria registrada", { nome, invite });
+  log("INFO", "[PARCERIAS] Parceria registrada", { nome, invite, porTag });
   return listar().find((p) => p.invite === String(invite).trim());
+}
+
+// Conta quantas parcerias fechadas cada membro tem
+function contarPorMembro() {
+  const counts = new Map();
+  for (const p of carregar().parcerias) {
+    const chave = p.porId || p.porTag || "desconhecido";
+    if (!counts.has(chave)) counts.set(chave, { id: p.porId, tag: p.porTag, total: 0 });
+    counts.get(chave).total += 1;
+  }
+  return [...counts.values()].sort((a, b) => b.total - a.total);
 }
 
 function remover(nome) {
@@ -127,6 +140,7 @@ module.exports = {
   listar,
   registrar,
   remover,
+  contarPorMembro,
   registrarSolicitacao,
   gerarConvite,
   extrairInvite,
