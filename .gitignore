@@ -45,6 +45,7 @@ libs/librehardwaremonitor/*.sys
 
 .playwright-mcp/
 data/emergencia.json
+data/parcerias.json
 _tmp*
 
 # NeonWatch

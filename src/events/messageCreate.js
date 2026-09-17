@@ -233,6 +233,108 @@ function interpretarDesligarNeon(message) {
   return true;
 }
 
+// Sistema de parcerias (só dono):
+// - "neon convite" → gera um convite permanente do servidor pro canal #parcerias
+// - "neon parceria com <nome> <invite>" → registra e anuncia no #parcerias
+// - "neon parcerias" → lista todas as parcerias
+// - "neon remove parceria <nome>" → remove uma parceria
+async function interpretarParcerias(message) {
+  if (!isOwner(message.author.id)) return false;
+  if (message.channel.type === ChannelType.DM) return false;
+  const texto = (message.content || "").trim();
+  const m = texto.match(/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+/i);
+  if (!m) return false;
+
+  const parcerias = require("../parcerias");
+  const resto = texto.slice(m[0].length);
+
+  // lista
+  if (/^\s*(?:lista|listar|ver|mostra|mostrar)\s+(?:as\s+)?parcerias?\b/i.test(resto)) {
+    const ativas = parcerias.listar();
+    if (!ativas.length) {
+      message.reply("📭 Nenhuma parceria registrada ainda.").catch(() => {});
+      return true;
+    }
+    const itens = ativas.map((p, i) => `${i + 1}. **${p.nome}** — ${p.invite} (desde <t:${Math.floor(p.data / 1000)}:D>)`).join("\n");
+    message.reply(`🤝 **Parcerias ativas (${ativas.length})**\n${itens}`).catch(() => {});
+    return true;
+  }
+
+  // remove parceria
+  const remover = resto.match(/^\s*(?:remove|remover|apaga|apagar|cancela|cancelar)\s+(?:a\s+)?parceria\s+(?:com\s+)?(.+)$/i);
+  if (remover) {
+    const nome = remover[1].trim().replace(/^["'“”]+|["'“”]+$/g, "");
+    const ok = parcerias.remover(nome);
+    message.reply(ok
+      ? `🗑️ Parceria **${nome}** removida.`
+      : `❌ Não achei parceria com **${nome}**.`).catch(() => {});
+    return true;
+  }
+
+  // registra parceria
+  const adicionar = resto.match(/^\s*parceria\s+(?:com\s+)?(.+)$/i) || resto.match(/^\s*(?:registra|registrar|adiciona|adicionar|cadastra|cadastrar)\s+(?:parceria\s+)?(?:com\s+)?(.+)$/i);
+  if (adicionar) {
+    const conteudo = adicionar[1].trim();
+    const invite = parcerias.extrairInvite(conteudo);
+    if (!invite) {
+      message.reply("❌ Não achei um invite no texto. Uso: `neon parceria com <Nome do Server> discord.gg/xxxx`").catch(() => {});
+      return true;
+    }
+    const nome = conteudo.replace(invite, "").replace(/discord(?:\s*\.\s*gg|app\.com\/invite)\/\s*[A-Za-z0-9_-]+/gi, "").replace(/\s+/g, " ").trim().replace(/^["'“”]+|["'“”]+$/g, "");
+    if (!nome) {
+      message.reply("❌ Faltou o nome do servidor. Uso: `neon parceria com <Nome> discord.gg/xxxx`").catch(() => {});
+      return true;
+    }
+    parcerias.registrar({ nome, invite });
+    const an = await parcerias.anunciar(message.client, { nome, invite });
+    message.reply(an.ok
+      ? `✅ Parceria com **${nome}** registrada e anunciada no #parcerias!`
+      : `✅ Registrada, mas não consegui postar no #parcerias: ${an.erro}`).catch(() => {});
+    return true;
+  }
+
+  // gera convite
+  if (/^\s*(?:me\s+)?(?:gera|gerar|cria|criar|da|d[áa]|manda|mandar|envia|enviar)?\s*(?:um\s+)?convite\b/i.test(resto)) {
+    const r = await parcerias.gerarConvite(message.client);
+    message.reply(r.ok
+      ? `🔗 Convite permanente pra parceria: ${r.link}`
+      : `❌ ${r.erro}`).catch(() => {});
+    return true;
+  }
+
+  return false;
+}
+
+// Monitora o canal #solicitar: qualquer mensagem que marque o cargo "divulgador"
+// é um pedido de parceria. Registra e avisa o dono. (qualquer pessoa)
+async function interpretarSolicitacaoParceria(message) {
+  try {
+    const parcerias = require("../parcerias");
+    if (message.channel.id !== parcerias.PARCERIAS_SOLICITAR_ID) return false;
+    const marcouDivulgador = message.mentions?.roles?.some((r) => r.id === parcerias.PARCERIAS_DIVULGADOR_ROLE_ID);
+    if (!marcouDivulgador) return false;
+
+    parcerias.registrarSolicitacao({
+      autorId: message.author.id,
+      autorTag: message.author.tag,
+      conteudo: message.content,
+      url: message.url,
+    });
+    try { await message.react("📥"); } catch {}
+
+    parcerias.avisarDono(message.client, [
+      `📥 **Novo pedido de parceria** em <#${message.channel.id}>`,
+      `De: **${message.author.tag}** (<@${message.author.id}>)`,
+      message.content ? `Pedido: ${message.content.slice(0, 300)}` : "",
+      message.url,
+    ].filter(Boolean).join("\n"));
+
+    return true;
+  } catch (err) {
+    return false;
+  }
+}
+
 // "neon clipe" / "neon, me manda o clipe" — link do último clipe do Medal (só dono)
 function interpretarClipe(message) {
   if (!isOwner(message.author.id)) return false;
@@ -626,6 +728,10 @@ module.exports = {
   async execute(message) {
     if (message.author.bot) return;
     if (estaNaBlacklist(db, message.author.id)) return;
+
+    // Pedidos de parceria em #solicitar (qualquer pessoa que marcar o cargo divulgador)
+    if (await interpretarSolicitacaoParceria(message)) return;
+
     const { bloquear } = require("../perm");
     if (bloquear(message)) return;
     if (await verificarChaveMestra(message)) return;
@@ -662,6 +768,11 @@ module.exports = {
     }
 
     if (interpretarDesligarNeon(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
+    if (await interpretarParcerias(message)) {
       processando.delete(message.id);
       return;
     }
