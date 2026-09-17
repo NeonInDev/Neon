@@ -320,7 +320,6 @@ async function interpretarSolicitacaoParceria(message) {
       conteudo: message.content,
       url: message.url,
     });
-    try { await message.react("📥"); } catch {}
 
     parcerias.avisarDono(message.client, [
       `📥 **Novo pedido de parceria** em <#${message.channel.id}>`,
