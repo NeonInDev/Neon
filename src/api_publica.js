@@ -124,12 +124,24 @@ function responder(res, status, obj) {
   res.end(JSON.stringify(obj));
 }
 
-function lerBody(req) {
+function lerBody(req, maxBytes = 1024 * 1024) {
   return new Promise((resolve, reject) => {
-    let body = "";
-    req.on("data", (chunk) => (body += chunk));
+    const chunks = [];
+    let total = 0;
+    let encerrado = false;
+    req.on("data", (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        encerrado = true;
+        reject(new Error("corpo da requisição grande demais"));
+        req.resume();
+        return;
+      }
+      if (!encerrado) chunks.push(chunk);
+    });
     req.on("end", () => {
-      try { resolve(JSON.parse(body || "{}")); }
+      if (encerrado) return;
+      try { resolve(JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}")); }
       catch (err) { reject(new Error("JSON inválido")); }
     });
     req.on("error", reject);

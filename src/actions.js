@@ -19,6 +19,7 @@ const { setModo } = require("./modo");
 const { removerFundo } = require("./imagens");
 const projetosArquivos = require("./projetos_arquivos");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const { calcularExpressao } = require("./calculadora");
 
 function limparFiller(t) {
   return t.replace(/\s+(?:por\s+favor|pfv|please|pls)\s*$/i, "").replace(/^\s*(?:por\s+favor|pfv|please|pls)\s+/i, "").trim();
@@ -1331,7 +1332,10 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
 
   const categoria = detectarCategoria(texto);
 
-  if (categoria && !podePC) {
+  // Acesso a shell, arquivos e ao agente de programação pode expor dados ou
+  // alterar o computador; não basta estar na lista de usuários permitidos.
+  const categoriaExigeDono = ["exec", "arquivo", "codar_app"].includes(categoria);
+  if (categoria && (!podePC || (categoriaExigeDono && !isOwner(userId)))) {
     return "❌ Acesso negado. Você não é o dono do PC.";
   }
 
@@ -1398,6 +1402,9 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
 
   // Executar comando arbitrário
   if (categoria === "exec") {
+    if (!isOwner(userId) || !usuarioMestre) {
+      return "❌ Execução direta exige o dono do PC com acesso mestre confirmado em DM.";
+    }
     const cmd = encontrarExec(texto);
     log("INFO", "[ACTION] executando comando", { cmd });
     const r = await tentar(cmd);
@@ -2264,7 +2271,7 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       if (expr.match(/[a-z]/i) && !expr.match(/^[\d\s+\-*/().%]+$/)) {
         expr = expr.replace(/[^0-9+\-*/().%\s]/g, "");
       }
-      const result = Function(`"use strict"; return (${expr})`)();
+      const result = calcularExpressao(expr);
       if (typeof result === "number" && !isNaN(result)) {
         return `🧮 **${expr.replace(/\*/g, "×")}** = **${Number.isInteger(result) ? result : result.toFixed(4)}**`;
       }
