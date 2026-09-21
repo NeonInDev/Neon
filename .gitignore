@@ -53,3 +53,8 @@ watch.json
 
 # AGENTS.md contem credenciais locais - nunca versionar
 AGENTS.md
+
+# Dados sensiveis de servidores/backups
+backups/
+logs/
+data/_emergencia_proc.ps1

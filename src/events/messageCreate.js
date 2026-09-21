@@ -221,6 +221,14 @@ function interpretarDesligarNeon(message) {
   const m = texto.match(/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:desliga|desligar|se desliga|desligue-se|vai dormir|dorme)\b/i);
   if (!m) return false;
   const acao = m[1].toLowerCase();
+  // marca pra o start.bat não reiniciar
+  try {
+    require("fs").writeFileSync(
+      require("path").join(__dirname, "..", "..", "nao_religar.flag"),
+      String(Date.now()),
+      "utf8"
+    );
+  } catch {}
   message
     .reply(`😴 Tá bom, chefe. Desligando a Neon agora... Até mais!`)
     .catch(() => {});
@@ -230,6 +238,30 @@ function interpretarDesligarNeon(message) {
     } catch {}
   }, 1000);
   log("INFO", "Neon desligada via Discord", { comando: acao, autor: message.author.tag });
+  return true;
+}
+
+// "neon boa noite" / "boa noite" — desliga o PC instantaneamente (só dono)
+function interpretarBoaNoite(message) {
+  if (!isOwner(message.author.id)) return false;
+  const texto = (message.content || "").trim();
+  const m = texto.match(/^\s*(?:(?:neon|<@!?\d+>)[\s,!.\-:;]+)?boa\s*noite\b.*$/i);
+  if (!m) return false;
+  message
+    .reply("🌙 Boa noite, chefe. Desligando o PC agora... Até amanhã!")
+    .then(() => {
+      setTimeout(() => {
+        try {
+          require("child_process").exec('shutdown /s /t 0 /c "Neon - boa noite"', { windowsHide: true }, () => {});
+        } catch {}
+      }, 1500);
+    })
+    .catch(() => {
+      try {
+        require("child_process").exec('shutdown /s /t 0 /c "Neon - boa noite"', { windowsHide: true }, () => {});
+      } catch {}
+    });
+  log("INFO", "Comando boa noite (desliga PC)", { autor: message.author.tag });
   return true;
 }
 
@@ -773,6 +805,11 @@ module.exports = {
     }
 
     if (interpretarClipe(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
+    if (interpretarBoaNoite(message)) {
       processando.delete(message.id);
       return;
     }
