@@ -5,8 +5,6 @@
 ; Se você não interagir em 5 minutos, fecha Steam e Roblox.
 
 abrirTudo() {
-    static checkIdle
-
     Run 'C:\Users\Pichau\AppData\Local\Medal\Medal.exe'
     Run 'C:\Users\Pichau\AppData\Local\Discord\Update.exe --processStart Discord.exe'
     Run 'C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe'
@@ -25,16 +23,17 @@ abrirTudo() {
     SetTimer(() => ToolTip(), -2500)
 
     ; Se não houver interação em 5 min (A_TimeIdle ~5 min), fecha Steam e Roblox
-    checkIdle := () => {
-        if (A_TimeIdle >= 300000) {
-            ProcessClose("steam.exe")
-            ProcessClose("RobloxPlayerBeta.exe")
-            ToolTip 'Steam e Roblox fechados (5 min sem uso).'
-            SetTimer(() => ToolTip(), -2500)
-            SetTimer(checkIdle, 0)
-        }
+    SetTimer(fecharSteamSeOcioso, 5000)
+}
+
+fecharSteamSeOcioso() {
+    if (A_TimeIdle >= 300000) {
+        ProcessClose("steam.exe")
+        ProcessClose("RobloxPlayerBeta.exe")
+        ToolTip 'Steam e Roblox fechados (5 min sem uso).'
+        SetTimer(() => ToolTip(), -2500)
+        SetTimer(fecharSteamSeOcioso, 0)
     }
-    SetTimer(checkIdle, 5000)
 }
 
 ; Checka se a Neon está online via API de health
