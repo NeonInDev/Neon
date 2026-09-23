@@ -70,10 +70,18 @@ async function classificarIntencao(texto) {
 }
 
 async function chamarLLM(sistema, userMsg, permitirOpencode = true) {
+  const MAX_SISTEMA_CHARS = 26000;
+  const sistemaFinal = String(sistema || "").length > MAX_SISTEMA_CHARS
+    ? String(sistema).slice(0, MAX_SISTEMA_CHARS)
+    : String(sistema || "");
+
   const messages = [
-    { role: "system", content: sistema },
-    { role: "user", content: userMsg },
+    { role: "system", content: sistemaFinal },
+    { role: "user", content: userMsg.slice(0, MAX_INPUT_LEN) },
   ];
+  if (String(sistema || "").length > MAX_SISTEMA_CHARS) {
+    log("WARN", "[LLM] Sistema truncado para caber no limite do provider", { antes: String(sistema).length, depois: sistemaFinal.length });
+  }
 
   const tentativas = [
     DEEPSEEK_API_KEY && { nome: "DeepSeek", url: "https://api.deepseek.com/chat/completions", key: DEEPSEEK_API_KEY, model: DEEPSEEK_MODEL, ms: 90000 },

@@ -8,6 +8,14 @@ const DATA_DIR = path.join(__dirname, "..", "data");
 const SKILLS_FILE = path.join(DATA_DIR, "skills.json");
 const MAX_SKILLS = 50;
 
+const MAX_INSTRUCOES_CONTEXTO = 2500;
+
+function truncarInstrucoes(instrucoes) {
+  const texto = String(instrucoes || "");
+  if (texto.length <= MAX_INSTRUCOES_CONTEXTO) return texto;
+  return texto.slice(0, MAX_INSTRUCOES_CONTEXTO) + "\n…(instruções truncadas)";
+}
+
 const SKILLS_DIR = path.join(__dirname, "..", "skills");
 const MANIFEST_FILE = path.join(SKILLS_DIR, "_manifest.json");
 
@@ -47,7 +55,7 @@ function contexto() {
   const skills = carregar();
   if (skills.length) {
     txt += "\n\nSKILLS APRENDIDAS E ATIVAS:\n" + skills
-      .map((s) => `- ${s.nome}: ${s.instrucoes}`)
+      .map((s) => `- ${s.nome}: ${truncarInstrucoes(s.instrucoes)}`)
       .join("\n");
   }
   const executaveis = ferramentasSkills();
