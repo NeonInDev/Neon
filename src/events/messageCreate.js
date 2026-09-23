@@ -66,6 +66,19 @@ const COOLDOWN_MS = 3000;
 const DEBOUNCE_MS = 1000;
 const mensagensPendentes = new Map();
 
+function chaveConversa(userId, channelId) {
+  return `${userId}:${channelId}`;
+}
+
+function limparPendentesDoUsuario(userId) {
+  for (const [chave, pendente] of mensagensPendentes) {
+    if (String(chave).startsWith(`${userId}:`)) {
+      clearTimeout(pendente.timer);
+      mensagensPendentes.delete(chave);
+    }
+  }
+}
+
 async function verificarChaveMestra(message) {
   if (message.content.trim() !== MASTER_KEY) return false;
   if (message.channel.type !== ChannelType.DM) {
@@ -95,11 +108,7 @@ function checkCooldown(userId) {
 function interpretarAbortar(message) {
   if (!isOwner(message.author.id)) return false;
   if (!/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:aborta|abortar|pare|parar|cancela|cancelar)\b/i.test(message.content || "")) return false;
-  const pendente = mensagensPendentes.get(message.author.id);
-  if (pendente) {
-    clearTimeout(pendente.timer);
-    mensagensPendentes.delete(message.author.id);
-  }
+  limparPendentesDoUsuario(message.author.id);
   opencode.abortar();
   require("../fila").limpar(message.author.id);
   message.reply("🛑 Parei o processamento atual da Neon e limpei a fila.").catch(() => {});
@@ -119,11 +128,7 @@ function interpretarAbortarReply(message) {
   if (!ocupada) return false;
 
   (async () => {
-    const pendente = mensagensPendentes.get(message.author.id);
-    if (pendente) {
-      clearTimeout(pendente.timer);
-      mensagensPendentes.delete(message.author.id);
-    }
+    limparPendentesDoUsuario(message.author.id);
     opencode.abortar();
     require("../fila").limpar(message.author.id);
     await progresso.cancelarPorMsgId(refId, "Cancelado pelo chefe");
@@ -695,14 +700,14 @@ function algumaAtiva(mensagens, message) {
   return false;
 }
 
-async function processarLote(userId, lote) {
-  mensagensPendentes.delete(userId);
+async function processarLote(chave, lote) {
+  mensagensPendentes.delete(chave);
   const message = lote.ultimoObjeto;
 
   const combinedInput = combinarTextoMensagens(lote.mensagens);
   if (!combinedInput) return;
   if (!algumaAtiva(lote.mensagens, message)) return;
-  if (checkCooldown(userId)) return;
+  if (checkCooldown(chave)) return;
 
   // Remove "neon" do início/fim pra não poluir o contexto
   const textoLimpo = combinedInput
@@ -710,7 +715,7 @@ async function processarLote(userId, lote) {
     .replace(/[\s,!.\-:;]*\s*neon\s*$/i, "")
     .trim() || combinedInput;
 
-  enfileirar(userId, async () => {
+  enfileirar(chave, async () => {
     processando.delete(message.id);
     try {
       const username = message.author.username;
@@ -728,9 +733,10 @@ async function processarLote(userId, lote) {
         : null;
 
       const objetivoAtivo = objetivo.objetivoAtivo();
+      const guildId = message.guild?.id || null;
       const reply = objetivoAtivo && isOwner(userId)
         ? await objetivo.executarObjetivo(userId, username, textoLimpo, avisarAtraso)
-        : await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso, onProgress);
+        : await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso, onProgress, guildId);
 
       const textoResposta = reply || "";
       if (progresso.ok) {
@@ -885,18 +891,20 @@ module.exports = {
       return;
     }
 
-    // Debounce: agrupa mensagens do mesmo usuário enviadas em sequência
-    const pendente = mensagensPendentes.get(message.author.id);
+    // Debounce: agrupa mensagens do mesmo usuário no mesmo canal enviadas em sequência
+    // (conversas de canais DIFERENTES rodam em fila própria → paralelo real)
+    const chave = chaveConversa(message.author.id, message.channelId);
+    const pendente = mensagensPendentes.get(chave);
     if (pendente) {
       clearTimeout(pendente.timer);
       pendente.mensagens.push(message);
       pendente.ultimoObjeto = message;
-      pendente.timer = setTimeout(() => processarLote(message.author.id, pendente), DEBOUNCE_MS);
+      pendente.timer = setTimeout(() => processarLote(chave, pendente), DEBOUNCE_MS);
       return;
     }
 
     const lote = { mensagens: [message], ultimoObjeto: message, timer: null };
-    lote.timer = setTimeout(() => processarLote(message.author.id, lote), DEBOUNCE_MS);
-    mensagensPendentes.set(message.author.id, lote);
+    lote.timer = setTimeout(() => processarLote(chave, lote), DEBOUNCE_MS);
+    mensagensPendentes.set(chave, lote);
   },
 };

@@ -16,6 +16,7 @@ const agendados = require("./src/agendados");
 const alarmes = require("./src/lembrete_alarme");
 const plugins = require("./plugins/gerenciador");
 const skills = require("./src/skills");
+const health = require("./src/health_ai");
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
   await plugins.parar();
@@ -56,6 +57,7 @@ function iniciarModulos() {
   try { alarmes.iniciar(); } catch (err) { log("ERROR", "[ALARME] Falha ao iniciar", { erro: err.message }); }
   try { opencode.iniciarServer().then(port => port ? log("INFO", "[OPENCODE] Pronto", { port }) : log("WARN", "[OPENCODE] Servidor nao iniciou")); } catch (err) { log("ERROR", "[OPENCODE] Falha ao iniciar", { erro: err.message }); }
   try { plugins.iniciar(client); } catch (err) { log("ERROR", "[PLUGINS] Falha ao iniciar", { erro: err.message }); }
+  try { health.iniciar(); } catch (err) { log("ERROR", "[SAUDE] Falha ao iniciar", { erro: err.message }); }
 }
 
 client.once("ready", () => {

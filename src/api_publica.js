@@ -324,6 +324,14 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/saude" && req.method === "GET") {
+      try {
+        const health = require("./health_ai");
+        responder(res, 200, health.status());
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/logs" && req.method === "GET") {
       if (!exigeChave(req, res)) return;
       try {

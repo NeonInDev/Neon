@@ -16,7 +16,7 @@ function salvar(data) {
   fs.writeFileSync(ARQUIVO, JSON.stringify(data, null, 2), "utf8")
 }
 
-async function lembrar(chave, valor, categoria = "outro", prioridade = 3, expiracao = null) {
+async function lembrar(chave, valor, categoria = "outro", prioridade = 3, expiracao = null, guildId = null) {
   const data = carregar()
   const idx = data.memorias.findIndex(m => m.chave.toLowerCase() === chave.toLowerCase())
   const entry = {
@@ -24,6 +24,7 @@ async function lembrar(chave, valor, categoria = "outro", prioridade = 3, expira
     categoria: CATEGORIAS_PADRAO.includes(categoria) ? categoria : "outro",
     prioridade: Math.min(5, Math.max(1, prioridade)),
     expira: expiracao,
+    guildId: guildId || null,
     acessos: 0,
     criada: new Date().toISOString(),
     atualizada: new Date().toISOString()
@@ -36,7 +37,7 @@ async function lembrar(chave, valor, categoria = "outro", prioridade = 3, expira
     data.memorias.push(entry)
   }
   salvar(data)
-  log("INFO", "[MEMORIA] Lembrei", { chave, categoria, prioridade })
+  log("INFO", "[MEMORIA] Lembrei", { chave, categoria, prioridade, guildId })
   return `Lembrei: "${chave}" (${categoria}, prioridade ${prioridade})`
 }
 
@@ -49,13 +50,14 @@ async function esquecer(chave) {
   return `Esqueci "${chave}".`
 }
 
-async function buscar(texto) {
+async function buscar(texto, guildId = null) {
   const data = carregar()
   const termo = texto.toLowerCase()
   const resultados = data.memorias.filter(m =>
-    m.chave.toLowerCase().includes(termo) ||
+    (!guildId || !m.guildId || m.guildId === guildId) &&
+    (m.chave.toLowerCase().includes(termo) ||
     m.valor.toLowerCase().includes(termo) ||
-    (m.categoria && m.categoria.toLowerCase().includes(termo))
+    (m.categoria && m.categoria.toLowerCase().includes(termo)))
   ).map(m => {
     m.acessos = (m.acessos || 0) + 1
     return m
@@ -64,13 +66,15 @@ async function buscar(texto) {
   return resultados.sort((a, b) => (b.prioridade || 3) - (a.prioridade || 3)).slice(0, 10)
 }
 
-async function buscarPorCategoria(categoria) {
+async function buscarPorCategoria(categoria, guildId = null) {
   const data = carregar()
-  return data.memorias.filter(m => m.categoria === categoria)
+  return data.memorias.filter(m => m.categoria === categoria && (!guildId || !m.guildId || m.guildId === guildId))
 }
 
-async function listar() {
-  return carregar().memorias
+async function listar(guildId = null) {
+  const data = carregar()
+  if (!guildId) return data.memorias
+  return data.memorias.filter(m => !m.guildId || m.guildId === guildId)
 }
 
 async function limparExpiradas() {
@@ -102,10 +106,11 @@ async function estatisticas() {
   }
 }
 
-function formatarParaPrompt() {
+function formatarParaPrompt(guildId = null) {
   const data = carregar()
-  if (!data.memorias.length) return ""
-  const importantes = data.memorias
+  const base = !guildId ? data.memorias : data.memorias.filter(m => !m.guildId || m.guildId === guildId)
+  if (!base.length) return ""
+  const importantes = base
     .sort((a, b) => (b.prioridade || 3) - (a.prioridade || 3))
     .slice(0, 30)
   const linhas = importantes.map(m =>
@@ -114,13 +119,15 @@ function formatarParaPrompt() {
   return "Memorias:\n" + linhas.join("\n")
 }
 
-function buscarRelevantes(textoUsuario, maxItens = 8) {
+function buscarRelevantes(textoUsuario, guildId = null, maxItens = 8) {
   const data = carregar()
   if (!data.memorias.length) return ""
   const termos = textoUsuario.toLowerCase().split(/\s+/).filter(t => t.length > 2)
-  if (!termos.length) return formatarParaPrompt()
+  const base = !guildId ? data.memorias : data.memorias.filter(m => !m.guildId || m.guildId === guildId)
+  if (!base.length) return ""
+  if (!termos.length) return formatarParaPrompt(guildId)
 
-  const pontuadas = data.memorias.map(m => {
+  const pontuadas = base.map(m => {
     let score = 0
     const chaveLower = m.chave.toLowerCase()
     const valorLower = (m.valor || "").toLowerCase()
@@ -132,6 +139,7 @@ function buscarRelevantes(textoUsuario, maxItens = 8) {
     }
     score += (m.prioridade || 3) * 0.5
     score += Math.min((m.acessos || 0) * 0.2, 2)
+    if (m.guildId) score += 0.5
     return { ...m, score }
   })
 
@@ -141,7 +149,7 @@ function buscarRelevantes(textoUsuario, maxItens = 8) {
     .slice(0, maxItens)
 
   if (!relevantes.length) {
-    return formatarParaPrompt()
+    return formatarParaPrompt(guildId)
   }
 
   const linhas = relevantes.map(m =>

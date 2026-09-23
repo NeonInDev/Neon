@@ -132,7 +132,7 @@ function formatarPerfil(user) {
   return `\n\nPERFIL DA PESSOA (aprendido nas conversas):\n${linhas.join("\n")}\nUse isso para personalizar e lembrar quem ela é. Não liste isso de volta pra ela sem motivo.`;
 }
 
-async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null, onProgress = null) {
+async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null, onProgress = null, guildId = null) {
   if (!db.data.users) db.data.users = {};
   if (!db.data.blacklist) db.data.blacklist = [];
 
@@ -214,7 +214,7 @@ REAÇÕES EMOCIONAIS (importante):
 - Pedido do dono: obedeça ("feito, chefe" com tom natural, não subserviente).
 ${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
 
-  const memoriasTxt = memoria.buscarRelevantes(promptTruncado);
+  const memoriasTxt = memoria.buscarRelevantes(promptTruncado, guildId);
 
   const historicoTxt = historico ? `Histórico recente:\n${historico}\n\n` : "";
 

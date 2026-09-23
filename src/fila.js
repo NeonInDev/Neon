@@ -33,9 +33,17 @@ async function processarProxima(userId) {
 }
 
 function status(userId) {
-  const fila = filas.get(userId)
-  if (!fila) return { queueLength: 0, processing: false }
-  return { queueLength: fila.queue.length, processing: fila.processing }
+  const chaves = [...filas.keys()].filter((k) => k === userId || String(k).startsWith(`${userId}:`));
+  let queueLength = 0;
+  let processing = false;
+  for (const chave of chaves) {
+    const fila = filas.get(chave);
+    if (fila) {
+      queueLength += fila.queue.length;
+      processing = processing || fila.processing;
+    }
+  }
+  return { queueLength, processing };
 }
 
 function listar() {
@@ -49,13 +57,17 @@ function listar() {
 }
 
 function limpar(userId) {
-  const fila = filas.get(userId)
-  if (fila) {
-    for (const item of fila.queue) {
-      item.reject(new Error("Fila limpa"))
+  const chaves = [...filas.keys()].filter((k) => k === userId || String(k).startsWith(`${userId}:`));
+  for (const chave of chaves) {
+    const fila = filas.get(chave);
+    if (fila) {
+      for (const item of fila.queue) {
+        item.reject(new Error("Fila limpa"));
+      }
+      fila.queue = [];
+      fila.processing = false;
+      filas.delete(chave);
     }
-    fila.queue = []
-    fila.processing = false
   }
 }
 
