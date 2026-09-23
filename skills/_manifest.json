@@ -110,6 +110,14 @@
       "arquivo": "musica.js",
       "criadaEm": "2026-09-15T00:00:00.000Z",
       "atualizadaEm": "2026-09-15T00:00:00.000Z"
+    },
+    {
+      "id": "silenciar_usuario_call",
+      "nome": "silenciar_usuario_call",
+      "descricao": "Silencia um usuário na call do Discord (mute no servidor) sem ensurdecer. ",
+      "arquivo": "silenciar_usuario_call.js",
+      "criadaEm": "2026-09-21T23:04:23.445Z",
+      "atualizadaEm": "2026-09-21T23:04:23.445Z"
     }
   ],
   "versao": 1

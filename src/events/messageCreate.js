@@ -15,6 +15,7 @@ const axios = require("axios");
 const { PermissionFlagsBits } = require("discord.js");
 const { ativaLockdown, desativaLockdown } = require("../lockdown");
 const objetivo = require("../objetivo");
+const { interpretarFalaComando } = require("../fala_comandos");
 // envia a resposta em texto plano (sem molde/sem formatação staff-chat),
 // dividindo em várias mensagens se passar do limite do Discord
 async function enviarEmoldurado(message, texto) {
@@ -852,6 +853,16 @@ module.exports = {
     if (await interpretarSkillPrefixo(message)) {
       processando.delete(message.id);
       return;
+    }
+
+    // Comandos por fala natural (ex.: "Neon, me da a letra de X" -> /letra)
+    try {
+      if (await interpretarFalaComando(message)) {
+        processando.delete(message.id);
+        return;
+      }
+    } catch (err) {
+      log("WARN", "[FALA] erro no roteador de comandos", { erro: err.message });
     }
 
     // Whisper: se ativo, reenvia a mensagem do dono no mesmo chat (e apaga com "del").
