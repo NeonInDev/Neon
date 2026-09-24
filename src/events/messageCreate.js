@@ -857,12 +857,8 @@ module.exports = {
       return;
     }
 
-    if (await interpretarSkillPrefixo(message)) {
-      processando.delete(message.id);
-      return;
-    }
-
-    // Purgatório — rolagem de quirk com pool ajustável (só owner/autorizado)
+    // Purgatório — rolagem de quirk com pool ajustável (só owner/autorizado).
+    // Roda ANTES das skills (modo_rpg rouba "rola X") pra capturar "rola purgatorio".
     try {
       const { interpretarPurgatorio } = require("../purgatorio");
       if (await interpretarPurgatorio(message)) {
@@ -871,6 +867,11 @@ module.exports = {
       }
     } catch (err) {
       log("WARN", "[PURGATORIO] erro", { erro: err.message });
+    }
+
+    if (await interpretarSkillPrefixo(message)) {
+      processando.delete(message.id);
+      return;
     }
 
     // Comandos por fala natural (ex.: "Neon, me da a letra de X" -> /letra)
