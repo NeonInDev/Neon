@@ -70,7 +70,7 @@ async function classificarIntencao(texto) {
 }
 
 async function chamarLLM(sistema, userMsg, permitirOpencode = true) {
-  const MAX_SISTEMA_CHARS = 26000;
+  const MAX_SISTEMA_CHARS = 20000;
   const sistemaFinal = String(sistema || "").length > MAX_SISTEMA_CHARS
     ? String(sistema).slice(0, MAX_SISTEMA_CHARS)
     : String(sistema || "");
