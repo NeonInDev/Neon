@@ -832,6 +832,19 @@ module.exports = {
       return;
     }
 
+    // Purgatório — rolagem de quirk com pool ajustável (só owner/autorizado).
+    // Roda ANTES do rate limit e das skills (modo_rpg rouba "rola X"), pra
+    // "neon, rola purgatorio" responder sempre, para os autorizados.
+    try {
+      const { interpretarPurgatorio } = require("../purgatorio");
+      if (await interpretarPurgatorio(message)) {
+        processando.delete(message.id);
+        return;
+      }
+    } catch (err) {
+      log("WARN", "[PURGATORIO] erro", { erro: err.message });
+    }
+
     // Pings: avisa o dono (em voz/DM) quando alguém o menciona em servidores.
     // Roda antes do rate limit/debounce e não "consome" a mensagem (retorna void).
     try {
@@ -855,18 +868,6 @@ module.exports = {
     if (await interpretarLockdown(message)) {
       processando.delete(message.id);
       return;
-    }
-
-    // Purgatório — rolagem de quirk com pool ajustável (só owner/autorizado).
-    // Roda ANTES das skills (modo_rpg rouba "rola X") pra capturar "rola purgatorio".
-    try {
-      const { interpretarPurgatorio } = require("../purgatorio");
-      if (await interpretarPurgatorio(message)) {
-        processando.delete(message.id);
-        return;
-      }
-    } catch (err) {
-      log("WARN", "[PURGATORIO] erro", { erro: err.message });
     }
 
     if (await interpretarSkillPrefixo(message)) {
