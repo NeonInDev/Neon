@@ -111,7 +111,12 @@ async function interpretarPurgatorio(message) {
   const m = texto.match(
     /^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:(?:rola|roll|role|rolando|girar)\s+)?purgat[oó]rio\b(.*)$/i
   );
-  if (!m) return false;
+  if (!m) {
+    if (/purgat/i.test(texto)) {
+      log("WARN", "[PURGATORIO] viu mas nao casou", { autor: message.author.id, texto: texto.slice(0, 120) });
+    }
+    return false;
+  }
   const resto = (m[1] || "").trim();
 
   if (!permitido(message.author.id)) {

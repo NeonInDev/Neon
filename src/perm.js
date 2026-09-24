@@ -5,6 +5,7 @@ const ALLOWED_USERS = [
   OWNER,
   "820967650812362772",
   "1200205111390130190",
+  "1221320772224553071",
 ];
 const GUESTS_FILE = path.join(__dirname, "..", "data", "guests.json");
 
