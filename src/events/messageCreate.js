@@ -862,6 +862,17 @@ module.exports = {
       return;
     }
 
+    // Purgatório — rolagem de quirk com pool ajustável (só owner/autorizado)
+    try {
+      const { interpretarPurgatorio } = require("../purgatorio");
+      if (await interpretarPurgatorio(message)) {
+        processando.delete(message.id);
+        return;
+      }
+    } catch (err) {
+      log("WARN", "[PURGATORIO] erro", { erro: err.message });
+    }
+
     // Comandos por fala natural (ex.: "Neon, me da a letra de X" -> /letra)
     try {
       if (await interpretarFalaComando(message)) {
