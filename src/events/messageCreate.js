@@ -703,6 +703,7 @@ function algumaAtiva(mensagens, message) {
 async function processarLote(chave, lote) {
   mensagensPendentes.delete(chave);
   const message = lote.ultimoObjeto;
+  const userId = String(chave).split(":")[0];
 
   const combinedInput = combinarTextoMensagens(lote.mensagens);
   if (!combinedInput) return;
