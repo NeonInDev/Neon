@@ -77,7 +77,7 @@ function resumoExtras(d) {
   if (!d.extras.length) return "Nenhum ajuste no pool.";
   const linhas = d.extras.map(
     (e) =>
-      `• ${e.acao === "adicionar" ? "➕" : "➖"} **${e.quirk}** — <@${e.autor}> · ${e.data.split("T")[0]}\n  _Motivo:_ ${e.motivo}  _Req.:_ ${e.requisitos}`
+      `• ${e.acao === "adicionar" ? "➕" : "➖"} **${e.quirk}** — <@${e.autor}> · ${e.data.split("T")[0]}\n  _Motivo:_ ${e.motivo || "—"}  _Req.:_ ${e.requisitos || "—"}`
   );
   return `**Ajustes do pool:**\n${linhas.join("\n")}`;
 }
@@ -106,18 +106,27 @@ function separarCampos(alvo) {
   return { nome, motivo, requisitos };
 }
 
+const VERBOS_ADD = /\b(?:adicion[ae]|adicionar|add|bota|botar|coloca|colocar|poe|poem|por|mete|meter|inclui|incluir|soma|somar|duplica|duplicar|dobra|cadastra|cadastrar)\b/i;
+const VERBOS_REM = /\b(?:tira|tirar|remove|remover|retira|retirar|baixa|abaixa|cancela|cancelar|exclui|excluir|sai|some|tiradele)\b/i;
+
+// extrai o nome da quirk entre o verbo de ação e "purgatorio"
+function extrairNomeNatural(texto) {
+  let t = String(texto || "")
+    .replace(/\bpurgat[oó]rio\b.*$/i, "")
+    .replace(/\s+(?:no|na|do|da|dos|das|nos|nas|ao|aos|o|a|as|os|de?|em)\s*$/i, "")
+    .replace(/[,\s]+$/g, "")
+    .trim();
+  return t;
+}
+
 async function interpretarPurgatorio(message) {
   const texto = (message.content || "").trim();
   const m = texto.match(
-    /^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(?:(?:rola|roll|role|rolando|girar)\s+)?purgat[oó]rio\b(.*)$/i
+    /^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(.+?\b)?purgat[oó]rio\b(.*)$/is
   );
-  if (!m) {
-    if (/purgat/i.test(texto)) {
-      log("WARN", "[PURGATORIO] viu mas nao casou", { autor: message.author.id, texto: texto.slice(0, 120) });
-    }
-    return false;
-  }
-  const resto = (m[1] || "").trim();
+  if (!m) return false;
+  const ante = (m[1] || "").trim();
+  const resto = (m[2] || "").trim();
 
   if (!permitido(message.author.id)) {
     await message.reply("🔒 Esse comando é exclusivo do chefe.").catch(() => {});
@@ -130,22 +139,66 @@ async function interpretarPurgatorio(message) {
     return true;
   }
 
+  // fala natural: "Neon, bota Hellflames no purgatorio" / "Neon, tira Hellflames do purgatorio"
+  const trecho = `${ante} purgatorio ${resto}`.replace(/\s+/g, " ").trim();
+  const naturalAdd = VERBOS_ADD.test(trecho);
+  const naturalRem = VERBOS_REM.test(trecho);
+  if (naturalAdd || naturalRem) {
+    const acao = naturalAdd ? "adicionar" : "tirar";
+    // remove o verbo e pega o que sobra como alvo (nome [, motivo] [, requisitos])
+    const semVerbo = trecho
+      .replace(new RegExp(VERBOS_ADD.source, "i"), "")
+      .replace(new RegExp(VERBOS_REM.source, "i"), "")
+      .replace(/^\s*[,\s]+\s*/, "")
+      .trim();
+    const { nome, motivo, requisitos } = separarCampos(semVerbo);
+    const nomeLimpo = extrairNomeNatural(nome);
+    if (!nomeLimpo) {
+      await message.reply("❌ Especifica a quirk. Ex.: `neon, bota Hellflames no purgatorio` ou `neon, tira Hellflames do purgatorio`").catch(() => {});
+      return true;
+    }
+    const k = normalizar(nomeLimpo);
+    const achada = d.quirks.find((q) => normalizar(q) === k);
+    if (!achada) {
+      await message
+        .reply(`❌ **"${nomeLimpo}"** não está na tabela do Purgatório. Confere o nome e tenta de novo.`)
+        .catch(() => {});
+      return true;
+    }
+    const existeExtra = d.extras.find((e) => normalizar(e.quirk) === k);
+    if (existeExtra && existeExtra.acao === acao) {
+      await message
+        .reply(`⚠️ **${achada}** já tem o ajuste "**${acao}**" no pool (${existeExtra.motivo || "sem motivo"}).`)
+        .catch(() => {});
+      return true;
+    }
+    d.extras.push({
+      quirk: achada,
+      acao,
+      motivo: motivo || null,
+      requisitos: requisitos || null,
+      autor: message.author.id,
+      data: new Date().toISOString(),
+    });
+    salvar(d);
+    log("INFO", "[PURGATORIO] ajuste de pool", { acao, quirk: achada, autor: message.author.id });
+    await message
+      .reply(
+        `✅ Ajuste registrado: **${acao === "adicionar" ? "➕ adicionar" : "➖ tirar"}** **${achada}**.\n🎲 ` +
+          (motivo || requisitos
+            ? `(motivo: ${motivo || "—"} | requisitos: ${requisitos || "—"})`
+            : "Sem motivo/requisitos informados.")
+      )
+      .catch(() => {});
+    return true;
+  }
+
   const acaoMatch = resto.match(/^(adiciona|adicionar|add|tira|tirar|remove|remover|bota|coloca|abaixa|baixa)\s+(.+)$/i);
   if (acaoMatch) {
     const acao = /^(adiciona|adicionar|add|bota|coloca)/i.test(acaoMatch[1]) ? "adicionar" : "tirar";
     const { nome, motivo, requisitos } = separarCampos(acaoMatch[2].trim());
     if (!nome) {
       await message.reply("❌ Especifica a quirk. Formato: `neon, purgatorio adicionar <quirk>, motivo: X, requisitos: Y`").catch(() => {});
-      return true;
-    }
-    if (!motivo || !requisitos) {
-      await message
-        .reply(
-          "❌ Para ajustar o pool é **obrigatório** informar motivo e requisitos. Formato:\n`neon, purgatorio " +
-            (acao === "adicionar" ? "adicionar Hellflames" : "tirar Hellflames") +
-            ", motivo: <por quê>, requisitos: <requisitos>`"
-        )
-        .catch(() => {});
       return true;
     }
     const k = normalizar(nome);
@@ -159,15 +212,15 @@ async function interpretarPurgatorio(message) {
     const existeExtra = d.extras.find((e) => normalizar(e.quirk) === k);
     if (existeExtra && existeExtra.acao === acao) {
       await message
-        .reply(`⚠️ **${achada}** já tem o ajuste "**${acao}**" no pool (${existeExtra.motivo}).`)
+        .reply(`⚠️ **${achada}** já tem o ajuste "**${acao}**" no pool (${existeExtra.motivo || "sem motivo"}).`)
         .catch(() => {});
       return true;
     }
     d.extras.push({
       quirk: achada,
       acao,
-      motivo,
-      requisitos,
+      motivo: motivo || null,
+      requisitos: requisitos || null,
       autor: message.author.id,
       data: new Date().toISOString(),
     });
@@ -176,7 +229,9 @@ async function interpretarPurgatorio(message) {
     await message
       .reply(
         `✅ Ajuste registrado: **${acao === "adicionar" ? "➕ adicionar" : "➖ tirar"}** **${achada}**.\n🎲 ` +
-          `O pool agora tem ajuste ativo (motivo: ${motivo} | requisitos: ${requisitos}).`
+          (motivo || requisitos
+            ? `(motivo: ${motivo || "—"} | requisitos: ${requisitos || "—"})`
+            : "Sem motivo/requisitos informados.")
       )
       .catch(() => {});
     return true;
@@ -207,4 +262,4 @@ async function interpretarPurgatorio(message) {
   return true;
 }
 
-module.exports = { interpretarPurgatorio, montarPool, separarCampos };
+module.exports = { interpretarPurgatorio, montarPool, separarCampos, extrairNomeNatural };
