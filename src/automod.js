@@ -34,10 +34,16 @@ const PALAVRAS_PADRAO = [
   "strpd",
   "mcc",
   "macaco",
+  "diddy",
+  "kid bengala",
+  "jeffrey",
+  "epstein",
+  "stu pro",
+  "stu prado",
 ];
 
 // Sobe esse numero sempre que o dono trocar a lista acima.
-const VERSAO_PALAVRAS = 2;
+const VERSAO_PALAVRAS = 3;
 
 // tira acento e deixa minusculo, pra "estuprado" pegar "estúprado" tambem
 function normalizar(txt) {
@@ -65,13 +71,7 @@ function semearPalavras(guildId) {
   return novas;
 }
 
-const ESCALA_PADRAO = [
-  { warns: 1, acao: "timeout", minutos: 10 },
-  { warns: 2, acao: "timeout", minutos: 60 },
-  { warns: 3, acao: "timeout", minutos: 1440 },
-  { warns: 4, acao: "kick", motivo: "4 warns" },
-  { warns: 5, acao: "ban", apagarDias: 7, motivo: "5 warns" },
-];
+const ESCALA_PADRAO = require("./punicoes").ESCALA_PUNICAO;
 
 const ANTIRAID_PADRAO = {
   ativo: false,
@@ -162,6 +162,12 @@ function configGuild(guildId) {
   if (!d.servidores[guildId]) d.servidores[guildId] = structuredClone(CFG_PADRAO);
   const c = d.servidores[guildId];
   if (!c.escala) c.escala = structuredClone(ESCALA_PADRAO);
+  // a escada tem 10 niveis na versao do dono; se a config do servidor ainda
+  // tem a antiga de 5, troca pela nova (so quando o dono nao editou na mao)
+  if (Array.isArray(c.escala) && c.escala.length && c.escala.length !== ESCALA_PADRAO.length) {
+    c.escala = structuredClone(ESCALA_PADRAO);
+    persistir();
+  }
   if (!c.antiraid) c.antiraid = structuredClone(ANTIRAID_PADRAO);
   if (!c.filtros) c.filtros = structuredClone(FILTROS_PADRAO);
   if (!Array.isArray(c.filtros.palavras)) c.filtros.palavras = [];
@@ -281,10 +287,38 @@ function contarWarns(guildId, userId) {
   return r;
 }
 
+// =============================================================
+// CONTA DOBRADA
+// =============================================================
+// Regra do dono: quem tem cargo ABAIXO do "Robotizado" (cargo da propria
+// Neon, 222) conta 2 warns por infracao. Quem esta acima disso e staff e
+// conta normal. O owner do servidor fica sempre de fora.
+function ehOwner(guild, user) {
+  return !!user && !!guild && user.id === guild.ownerId;
+}
+
+function contaDobrada(guild, member) {
+  if (!member) return false;
+  if (ehOwner(guild, member)) return false;
+  const meuTopo = guild.members?.me?.roles?.highest?.position;
+  if (!Number.isFinite(meuTopo)) return false;
+  const topo = member.roles?.highest?.position;
+  if (!Number.isFinite(topo)) return false;
+  return topo < meuTopo;
+}
+
 async function darWarn(guild, user, motivo, autor, opts = {}) {
   const r = registroWarn(guild.id, user.id);
-  r.total += 1;
-  r.ativo += 1;
+  const member = opts.member || (await guild.members.fetch(user.id).catch(() => null));
+  // o owner nunca entra na contagem, nem automatica
+  if (ehOwner(guild, member || user)) {
+    log("INFO", "[AUTOMOD] owner ignorado na contagem", { guild: guild.name, usuario: user.id });
+    return { warn: 0, total: r.total, punicao: null, owner: true };
+  }
+  const dobro = contaDobrada(guild, member);
+  const passo = dobro ? 2 : 1;
+  r.total += passo;
+  r.ativo += passo;
   r.historico.push({
     em: Date.now(),
     motivo: String(motivo || "sem motivo").slice(0, 500),
@@ -292,15 +326,19 @@ async function darWarn(guild, user, motivo, autor, opts = {}) {
     autorTag: autor?.user?.tag || autor?.tag || null,
     automatico: !!opts.automatico,
     tipo: opts.tipo || "manual",
+    peso: passo,
   });
   if (r.historico.length > 100) r.historico = r.historico.slice(-100);
   persistir();
 
   const cfg = configGuild(guild.id);
   const regra = resolverEscala(cfg.escala, r.ativo);
-  const member = await guild.members.fetch(user.id).catch(() => null);
 
-  const linhas = [`**${r.ativo}º warn** — total histórico: ${r.total}`, `📄 Motivo: ${motivo || "sem motivo"}`];
+  const linhas = [
+    `**${r.ativo}º warn** — total histórico: ${r.total}`,
+    ...(dobro ? ["**conta dobrada** (você está abaixo do cargo da staff)"] : []),
+    `📄 Motivo: ${motivo || "sem motivo"}`,
+  ];
   if (regra) linhas.push(punicaoTexto(regra, r.ativo));
 
   if (cfg.avisarNoCanal && member) {
@@ -331,7 +369,7 @@ async function darWarn(guild, user, motivo, autor, opts = {}) {
     campos: {
       Usuário: `${user.tag || user.username}\n\`${user.id}\``,
       Motivo: motivo,
-      Warn: `${r.ativo}º (total ${r.total})`,
+      Warn: `${r.ativo}º (total ${r.total})${dobro ? " — conta dobrada" : ""}`,
       Tipo: opts.tipo,
       Moderador: opts.autorTag || autor?.user?.tag || autor?.tag,
     },
@@ -341,7 +379,7 @@ async function darWarn(guild, user, motivo, autor, opts = {}) {
     await aplicarPunicao(guild, member, regra, `warn ${r.ativo}: ${motivo}`);
   }
 
-  return { warn: r.ativo, total: r.total, punicao: regra || null };
+  return { warn: r.ativo, total: r.total, punicao: regra || null, dobro };
 }
 
 function resolverEscala(escala, n) {
@@ -351,7 +389,11 @@ function resolverEscala(escala, n) {
   for (const regra of ordenada) {
     if (n >= (regra.warns || 0)) alvo = regra;
   }
-  return alvo;
+  if (!alvo) return null;
+  // a escala do dono traz o nivel completo (controle, ranques, arcane);
+  // em levels com acao (kick/ban) a confirmacao de Admin continua valendo
+  if (alvo.acao) return alvo;
+  return { ...alvo, nivel: alvo };
 }
 
 function punicaoTexto(regra, n) {
@@ -374,6 +416,37 @@ async function aplicarPunicao(guild, member, regra, motivo) {
   // so com mute temporario ate alguem com Administrador decidir
   if (cfg.confirmarPunicao && (regra.acao === "kick" || regra.acao === "ban")) {
     return await pedirConfirmacao(guild, member, regra, motivoFinal);
+  }
+
+  // ---- escada de punicao do dono ----
+  // Cada nivel mexe no nick (controle), nos cargos de atributo e no Arcane,
+  // alem do mute. Vale quando a regra tem "nivel" (veio de ESCALA_PUNICAO).
+  if (regra.nivel && !regra.acao) {
+    const { aplicarNivel } = require("./punicoes");
+    const r = await aplicarNivel(guild, member, regra, { dobro: !!regra.dobro });
+    if (cfg.dmAoPunir && !member.user.bot) {
+      await member.user
+        .send(
+          `🔨 **${guild.name}**\n${regra.texto}\n` +
+            (r.feito.length ? `👥 ${r.feito.join("\n👥 ")}` : "") +
+            (r.avisos.length ? `\n${r.avisos.join("\n")}` : "")
+        )
+        .catch(() => {});
+    }
+    await registrarLog(guild, {
+      cor: regra.acao === "ban" ? 0xe74c3c : 0xe67e22,
+      titulo: `⚖️ ${regra.warns || regra.nivel.warns}º aviso`,
+      campos: {
+        Usuário: `${member.user.tag}\n\`${member.id}\``,
+        "O que acontece": regra.texto,
+        Aplicado: r.feito.join("\n") || "nada alterado",
+        ...(r.avisos.length ? { Atencao: r.avisos.join("\n") } : {}),
+        ...(r.erros.length ? { Erros: r.erros.join("\n") } : {}),
+        Motivo: motivoFinal,
+      },
+    });
+    log("INFO", "[AUTOMOD] punição aplicada", { guild: guild.name, usuario: member.id, nivel: regra.warns });
+    return { ok: true, acao: "nivel", controle: r.controle, feito: r.feito, erros: r.erros };
   }
 
   try {
@@ -716,7 +789,12 @@ function checarMensagem(message) {
     // excecoes liberam frases legitimas (ex: "cabelo preto" em RP)
     if ((f.excecoes || []).some((e) => e && alvo.includes(normalizar(e)))) return null;
     const achou = f.palavras.find((p) => p && alvo.includes(normalizar(p)));
-    if (achou) return { tipo: "palavraProibida", acao: "timeout", minutos: 120, palavra: achou, ...base };
+    if (achou) return { tipo: "palavraProibida", acao: "timeout", minutos: 120, palavra: achou, burlado: false, ...base };
+    // nao casou no texto normal: tenta na forma burla (d1ddy, D.i.d.d.y)
+    const disfarce = f.palavras.find((p) => p && palavraBurla(texto, p));
+    if (disfarce) {
+      return { tipo: "palavraProibida", acao: "timeout", minutos: 120, palavra: disfarce, burlado: true, ...base };
+    }
   }
   // caps vem DEPOIS das palavras: escrever o xingamento em caixa alta nao
   // pode servir de brecha pra escapar do filtro de palavra
@@ -740,6 +818,39 @@ function checarMensagem(message) {
 
 // Filtros que so avisam no chat: a mensagem NAO e apagada e NAO gera warn.
 const SO_AVISO = ["caps", "link"];
+
+// ---------- burla (filtro contornado) ----------
+// Quem tenta escapar do filtro nao ganha o beneficio da duvida: a frase
+// e a mesma, so que disfarçada. O filtro compara o texto normal E uma
+// versao "burla" de cada palavra (d1ddy, D.i.d.d.y, 3pst31n...). Se casar
+// so na burla, é tentativa de burlar: punição dobrada.
+const LEET = {
+  "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "6": "g", "7": "t", "8": "b", "9": "g",
+  "@": "a", "$": "s", "!": "i", "|": "l", "+": "t", "*": "a", "^": "a", "&": "e", "<": "c", ">": "o",
+};
+
+function formaBurla(palavra) {
+  return normalizar(palavra)
+    .replace(/\s+/g, "") // "stu pro" vira "stupro"
+    .replace(/[.\-_~`'"()[\]{}\/\\|!@$+*=^<>]/g, "") // separadores jogados fora
+    .replace(/[0-9@$!|]/g, (c) => LEET[c] || c); // leet
+}
+
+function palavraBurla(texto, termo) {
+  const alvo = formaBurla(termo);
+  if (!alvo || alvo.length < 3) return false;
+  // junta 1, 2 e 3 palavras seguidas: pega burla em termo com espaco
+  // ("k1d b3ngala" -> "kidbengala") sem colar o texto todo
+  const toks = String(texto || "").split(/\s+/).filter(Boolean).map(formaBurla);
+  for (let i = 0; i < toks.length; i++) {
+    for (let n = 1; n <= 3; n++) {
+      if (i + n > toks.length) break;
+      const junto = toks.slice(i, i + n).join("");
+      if (junto.length >= alvo.length && junto.includes(alvo)) return true;
+    }
+  }
+  return false;
+}
 
 // ---------- contexto local (antes da IA) ----------
 // Casos obvios que o filtro estouraria por acidente. Resolver aqui evita
@@ -927,12 +1038,40 @@ async function aplicarFiltro(violacao) {
 async function aplicarPunicaoComWarn(guild, user, message, violacao) {
   const member = violacao.member || (await guild.members.fetch(user.id).catch(() => null));
   if (member && podeSerPunido(guild, member)) {
-    await darWarn(guild, user, `automod: ${violacao.tipo}${violacao.palavra ? ` (${violacao.palavra})` : ""}`, null, {
+    const motivo = `automod: ${violacao.tipo}${violacao.palavra ? ` (${violacao.palavra})` : ""}${
+      violacao.burlado ? " — TENTOU BURLAR O FILTRO" : ""
+    }`;
+    await darWarn(guild, user, motivo, null, {
       automatico: true,
       tipo: violacao.tipo,
       autorId: guild.client.user.id,
       channelId: message.channel.id,
+      member,
     });
+    // burlar o filtro = punição dobrada: conta o aviso duas vezes
+    if (violacao.burlado) {
+      await registrarLog(guild, {
+        cor: 0x8e44ad,
+        titulo: "🎭 Tentativa de burlar o filtro — punição dobrada",
+        campos: {
+          Usuário: `${user.tag}\n\`${user.id}\``,
+          Canal: `#${message.channel.name}`,
+          Palavra: `\`${violacao.palavra}\``,
+          "Texto disfarçado": message.content || "(vazio)",
+          "Como escreveu": message.content,
+          Efeito: "conta 2 avisos na escala de uma vez",
+        },
+      });
+      log("WARN", "[AUTOMOD] burla detectada", { guild: guild.name, usuario: user.id, palavra: violacao.palavra });
+      // segundo aviso: é isso que dobra a punição na escada
+      await darWarn(guild, user, `${motivo} (2º aviso: burla)`, null, {
+        automatico: true,
+        tipo: violacao.tipo,
+        autorId: guild.client.user.id,
+        channelId: message.channel.id,
+        member,
+      });
+    }
   }
   // registra o texto barrado: sem isso o staff nao consegue dizer se foi
   // offense de verdade ou falso positivo (ex: "cabelo preto")
@@ -965,6 +1104,8 @@ module.exports = {
   canalLog,
   ehStaff,
   podeSerPunido,
+  contaDobrada,
+  ehOwner,
   isLiberado,
   darWarn,
   contarWarns,
