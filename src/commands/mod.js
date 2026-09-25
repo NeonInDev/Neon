@@ -145,7 +145,8 @@ module.exports = {
               { name: "Zalgo", value: "zalgo" },
               { name: "Links", value: "links" },
               { name: "Flood", value: "flood" },
-              { name: "Palavra proibida", value: "palavra" }
+              { name: "Palavra proibida", value: "palavra" },
+              { name: "Exceção (liberar frase)", value: "excecao" }
             )
         )
         .addBooleanOption((o) => o.setName("ligar").setDescription("Ligar (sim) ou desligar (não)"))
@@ -264,7 +265,24 @@ module.exports = {
             } else if (idx < 0) f.palavras.push(valor);
           } else if (ligar === false) {
             f.palavras = [];
-          } else {
+        } else if (filtro === "excecao") {
+          if (!Array.isArray(f.excecoes)) f.excecoes = [];
+          if (valor) {
+            const idx = f.excecoes.findIndex((e) => automod.normalizar(e) === automod.normalizar(valor));
+            if (ligar === false) {
+              if (idx >= 0) f.excecoes.splice(idx, 1);
+            } else if (idx < 0) f.excecoes.push(valor);
+          } else if (ligar === false) {
+            f.excecoes = [];
+          }
+          automod.persistir();
+          return await interaction.reply({
+            content: f.excecoes.length
+              ? `✅ **${f.excecoes.length}** exceção(ões) liberada(s): ${f.excecoes.map((e) => `\`${e}\``).join(", ")}`
+              : "✅ Exceções limpas.",
+            ephemeral: true,
+          });
+        } else {
             // sem valor = semeia a lista padrao (ofensas/xingamentos do dono)
             const novas = automod.semearPalavras(guild.id);
             return await interaction.reply({

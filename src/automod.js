@@ -100,6 +100,7 @@ const FILTROS_PADRAO = {
   maxMensagens: 6,
   janelaMs: 7000,
   palavras: [],
+  excecoes: [],
   ignorarCanais: [],
   cargosLiberados: [],
 };
@@ -157,6 +158,7 @@ function configGuild(guildId) {
   if (!c.antiraid) c.antiraid = structuredClone(ANTIRAID_PADRAO);
   if (!c.filtros) c.filtros = structuredClone(FILTROS_PADRAO);
   if (!Array.isArray(c.filtros.palavras)) c.filtros.palavras = [];
+  if (!Array.isArray(c.filtros.excecoes)) c.filtros.excecoes = [];
   if (!Array.isArray(c.filtros.ignorarCanais)) c.filtros.ignorarCanais = [];
   if (!Array.isArray(c.filtros.cargosLiberados)) c.filtros.cargosLiberados = [];
   if (!Array.isArray(c.filtros.dominiosBloqueados)) c.filtros.dominiosBloqueados = [];
@@ -524,7 +526,9 @@ function checarMensagem(message) {
   }
   if (f.palavras.length) {
     const alvo = normalizar(`${texto} ${message.author.username} ${message.author.globalName || ""}`);
-    const achou = f.palavras.find((p) => p && alvo.includes(normalizar(String(p))));
+    // excecoes liberam frases legitimas (ex: "cabelo preto" em RP)
+    if ((f.excecoes || []).some((e) => e && alvo.includes(normalizar(e)))) return null;
+    const achou = f.palavras.find((p) => p && alvo.includes(normalizar(p)));
     if (achou) return { tipo: "palavraProibida", acao: "timeout", minutos: 120, palavra: achou, ...base };
   }
   if (f.flood) {
@@ -559,13 +563,26 @@ async function aplicarFiltro(violacao) {
   }
 
   const member = violacao.member || (await guild.members.fetch(user.id).catch(() => null));
-  if (member && podeSerPunido(guild, member)) {    await darWarn(guild, user, `automod: ${violacao.tipo}${violacao.palavra ? ` (${violacao.palavra})` : ""}`, null, {
+  if (member && podeSerPunido(guild, member)) {
+    await darWarn(guild, user, `automod: ${violacao.tipo}${violacao.palavra ? ` (${violacao.palavra})` : ""}`, null, {
       automatico: true,
       tipo: violacao.tipo,
       autorId: guild.client.user.id,
       channelId: message.channel.id,
     });
   }
+  // registra o texto barrado: sem isso o staff nao consegue dizer se foi
+  // offense de verdade ou falso positivo (ex: "cabelo preto")
+  await registrarLog(guild, {
+    cor: 0xe67e22,
+    titulo: `🚫 Filtro: ${violacao.tipo}`,
+    campos: {
+      Usuário: `${user.tag}\n\`${user.id}\``,
+      Canal: `#${message.channel.name}`,
+      Palavra: violacao.palavra ? `\`${violacao.palavra}\`` : undefined,
+      "Texto barrado": message.content || "(vazio)",
+    },
+  });
   log("INFO", "[AUTOMOD] filtro aplicado", { guild: guild.name, tipo: violacao.tipo, usuario: user.id });
 }
 
