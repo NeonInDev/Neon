@@ -1,0 +1,95 @@
+CANAL: ꒰🔪꒱・criminalidade・
+ID: 1498177685241856080
+CATEGORIA: ╰┈➤ ❝ 📚﹕Sistemas ❞
+MENSAGENS: 5
+EXPORTADO: 2026-09-25T22:17:19.414Z
+============================================================[27/04/2026, 05:14:36] joshtale # ‧₊˚ 🌹 `Sistema de Crimes` ;  •ೋ  ⠂⋆ ･ ⠄⋆
+
+> ⇢ __Usado como suporte aos demais sistemas envolvendo o ganho de fama negativa, este se responsabilizará em informar você, maléfico ou não, em como funcionará os crimes no servidor. Delitos como: destruição de patrimônio, homicídio, massacre, uso da individualidade em área pública e até o fornecimento ilegal de equipamentos especiais, como trajes especializados e armas, terão valores mínimos e específicos de fama a se ganhar. Os jogadores que agirem com má fé em suas narrações, atacando edifícios ou matando pessoas e não marcarem o cargo de narrador para terem uma devida reação do cenário, serão sujeitos a punição.__
+
+**╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴╴ ✧・🏮 ·° ✷ 〜**
+   📎 anexo: 686d3582e1d6564f521e3334d4297b62.png (image/webp, 338kb) https://cdn.discordapp.com/attachments/1498177685241856080/1498235908313579560/686d3582e1d6564f521e3334d4297b62.png?ex=6ab827ac&is=6ab6d62c&hm=583c7395632c44b905dbcdaf263fe09c59e60d65c114bc2556c12953956f1ee6&
+
+[27/04/2026, 05:14:43] joshtale **╭─・🎭 .୧  ──────────────────── ･ ⋆ ⠄⠂⋆ ･ ⠄⠂⋆ ･ ೌ ೬ ೂ ────**
+
+︰ •. °  `Tabela de ganhos` : ・• .୧
+
+> ─ __Essa tabela servirá de base para a contagem de fama obtida em qualquer ato criminoso. Os valores estarão divididos pela tipagem de seus feitos, exibindo o mínimo ganho pela façanha, ou seja, o valor ganho poderá ser maior que o mínimo previsto. A tabela pode não estar com todos os crimes, então tenha paciência, pois se precisar, será atualizada. Enquanto isso, peça auxílio para um narrador responsável ou ao dono desse sistema.__
+
+**︶ ꒷ ︶  ︶  ︶  ︶  ︶  ︶  ︶  ︶  ︶  ꒷ ꒦**
+
+> ╭   •. ° `Destruição de edifícios` ┉ 🌃
+> ┆  *Destruição superficial:  Edifícios pequenos; 50. Medianos; 150. Grandes; 250.*
+> ┆  *Destruição considerável:  Edifícios pequenos; 250. Medianos; 350. Grandes; 500.*
+> ┆  *Demolições:  Edifícios pequenos; 500. Medianos; 700. Grandes; 900.*
+> ┆  *Destruição em massa:  A cada 5 edifícios danificados; 250. A cada 5 edifícios demolidos; 500.*
+> ╰━━━━━━━━━━━━━━━━━━━
+> 
+> ╭   •. ° `Vandalismo & Agressões` ┉ 🏍️
+> ┆  *Pichação:  10*
+> ┆  *Danificar patrimônio público:  20*
+> ┆  *Apologia ao crime:  5*
+> ┆  *Agressões:  Agressão verbal; 30. Agressão física; 100.*
+> ┆  *Violência extrema:  Tortura; 300. Quase morte; 400.*
+> ┆  *Traição:  Acadêmico; 300, além da sua fama. Herói; 500, além da sua fama. Policial; 400, além da sua fama.*
+> ╰━━━━━━━━━━━━━━━━━━━
+> 
+> ╭   •. ° `Invasão` ┉ 💰
+> ┆  *Invadir imóveis:  50*
+> ┆  *Invadir propriedade privada:  100*
+> ┆  *Invadir uma academia de heróis:  800*
+> ┆  *Invadir uma agência de heróis:  1000*
+> ┆  *Invadir algum órgão governamental:  Delegacia; 400. Prefeitura; 600.*
+> ┆  *Invadir alguma penitenciária:  1200.*
+> ╰━━━━━━━━━━━━━━━━━━━
+
+
+[27/04/2026, 05:14:48] joshtale > ╭   •. ° `Homicídio` ┉ ☠️
+> ┆  *Assassinar vigilantes:  Divida a fama deste por 2, o resultado é o que você terá.*
+> ┆  *Assassinar vilões:  Divida a fama deste por 2, o resultado somado com 300 é o que você terá.*
+> ┆  *Assassinar heróis:  Divida a fama deste por 2, o resultado somado com 500 é o que você terá.*
+> ┆  *Assassinar estudantes comuns:  Player; 150 mais sua fama dividida por 2.*
+> ┆  *Assassinar civis:  Player; 150 mais sua fama dividida por 2. Npc; 70.*
+> ┆  *Assassinar estudantes acadêmicos:  Player; 250 mais sua fama dividida por 2. Npc; 150.*
+> ┆  *Assassinar policiais:  Player; 400 mais sua fama dividida por 2. Npc; 100.*
+> ┆  *Massacre em massa:  A cada duas mortes de npc, tais tem seu valor substituído por 50 de fama.*
+> ╰━━━━━━━━━━━━━━━━━━━
+> 
+> ╭   •. ° `Leis de Restrição` ┉ 🚫
+> ┆  *Uso da quirk em público, sem licenciamento:  50.*
+> ┆  *Uso violento da quirk em público, sem licenciamento:  80.*
+> ┆  *Intervir no trabalho licenciado do herói:  250.*
+> ┆  *Perseguir e combater vilões, sem licenciamento:  Houve mortes; 300. Sem mortes; 150.*
+> ╰━━━━━━━━━━━━━━━━━━━
+> 
+> ╭   •. ° `Tráfico & Contrabando` ┉ 💊
+> ┆  *Fornecimento ilegal de drogas:  Básicas; 200. Medianas; 400. Avançadas; 600.*
+> ┆  *Fornecimento ilegal de armas:  Brancas; 150. Fogo; 300. Tecnológicas; 600.*
+> ┆  *Fornecimento ilegal de equipamentos:  Trajes; 350. Aparatos; 250.*
+> ┆  *Tráfico de órgãos & pessoas:  Órgãos; 300. Pessoas; 500.*
+> ╰━━━━━━━━━━━━━━━━━━━
+
+
+[27/04/2026, 05:14:57] joshtale
+   📎 anexo: f23514e6c421487271a761e881a9af75-1.png (image/webp, 320kb) https://cdn.discordapp.com/attachments/1498177685241856080/1498235997551460392/f23514e6c421487271a761e881a9af75-1.png?ex=6ab827c1&is=6ab6d641&hm=358b13811bffaa7b9c7e971e315c11af0cf8535dd8ff187a325115139cf3084a&
+
+[27/04/2026, 05:15:31] joshtale **╭─・🎭.୧  ──────────────────── ･ ⋆ ⠄⠂⋆ ･ ⠄⠂⋆ ･ ೌ ೬ ೂ ───**
+
+︰ •. °  `Observações & Regras`・• .୧
+
+> ⇢・ __As consequências que um herói pode sofrer com a subtração de fama, resultará em sua possível demissão, tendo suas licenças revogadas e, incluindo seu título de herói, podendo ser até preso.__
+> 
+> ⇢・ __O valor de fama dado na tabela é o mínimo imposto, não significa que não haverá situações aonde diminuirão ou aumentarão esse número. Portanto, o ganho final pode ser maior ou menor dependendo das circunstâncias. Se informe com o narrador na hora.__
+> 
+> ⇢・ __Todas realizações relevantes, sem exceções, terão que ser postadas detalhadamente no <#1498172516055912530> No canal que efetuou sua façanha, será necessário que notifique o cargo de narrador, principalmente se for alguma destruição ou massacre.__
+> 
+> ⇢・ __Sempre que realizar algum crime, não aja como se você fosse um civil, mesmo com pouca fama, ainda é possível que alguém lhe reconheça. Se você fizer algum ato criminoso, como incendiar uma cafeteria e depois vazar tranquilamente sem ao menos se preocupar disfarçar-se, poderá ser impedido.__
+> 
+> ⇢・ __Caso mate um player, lembre-se sempre de dividir sua fama por 2 e somar com o valor extra que receberia (caso tenha um), será esse seu ganho de fama.__
+> 
+> ⇢・ __Caso tente "farmar" somando todos crimes possíveis em um só ato, desista. Destruições e massacres em massa terão um ganho reduzido, o que obviamente farmar muitos do mesmo crime, também resultará em um ganho menor.__
+> 
+> ⇢・ __Esse sistema é aplicável somente nos feitos dos personagens, feitos esses fora de eventos e missões, ou seja, caso você peça alguma missão e tente ganhar uma fama extra usando desse conteúdo, será anulado e possivelmente punido.__
+
+**╰─・🎭.୧  ──────────────────── ･ ⋆ ⠄⠂⋆ ･ ⠄⠂⋆ ･ ೌ ೬ ೂ ────**
+   📎 anexo: 5ea0c810f0b77972360cb2cc132ef7f0.png (image/webp, 330kb) https://cdn.discordapp.com/attachments/1498177685241856080/1498236139482513468/5ea0c810f0b77972360cb2cc132ef7f0.png?ex=6ab827e3&is=6ab6d663&hm=9f11e5fdcbc932cf9bcf7d9bb34baab8807072c66f210d43194d7925a08dd869&

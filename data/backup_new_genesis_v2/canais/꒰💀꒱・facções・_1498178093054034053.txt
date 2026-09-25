@@ -1,0 +1,30 @@
+CANAL: ꒰💀꒱・facções・
+ID: 1498178093054034053
+CATEGORIA: ╰┈➤ ❝ 📚﹕Sistemas ❞
+MENSAGENS: 3
+EXPORTADO: 2026-09-25T22:17:19.414Z
+============================================================[27/04/2026, 05:28:55] joshtale ## .  ‧₊𓂅 🔞  ："Facções Criminosas" 𝅄 ˚⊹
+ 
+> ㅤ𑁍ࠬ .⊹： - O Submundo não é esse caos que todo mundo imagina, não. Não é só confusão sem fim ou uma arena onde todo mundo se mata. Existem organizações que dominam as regiões lá embaixo e um Rei que controla tudo, movendo as peças como num jogo de xadrez. E ali, no meio desse jogo, estão os vilões mais perigosos, os que chegaram no **Topo**. Esses indivíduos, quando alcançam esse nível, têm poder pra criar suas próprias Facções, com esquadrões de vilões profissionais que seguem as ordens de um único sujeito: o __Top Villain.__
+> ㅤ𑁍ࠬ .⊹： - As Facções Criminosas são o completo oposto das __agências__ gerenciadas pelos Top Heróis, servindo cada um com seus propósitos que buscam beneficiar unicamente a si mesmos, um sistema estabelecido pelo __Rei do Submundo__ para que os vilões abaixo dele consigam estar com seus pares e agirem em conjunto. Há ganhos variando de Top Villain para Top Villain.
+   📎 anexo: image.png (image/webp, 212kb) https://cdn.discordapp.com/attachments/1498178093054034053/1498239512055123978/image.png?ex=6ab82b07&is=6ab6d987&hm=bbf954383875c3b1f5792edba2e23511d29e9fc5bcbfc1235545036ca4664a90&
+
+[27/04/2026, 05:30:06] joshtale ## — Hierarquia
+
+- 🌑  — Fagulhas: Pobres vilões que ninguém tinham e foram acolhidos pelos __Dedos__ ou pelo próprio Líder da Facção, são o estágio inicial dos esquadrões e costumam agir em conjunto para proliferar ás vontades de sua facção, eles precisam aumentar sua reputação para que consigam avançar e mostrar ao Top Villain que são merecedores de carregarem o título de seu mestre.
+-# - Estágio inicial que apenas pode ser alcançado assim que atinge a Reputação <@&1498215652178002051>  
+-# - São meros subordinados, portanto, não possuem poder o suficiente para dar ordens.
+
+- 🔥 — Executivos: Vilões que provaram seu valor e subiram na hierarquia da sua facção, são responsáveis e confiáveis o suficiente para representarem o nome dos seus esquadrões. São semelhantes aos agenciados dos heróis, entretanto, nas facções há um laço de irmandade muito mais forte, onde os Executivos podem receber missões especiais ou até mesmo acompanhar os Dedos.
+-# - É obrigatório estarem ao menos no nível de Reputação <@&1498215676349775975>  
+-# - São assalariados com um total de 20.000.
+
+- 👾 — Os Dedos: Apenas __dez__ vilões podem chegar até esse estágio, alcançando o propósito de representar diretamente o Líder da Facção, além de que estão entre os mais fortes da organização. Não importa quem chegou primeiro ou por último, o mais forte sempre será aquele que prevalecerá no Topo... Afinal de contas, no Submundo a Hierarquia funciona através da Violência.
+-# - Obrigatório ser um <@&1498215676349775975> 
+-# - Recebem a Bênção do Líder da Facção e são autorizados a organizarem seus próprios planos.
+
+
+[27/04/2026, 05:30:25] joshtale - ☠️ — Braços: Para acompanhar o mais forte é necessário força o suficiente para chegar no mínimo aos seus pés, recebidos como os "Braço Direito" e "Braço Esquerdo", são aqueles que culminaram respeito para estarem ao lado de um Top Villain. Tal cargo diz muito a respeito deles, afinal, são os dois mais fortes da Facção. São responsáveis pelo gerenciamento geral da facção.
+-# - Obrigatório ser <@&1498215702648062052>  
+-# - Escolhidos pelo Líder.
+   📎 anexo: image.png (image/webp, 92kb) https://cdn.discordapp.com/attachments/1498178093054034053/1498239887202320464/image.png?ex=6ab82b61&is=6ab6d9e1&hm=5fd97bc6197a30fdb5a5b3b92ccb20e4446ab9fc8bcbefc35bf33cd24df16b4b&

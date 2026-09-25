@@ -1,0 +1,45 @@
+CANAL: ꒰🩹꒱・hospitalar・
+ID: 1498177475883307019
+CATEGORIA: ╰┈➤ ❝ 📚﹕Sistemas ❞
+MENSAGENS: 4
+EXPORTADO: 2026-09-25T22:17:19.414Z
+============================================================[27/04/2026, 05:12:05] joshtale **.  ‧₊𓂅 🦾 ：`陪審` — Ferimentos-! 𝅄 ˚⊹**
+
+> __𑁍ࠬ .⊹：O que seria um mundo sem eles? Um lugar cheio de pessoas completamente desesperadas e sem tratamentos corretos, isso sem dúvidas. Mas eu me refiro mais à parte sistemática em si — vocês não acham estranho quando alguém quebra um braço e no dia seguinte tá lá, firme e forte participando da aula como se nada tivesse acontecendo? Pode ser chatice – mas isso tira a seriedade e a imersão do roleplay, pelo menos pra mim. Por isso, tô criando essa bomba aqui – pensa no sistema de danos explicado láááá no sistema de resistência como algo completamente suplementar desse! Você vai tomar os danos no seu corpo, de fato, mas é aqui onde você vai tratar eles. Como? Eu vou te explicar! Fica suave.__
+
+- 🥩 — `Ferimentos Leves ;` Esses são os ferimentos que machucam, mas não atrapalham. Hematomas leves, cortes leves com arranhar a mão em alguma superfície! Uma queimadura de sol suave, por gelo e sal na mão e pressionar até criar bolha... Umas vermelhidões por choques! São chatos, de fato, mas nunca serão considerados realmente um problema – você até pode ir no hospital tratar, mas realmente não é nada demais.
+-# - * ⚖️ — Tratável em hospitais Tier I e acima. Em um (1) dia será curado naturalmente.
+
+- 🩹 — `Ferimentos Medianos ;` Esses aqui realmente chegaram a doer, a incomodar! Sejam cortes profundos, perfurações musculares, torções, queimaduras leves, congelamento superficial, espasmos elétricos. Isso causa dor recorrentemente! Não é algo que prejudica seus atributos **ainda**, mas é realmente incômodo. 
+-# - * ⚖️ — Tratável em hospitais Tier I e acima. Em três (3) dias serão curados naturalmente.
+** **
+
+
+[27/04/2026, 05:12:24] joshtale - 🦴 — `Ferimentos Pesados ;` Ui, isso provavelmente vai deixar uma cicatriz. Se encaixam nesse nível fraturas parciais, lacerações graves, queimadura de 2° grau, congelamento moderado, choque forte. Cruelmente, **o local em si passa a ficar com 15% menos atributo** até ser totalmente curado.
+-# - * ⚖️ — Tratável em hospitais Tier II e acima. Em cinco (5) dias e um tratamento básico feito por alguém com maestria em medicina, serão curados naturalmente.
+
+- ☠️ — `Ferimentos Graves ;` É, você definitivamente se quebrou por inteiro. Fratura completa, osso exposto, membro inutilizado, queimadura de 3° grau, necrose por frio, colapso muscular elétrico. Aqui, **os status do seu corpo são reduzidos em 25%**, além do mais, a região que mais sofreu ferimentos **se torna vulnerável**, passando a virar um ponto fraco! 
+-# - * ⚖️ — Tratável em hospitais Tier II e acima. Não pode ser curado naturalmente.
+
+- 👻 — `Ferimentos Fatais ;` E pro beta, o que sobra? Morte instantânea paê... Quer dizer, até tem uma forma de tratar isso aê. Esmagamento, perfuração fatal, cristalização e carbonização.
+-# - * ⚖️ — Tratável em hospitais Tier III somente. Não pode ser curado naturalmente.
+   📎 anexo: images_-_2025-11-21T230114.885.png (image/webp, 121kb) https://cdn.discordapp.com/attachments/1498177475883307019/1498235355462111292/images_-_2025-11-21T230114.885.png?ex=6ab82728&is=6ab6d5a8&hm=af04b1aaaccdeb874b355a0fc2e422af7265aa50a3a8e27f88384dd08c7acefa&
+
+[27/04/2026, 05:12:35] joshtale **.  ‧₊𓂅 🩺 ：`陪審` — Hospitais-! 𝅄 ˚⊹**
+
+> __𑁍ࠬ .⊹：Finalmente chegamos neles! Não há muito o que explicar aqui apesar disso – os hospitais do nosso servidor tem níveis de tecnologia e funcionamento diferentes. Por essa razão, o tempo de recuperação e a qualidade do seu tratamento variam conforme eles mesmos! Isso funciona de modo que os hospitais mais altos – pertencentes à agência A.S.T.R.O são procurados principalmente em situações muito extremas, enquanto os hospitais mais tranquilos, são só para que a recuperação dos ferimentos seja mais rápida e eficaz do que seria naturalmente. De forma curiosa – o tempo pode melhorar ainda mais caso o seu médico – player – tiver uma quirk especializada nisso! Não é ótimo?__
+
+ㅤ - 🏣 — `Hospitais Tier I ;` Os hospitais Tier I são aqueles que, embora tenham competentes pra tratar ferimentos e etc, não possuem a tecnologia necessária para coisas muito avançadas. O hospital de **Esuha** é um deles, bem como o do submundo! 
+-# - * ⚖️ — Eles diminuem em 25% o tempo de recuperação de um ferimento.
+-# - * 💰 — Custam 10.000 ienes por tratamento.
+
+ㅤ - 🏥 — `Hospitais Tier II ;` Tendo os únicos exemplares físicos em Musutafu e dentro da Academia U.A, os Hospitais Tier II também podem ser encontrados durante batalhas duradouras, montadas pela própria A.S.T.R.O usando uma tecnologia mais limitada! Médicos competentes com os equipamentos que merecem são simplesmente incríveis no que fazem.
+-# - * ⚖️ — Além de diminuírem o tempo de recuperação em 50%, eles tornam possível o tratamento de Ferimentos Graves, o que acontece num período de cinco (5) dias.
+-# - * 💰 — Custam 20.000 ienes por tratamento.
+
+ㅤ - 🌟 — `Hospitais Tier III – "A.S.T.R.O" ;` O melhor hospital existente hoje é o da Top 1 Heroina e seu Champion, Kayani Devika e Cyprus Harper, quais são os melhores médicos do mundo – em suma, até a morte pode ser revertida aqui desde que cumpra alguns requisitos! Vale a pena tentar, né?
+
+
+[27/04/2026, 05:12:39] joshtale -# - * ⚖️ — Tornam a ressuscitação possível, mas não reduzem mais o tempo de recuperação.
+-# - * 💰 — Custam 50.000 ienes por tratamento.
+   📎 anexo: tumblr_inline_pc664016h11s824io_500_1.png (image/webp, 178kb) https://cdn.discordapp.com/attachments/1498177475883307019/1498235417106059354/tumblr_inline_pc664016h11s824io_500_1.png?ex=6ab82737&is=6ab6d5b7&hm=e9d185aeada80fd2b5ea7a7900b69a98ee88b8a0d5632c419d6d157d33a572b6&

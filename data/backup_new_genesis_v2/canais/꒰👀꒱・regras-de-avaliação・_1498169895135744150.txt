@@ -1,0 +1,104 @@
+CANAL: ꒰👀꒱・regras-de-avaliação・
+ID: 1498169895135744150
+CATEGORIA: ╰┈➤ ❝ 📋﹕Treinamento ❞
+MENSAGENS: 10
+EXPORTADO: 2026-09-25T22:17:19.414Z
+============================================================[27/04/2026, 04:31:30] assassino_do_freezer # - - Regras da avaliação! - 🥱 
+
+> - - **Me sinto na obrigação de criar isso aqui, papo reto.**
+
+ㅤㅤㅤㅤㅤㅤOi pessoal, estou criando aqui algumas regras simples e de certa forma um "guia" informativo para quem for avaliador. Antes de citar as regras, vou deixar vocês com uma base de como as individualidades evoluem em valores para que vocês tenham uma noção ampla de como funciona as "Tier's" no servidor.
+
+- - **Livres:**
+
+- As individualidades desse nível possuem valores baixos com foco em um único atributo, se possuírem outro atributo secundário, será muito pouco. 
+
+-# Força: 30 Up's
+-# Resistência: 32 Up's
+-# Velocidade: 12 Up's
+-# Agilidade: 4 Up's
+-# Vigor: 1 Up 
+
+> - - **Lembrando vocês que esses valores são uma base, e será assim para **todos** os tier. Se uma pessoa tem o **máximo** de um desses atributos ela **não pode** ter o mesmo valor em outro, geralmente vai dividindo na metade da metade.**
+
+- - **Comuns:**
+
+- Essas aqui são praticamente livres com algo a mais. Podem possuir valores mais parelhos, mas entram nas mesmas medidas da anterior com alguns pequenos acréscimos, elas costumam ser basicamente livres sem desvantagens coerentes. 
+
+-# Força: 40 Up's
+-# Resistência: 42 Up's
+-# Velocidade: 14 Up's
+-# Agilidade: 6 Up's
+-# Vigor: 2 Up's
+
+> - - **Nesse tier aqui as individualidades podem ter uma divisão mais favorável, então é comum ver uma quirk que possua, por exemplo, 26 Up's de força e resistência e com uns 4 Up's de velocidade, mas nada muito absurdo.**
+
+- - **Médias:**
+
+- Não vou nem perder muito tempo explicando aqui, pois o sistema de <#1498191985285136556>  existe e ele define justamente os valores mínimos e máximos dessas individualidades, e para incentivar mais ainda vocês a conhecerem os sistemas de balanceamento do servidor, é bom que leiam-no atentamente.
+
+
+[27/04/2026, 04:31:40] assassino_do_freezer - - **Near-Metas:**
+
+- Essas individualidades já são mais fortes, elas são praticamente as "só não são Meta por conta da desvantagem". Geralmente são as individualidades que mais possuem fraquezas auto destrutivas, como a falecida Power — que agora é mediana —, Furnance, etc... São individualidades mais criativas e pesadas. É um detalhe importante saber porque há uma diferença entre despertares que cheguem nesse ponto! Veja bem, Dragon possui uma distribuição de atributos mais forte que as demais Near-Metal, mas por conta de seus feitos no próprio mangá e anime, isso é mais viável do que permitir um despertar ter os mesmos valores, sacaram? Bom, seguindo o mesmo princípio, o despertar de uma Near-Meta **sempre** será MUITO fraco, muito mesmo, no ponto de fornecer papo de 6 Up's para a individualidade, embora ele ainda possa ter três deles, são bem restritos. 
+
+-# Força: 60 á 70 Up's 
+-# Resistência: 65 á 70 Up's 
+-# Velocidade: 18 á 22 Up's
+-# Agilidade: 6 á 16 Up's
+-# Vigor: 4 á 10 Up's 
+
+> - - **Reparem que aqui há dois valores! Um é para casos mais suaves e simples - o primeiro valor -, enquanto o segundo refere-se a individualidades de foco naquele atributo com ótimas desvantagens.**
+
+- - **Metas:**
+
+
+[27/04/2026, 04:31:41] assassino_do_freezer - Individualidades desse tier variam MUITO, por exemplo Pump Up e Stress que possuem valores totalmente diferentes mesmo tendo uma premissa "parecida" — transformar e ganhar atributos. Então, não há exatamente uma definição de valores para ela.
+
+ㅤㅤㅤㅤㅤㅤPara individualidades cujo valores não somem com o do portador — em sua maioria emissoras e individualidades de velocidade —, há um aumento no **limite máximo** de todos os valores acima de **20 Up's** em todos os atributos.
+
+ㅤㅤㅤㅤㅤㅤAí você me pergunta: "Void, Void! Por que você fez isso sendo que cada individualidade tem sua tabela?" E a resposta é bem simples, porque é importante saber das **bases gerais** dos atributos de uma individualidade para cumprir nossa principal tarefa: avaliar. Para complemento, leiam com O MÁXIMO de atenção o sistema de <#1498175516010872873>  , já que lá são simulados os valores de Up's ganhos, visto que cada Tier possui um valor máximo de ganho em técnicas.
+
+
+[27/04/2026, 04:32:09] assassino_do_freezer
+   📎 anexo: image.png (image/webp, 169kb) https://cdn.discordapp.com/attachments/1498169895135744150/1498225224888488026/image.png?ex=6ab81db9&is=6ab6cc39&hm=c2993db2993441bed1cdcd6f6119a230b5200c5896d7b971abf4ff3f8457afe2&
+
+[27/04/2026, 04:32:35] assassino_do_freezer ㅤㅤㅤㅤㅤㅤE por fim! As regras de fato:
+
+1. **Equipamentos possuem uma capacidade base e só, um visor tem um tipo de visão, não dois. Para obter qualquer outra função além, deve-se usar uma estrela para isso. Obviamente, superiores e Paratecnologicos podem meio que se "sobressair" dessa regra levemente, possuindo normalmente uma base forte e uma secundária mais fraca. O mesmo vale para trajes e armas, mas todas elas devem fazer sentido e serem coesas com a função base**;
+
+2. **Antes de qualquer avaliação, deve-se verificar os três sistemas primordiais para a avaliação:  <#1498176214081208361> - <#1498175516010872873>  e, por fim, <#1498191985285136556>  . Caso você aprove algo que fuja desses valores determinados pelos sistemas, você será punido com um aviso, excesso neles pode remover seu cargo permanentemente.**
+
+3. **Avaliações devem ser feitas por todos! Ou seja, nada de marcarem só você e você mesmo ir lá aprovar, precisa marcar o cargo inteiro de avaliadores. Porém, há algumas exceções, por exemplo o membro "Yore", antigo usuário de Rewind, que pela suposta "complexidade" da tabela e da individualidade dele, marca somente á mim e ao Josh para avaliar suas técnicas. Esses casos específicos são muito centrados, como as quirks Pilares, então nem precisam se preocupar com essas exceções, nós ( Donos ) cuidamos delas** ;
+
+4. **Existe um consenso criativo na criação de tudo — técnicas, privilégios, etc. E uma ficha não pode fugir desse conceito, então por exemplo, é IMPOSSÍVEL criar um Arauto onde você muda o requisito para ativar ele — porcentagem —, deve ser seguido a base feita para isso, embora a função ( efeito ) dele possa sim ser alterado** ;
+
+
+[27/04/2026, 04:32:36] assassino_do_freezer _ _ 
+5. **Alguns privilégios possuem consigo a criação de uma Técnica para uso, como Espírito Livre e Mapeamento, portanto, se outras forem criadas a partir do privilégio, não devem ser aprovadas** ;
+
+6. **Vocês não precisam ser completamente responsáveis por tudo. Chegou uma ficha mais complexa ou que esteja dando-te muita dor de cabeça, marque algum avaliador de cargo maior. Avaliadores não podem ter dúvidas** ;
+
+7. **Sempre verifiquem a origem do "criar" — seja ele técnica ou o que seja. Caso o indivíduo não o tenha, a ficha não estará reprovada, mas estará incapaz de ser usada e, principalmente, `você não vai ter obrigação de avaliar ela`** ;
+
+8. **Provavelmente uma das mais importantes, é o fato de que ao avaliar uma ficha no canal, você OBRIGATORIAMENTE deve avariar TODAS que estejam pendente naquele canal - desde que não sejam de fatores únicos, como uma quirk criada ** ;
+
+9. **Toda ficha de técnica e quirk deve estar publicada nos fóruns de "aprovadas", informe isso ao avaliar um indivíduo e, caso você veja alguém que esteja cenando e não tenha feito isso, sinta-se livre para reprovar** ;
+
+
+[27/04/2026, 04:33:01] assassino_do_freezer 10. **Equipamentos, trajes e PRINCIPALMENTE técnicas não podem REMOVER desvantagens de uma quirk, no máximo as suavizar.**
+
+11. **Avaliações majoritariamente não podem envolver porcentagem que não sejam de quirk — aumentar a porcentagem de um privilégio, aumentar a porcentagem de uma maestria, de um equipamento, tudo isso é parcialmente inviável, é muito difícil de obter - geralmente, quando houver, estará diretamente associada com a individualidade EM SI, parte da ficha BASE de uma quirk e muito limitada ou balanceada. A única diferença que quebra essa regra são para privilégios que naturalmente funcionam com isso ou para quirk's que só usam isso como base, por exemplo Love ou Rifle. Claro que essa regra vale muito mais para fatores de `aumento` ou `redução` — um equipamento que forneça aumento a resistência de aceleração, ou desvantagens usando porcentagem ainda são mais viáveis. Além do mais, o sistema de técnicas já trata do quanto se pode aumentar com quirk's através de técnicas ou porcentagem de privilégios que já o forneçam. Tomem muito cuidado com esses valores, pois eles geralmente não se acumulam - então no máximo permitam alguém chegar à 40% de aumento de dano ou redução de dano e no máximo do máximo 60% com ótimas desvantagens e limitações, sendo isso principalmente referente á tabelas de individualidade.**
+
+
+[27/04/2026, 04:33:02] assassino_do_freezer 12. **Penetração de resistência é inviável em quaisquer tipos de itens ou técnicas - somente sendo viável como natureza de uma individualidade, parte dela. No lugar de penetração, aqueles que desejem utilizar isso converteram-na em Up's, como "Ignoro 2 Up's da resistência do indivíduo", isso parece algo placebo, mas é útil principalmente para o sistema de quebra de resistência ou disputa de ataques. Penetração, diferente do aumento de força convencional, ocupa o dobro do valor original em tudo — ou seja, se sua técnica pode pegar 10 Up's em força, só pode pegar 5 Up's de "Penetração", se seu equipamento pode ter 6 Up's de força, só poderá ter 3 Up's de Penetração.**
+
+13. **Em sua maioria, individualidades emissoras não vão somar com o atributo físico do usuário, como força ou velocidade, possuindo um valor acima do normal justamente para poder se equiparar. As únicas exceções constantemente vistas é caso essa emissora tenha origem diretamente de uma parte do corpo do indivíduo e a utilize para ser funcional, como Air Cannon por exemplo.**
+
+14. **Individualidades defensivas ou construtos de origem emissoras em sua maioria quebram-se assim que o valor de suas resistências forem ultrapassados nem que seja por 1, qualquer valor acima de seu valor máximo já é suficiente para desfazer sua barreira ou sua arma ou traje, claro que há exceções, contudo são restritas á individualidades que funcionem dessa forma, nesses casos, estará claro na tabela da individualidade.**
+
+
+[27/04/2026, 04:34:06] assassino_do_freezer
+   📎 anexo: f9b6dd28d9920c5b41e217ec467c63e9.png (image/png, 1620kb) https://cdn.discordapp.com/attachments/1498169895135744150/1498225716129435648/f9b6dd28d9920c5b41e217ec467c63e9.png?ex=6ab81e2e&is=6ab6ccae&hm=0511e24c8e82e0c4f6c9ff57d502387eabbd5f0e12da2837c22b5d89954045ac&
+
+[27/04/2026, 04:34:11] assassino_do_freezer # TODA E QUALQUER REGRA ACIMA PODE SER FLEXIONADA.

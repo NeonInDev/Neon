@@ -1,0 +1,46 @@
+CANAL: ꒰💸꒱・trabalho・
+ID: 1498177402537512960
+CATEGORIA: ╰┈➤ ❝ 📚﹕Sistemas ❞
+MENSAGENS: 4
+EXPORTADO: 2026-09-25T22:17:19.414Z
+============================================================[27/04/2026, 05:10:22] joshtale # .  ‧₊𓂅 👷 ：職男 — Trabalho -! 𝅄 ˚⊹
+ㅤ
+__𑁍ࠬ .⊹：Bem vindo ao sistema principal daqueles que buscam identidade civil no servidor, afinal, meio que quase toda a sua progressão rola aqui. Aquele papo que seu pai fala de que "o trabalho dignifica o homem" não podia estar mais correto, pois é através dele que você obtém poder aquisitivo. Sendo a contraparte do sistema de crime, ambos são posteriores ao sistema de economia, que recomendo muito ler após terminar este daqui.__
+﻿
+__𑁍ࠬ .⊹：Além do que foi dito, o sistema de trabalho é a única forma 100% segura de conseguir dinheiro dentro do RP, e, no universo em que a obra se passa, é possível até mesmo otimizar funções cotidianas com a própria individualidade, inclusive se tu tem um poder útil como teletransporte, super força, gigantificação, recomendo por no currículo kkkk... Enfim, vambora.__
+ㅤ
+ㅤ
+# 👩‍💼 Como trabalhar? 🧑‍🏭  
+ㅤ 
+- 📝 — Existem vários exemplos de profissões em que se pode começar a carreira; não é bem esse o termo correto, mas estarei dividindo-as em dois tipos **`Privadas`** e **`Livres`**. Quase todo chat do roleplay é um estabelecimento em que se pode trabalhar, mas há casos especiais:
+** **
+
+
+[27/04/2026, 05:10:29] joshtale > - ***Empresas `privadas` são geridas por outros jogadores, seja o dono personagem ou npc. Salário, Cargo, e Afiliação do player assalariado são a mercê do dono do local, que autoriza ou não você a trabalhar e utilizar do chat para tal finalidade. A maioria dos chats de agências e estabelecimentos se encaixam nessa regra.***
+> - ***Empresas `livres` são chats fundamentais para um roleplay ambientado em meio urbano funcionar. Mercados, Hospitais, Delegacias, Portos, dentre outros. Você não precisa solicitar a permissão para trabalhar aqui, só fazer a ação e pronto.***
+> - ***Aos jogadores que quiserem se tornar `donos` de uma empresa, independente do tamanho, saiba que será necessário ter um dos nossos 3 itens de local (laboratório, oficina ou residência), variando obviamente no tipo de produto/serviço que lá é realizado. Tendo um destes itens, basta utilizar o chat #pedir-moradia e criar o local. ***
+   📎 anexo: 714016b60f2570749fd30029c1a7cae6.png (image/webp, 64kb) https://cdn.discordapp.com/attachments/1498177402537512960/1498234873683382313/714016b60f2570749fd30029c1a7cae6.png?ex=6ab826b5&is=6ab6d535&hm=ecb0f83d11845e10e4936e4b16b899ca9bd47a5d59de50765ba7428ad4942283&
+
+[27/04/2026, 05:10:49] joshtale ### ⭐ Empresário ⭐
+ㅤ
+- 📝 — Um empresário é uma pessoa que não utiliza seu tempo como moeda de troca, ao contrário do funcionário, é aquele que o utiliza para receber ganhos no futuro. Você usou seu dinheiro para um projeto ambicioso, e agora pretende fazer bastante dinheiro com ele. Logo de cara você terá uma renda passiva, que aumenta conforme a popularidade sua (e da sua loja) aumenta. Ambos estão correlacionados, sendo que seu sucesso vem antes, durante e após a fundação de uma cooperativa privada, logicamente podendo melhorar assim como o empresário. 
+
+> - ***"Lojistas" não ganham salário, mas sim recebem a quantia fixa de 40 mil ienes de um cargo específico via o comando `$collect`. Seguindo a mesma ideia dos empregados, recebem um bônus equivalente aos pontos de fama, semanal mas sem ser dividido por 2. Caso tu tenha 60000 de fama civil e seja dono de loja, poderá resgatar esse bônus uma vez por `semana.`***
+> - ***Outro bônus que os empresários recebem é referente ao número de funcionários. Diferentemente de uma instituição, cada funcionário que tu tenha (precisa ser de um player, npc ou personagem) irá requisitar um salário ao menos superior a 1400 ienes a hora, gerando um bônus: dez mil ienes a mais por empregado. ***
+> - ***Para finalizar, vale ressaltar para você — sua empresa também é uma despesa. Caso alguém a destrua, você seja roubado, e tudo mais, os danos reparados/a grana perdida são seus. A fama negativa de um crime realizado no seu chat é descontada diretamente de você, assim como em caso de roubo, o valor arrecadado pelo player é descontado da sua conta: que deve ser atualizada e informada a um chefe adm para aplicar o devido desconto.***
+** **
+
+
+[27/04/2026, 05:11:19] joshtale ### ⭐ Funcionário ⭐
+ㅤ
+- 📝 — Ser um funcionário significa estar na base de uma hierarquia, mas isso não quer dizer que ter contatos e influência não é útil para esta hierarquia, muito pelo contrário, ter fama civil é uma ótima forma de subir seu salário sem precisar trabalhar tanto assim. Por regra, cada 2 pontos na sua `fama civil` simboliza um iene a mais em seu salário no fim do expediente, então, para saber seu bônus basta dividir o salário por 2 e assim verá quanto recebeu. Eu disse que esse sistema foi feito para civis, não disse? Portanto, `outros tipos de fama` não importarão aqui.
+
+> - ***Um trabalhador comum costuma ganhar `1150 ienes` por hora trabalhada. Isto significa que há dois exemplos que você pode seguir. ***
+> - ***No `meio-período`, estudantes comuns ou mesmo da academia de heróis podem conciliar os estudos ao trabalho, sendo que só podem optar por __este__ período de salário. Nele, é feito um lembrete de `4-6 horas`, ganhando `4600-6900 ienes + o bônus da fama civil por dia trabalhado.` Na semana, podem fazer o trabalho de meio período por um máximo de até quatro dias.***
+> - ***No `período integral`, o mínimo passa a ser oito horas, podendo trabalhar até 12 horas (isto mesmo, o famoso "plantão") recebendo `9200-13800 ienes + o bônus de fama civil`. Ah é, eles também podem trabalhar por um dia a mais, isto é, cinco dias úteis por semana. Vale a pena perder tanto tempo sendo clt? Bem, depende, tem quem curta.***
+ㅤ
+### **📜 Fama por trabalho📜;**
+ㅤ
+### - * O trabalho é um dos locais em que mais fazemos conexões, pois nosso valor é visualizado por diferentes grupos de pessoas com opiniões distintas, o que de fato dá uma alavancada na fama. Por isto, a cada três dias trabalhados em sequência, será ganho 150 de fama civil extra àquele que se dedicou e foi reconhecido pelo serviço prestado. Ah sim, vale ressaltar que é sequência. Se tu fez segunda e quarta mas faltou na terça, já era teu bônus! Vai ter que tentar de novo amigão.
+ㅤ
+   📎 anexo: 59f16bbc4262977850deb0c45b163cef.png (image/webp, 242kb) https://cdn.discordapp.com/attachments/1498177402537512960/1498235082480029786/59f16bbc4262977850deb0c45b163cef.png?ex=6ab826e7&is=6ab6d567&hm=ed2672d99ed54a4bf43c1f76118d7fd9ab82b036cd18e29018f3b5d1aae76d2e&

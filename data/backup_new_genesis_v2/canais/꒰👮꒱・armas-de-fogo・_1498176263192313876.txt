@@ -1,0 +1,19 @@
+CANAL: ꒰👮꒱・armas-de-fogo・
+ID: 1498176263192313876
+CATEGORIA: ╰┈➤ ❝ 📚﹕Sistemas ❞
+MENSAGENS: 2
+EXPORTADO: 2026-09-25T22:17:19.414Z
+============================================================[27/04/2026, 05:07:37] joshtale **.  ‧₊𓂅 💣  ：`装置` — Armas-! 𝅄 ˚⊹**
+
+> __𑁍ࠬ .⊹：Vamos começar com o básico – armas de fogo, no servidor, não são nem de perto o foco em poder. Elas não estão sequer condizentes com o real! O intuito é fazer com que continue usável para quirks que dependem de tal – ao mesmo tempo que destrói os engraçadinhos que se acham superiores sem um uso tático e inteligente da arma. Desse modo, a gente acha um equilíbrio entre ser útil o suficiente pra valer a pena ter uma caso não possua meios melhores – ou até seja seu único meio – e não ser útil o bastante pra ser a melhor e única opção viável ao se criar um equipamento!__
+
+- **🐁 — Maaaaas, antes de irmos para o finalmente, preciso esclarecer uma coisinha! Lembra dos sistema de Equipamentos? Então, ele é parte vital desse aqui – precisamente a parte que dita quais atributos tais ferramentas de X raridade possuem. Caso cê não tenha lido, vou te dar um tempo pra dar uma olhada em tudo lá! . . . . . Já foi? Ótimo. Finalmente, então, teremos nosso sistema de armas de fogo.**
+-# - * 🐀 — Aé, só pra deixar bem claro algumas coisas, primeiro; o sistema daqui é referente somente aos equipamentos superiores pra baixo, o último tier vai ser criado e balanceado sem os buffs desse sistema, segundo; as armas de fogo não possuem up's, apenas os atributos, terceiro; não existem armas de fogo básicas caso esteja imaginando em criar alguma! Enfim. Adeus.
+   📎 anexo: a3dfa8d7a9d07942bff0430b6bf015d1.png (image/webp, 157kb) https://cdn.discordapp.com/attachments/1498176263192313876/1498234149901963384/a3dfa8d7a9d07942bff0430b6bf015d1.png?ex=6ab82609&is=6ab6d489&hm=d1a5b4b040e5aa63c633d9e3d19f54d8fff21a5602d6af8e0ba6f149d7bdeeb8&
+
+[27/04/2026, 05:07:45] joshtale - 🧨 — __Médias: Com peças do tier "médio" se é possível criar apenas armas mais básicas – que, no entanto, tem a maior cadência dentre todas! Armas nesse nível são capazes de tirar até dez porcento (10%) da resistência do alvo pela sua alta perfuração, além de poderem dar até seis (6) tiros por turno. Submetralhadoras, pistolas, geralmente as de pequeno porte! Menos precisão compensada por quantidade de balas cuspidas.__
+
+- 🧨 — __Avançadas: Usando peças mais avançadas em sua arma, você consegue criar brinquedos melhores – rifles, fuzis, até mesmo metralhadoras! Capazes de ignorar vinte porcento (20%) da resistência do alvo, só se pode dar quatro (4) tiros por turno dada a potência de cada um. Embora sejam peças de boa qualidade, entrar em sobrecarga apenas faz ela travar, em suma; não compensa véi.__
+
+- 🧨 — __Superiores: Por fim, com algum criar arma desse patamar, você pode finalmente fazer armas mais potentes – sejam as mesmas coisas dos tiers anteriores mas com calibre mais alto, ou então espingardas, rifles de precisão e por ai vai. Há, no entanto, uma troca a ser feita! Você pode escolher entre atirar duas (2) vezes por turno e ter somente trinta porcento (30%), ou atirar só uma (1) vez por turno e ter quarenta porcento (40%) em redução de resistência.__
+   📎 anexo: Strafe_Panzer.png (image/webp, 136kb) https://cdn.discordapp.com/attachments/1498176263192313876/1498234186782474380/Strafe_Panzer.png?ex=6ab82611&is=6ab6d491&hm=e8bc31af0af15a8de36ac2c0cbc0dbc56daa18179aa9418a4bd1e6f9268baaae&
