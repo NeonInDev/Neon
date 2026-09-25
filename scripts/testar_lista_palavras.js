@@ -27,8 +27,14 @@ let avisados = 0;
 function pega(t) {
   const m = {
     guild, content: t,
-    author: { id: "u", username: "u", globalName: null, bot: false },
-    member: { id: "u", roles: cacheFalso([]), permissions: { has: () => false }, user: { bot: false }, moderatable: true, guild },
+    author: { id: "u", username: "u", tag: "u#0001", globalName: null, bot: false },
+    member: {
+      id: "u", nickname: "u", guild, moderatable: true, manageable: true,
+      roles: cacheFalso([]), permissions: { has: () => false },
+      user: { id: "u", tag: "u#0001", bot: false, send: async () => {} },
+      timeout: async () => {}, setNickname: async () => {},
+      send: async () => {},
+    },
     channel: { id: "c", name: "chat", send: async () => { avisados++; } },
     mentions: { users: new Map(), roles: new Map() },
     delete: async () => { apagadas++; return true; },

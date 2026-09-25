@@ -27,9 +27,19 @@ members.cache.get = (id) => {
   return null;
 };
 
+// a Neon tem cargo ACIMA do Robotizado de proposito: a faixa tem que
+// parar no Robotizado, e nao no cargo mais alto da bot
+const cargoNeon = cargo(240, "cargo-da-neon");
+meuRoles.push(cargoNeon);
+meuRoles.highest = cargoNeon;
+
+const EQUIPE_STAFF = { id: "1498213352545976382", position: 210, name: "꒰🌛꒱ • Equipe Staff﹕⪩⪨" };
+const ROBOTIZADO_ROLE = { id: "1498212857555451945", position: 222, name: "꒰🤖꒱ • Robotizado﹕⪩⪨" };
+
 const guild = {
   id: G, name: "teste", ownerId: OWNER, client: { user: { id: "neon" } },
   members, channels: { cache: cacheFalso([]) },
+  roles: { cache: cacheFalso([EQUIPE_STAFF, ROBOTIZADO_ROLE, cargoNeon]) },
 };
 
 const alvos = {
@@ -40,8 +50,9 @@ const alvos = {
   "moderador": { id: "mo", user: { id: "mo", tag: "Mod#1" }, roles: { highest: cargo(219, "moderador") } },
   "chefe admin": { id: "ad", user: { id: "ad", tag: "Admin#1" }, roles: { highest: cargo(221, "chefe") } },
   "robotizado": { id: "b", user: { id: "b", tag: "Robo#1" }, roles: { highest: cargo(ROBOTIZADO, "r2") } },
+  "entre robo e neon": { id: "en", user: { id: "en", tag: "Entre#1" }, roles: { highest: cargo(225, "entre") } },
   "loremaker": { id: "lo", user: { id: "lo", tag: "Lore#1" }, roles: { highest: cargo(229, "lore") } },
-  owner: { id: OWNER, user: { id: OWNER, tag: "Dono#1" }, roles: { highest: cargo(230, "cima") } },
+  owner: { id: OWNER, user: { id: OWNER, tag: "Dono#1" }, roles: { highest: cargo(240, "cima") } },
 };
 const EXPECTADO = {
   "civil (comum)": false,
@@ -51,6 +62,7 @@ const EXPECTADO = {
   moderador: true,
   "chefe admin": true,
   robotizado: false,
+  "entre robo e neon": false,
   loremaker: false,
   owner: false,
 };

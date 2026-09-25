@@ -294,31 +294,39 @@ function contarWarns(guildId, userId) {
 // propria Neon ("Robotizado"), conta 2 warns por infracao. Abaixo de
 // Equipe Staff (membro comum) conta normal, e em cima da Neon tambem.
 // O owner do servidor fica sempre de fora.
-const POS_EQUIPE_STAFF = 210; // usado se o cargo nao for encontrado pelo nome
+const POS_EQUIPE_STAFF = 210; // usado se o cargo nao for encontrado
+const POS_ROBOTIZADO = 222; // usado se o cargo nao for encontrado
+const ID_ROBOTIZADO = "1498212857555451945";
 
 function ehOwner(guild, user) {
   return !!user && !!guild && user.id === guild.ownerId;
 }
 
-// procura "Equipe Staff" pelo nome, para sobreviver a reordenacao de cargos
-function posEquipeStaff(guild) {
+// procura a posicao de um cargo por id e por nome, para sobreviver a
+// reordenacao de cargos e a troca de nome no servidor
+function posCargo(guild, { id, rx, fallback }) {
   const lista = guild?.roles?.cache;
-  if (lista && typeof lista.find === "function") {
-    const alvo = lista.find((r) => /equipe\s*staff/i.test(r?.name || ""));
+  if (id && typeof lista?.get === "function") {
+    const porId = lista.get(id);
+    if (Number.isFinite(porId?.position)) return porId.position;
+  }
+  if (rx && typeof lista?.find === "function") {
+    const alvo = lista.find((r) => rx.test(r?.name || ""));
     if (Number.isFinite(alvo?.position)) return alvo.position;
   }
-  return POS_EQUIPE_STAFF;
+  return fallback;
 }
+
+const posEquipeStaff = (guild) => posCargo(guild, { rx: /equipe\s*staff/i, fallback: POS_EQUIPE_STAFF });
+const posRobotizado = (guild) => posCargo(guild, { id: ID_ROBOTIZADO, rx: /robotizado/i, fallback: POS_ROBOTIZADO });
 
 function contaDobrada(guild, member) {
   if (!member) return false;
   if (ehOwner(guild, member)) return false;
-  const meuTopo = guild.members?.me?.roles?.highest?.position;
-  if (!Number.isFinite(meuTopo)) return false;
   const topo = member.roles?.highest?.position;
   if (!Number.isFinite(topo)) return false;
-  // faixa da staff: acima de Equipe Staff e abaixo do cargo da Neon
-  return topo > posEquipeStaff(guild) && topo < meuTopo;
+  // faixa da staff: acima de Equipe Staff e abaixo do Robotizado
+  return topo > posEquipeStaff(guild) && topo < posRobotizado(guild);
 }
 
 async function darWarn(guild, user, motivo, autor, opts = {}) {

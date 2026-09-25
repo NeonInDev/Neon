@@ -91,7 +91,10 @@ const ESCALA_PUNICAO = [
     acao: "ban",
     apagarDias: 7,
     controle: 0,
-    texto: "10º aviso — banimento por IP (aguarda confirmação do Admin).",
+    // a API do Discord bane a CONTA, nao o IP. quem quiser derrubar os
+    // alts precisa de um cargo de IP/anti-alt em outra ferramente.
+    texto: "10º aviso — ban do servidor e 7 dias de mensagens apagadas (aguarda confirmação do Admin).",
+    obs: "A API do Discord não faz ban por IP: isso derruba a conta, e os alts precisam de um sistema de IP separado.",
   },
 ];
 
@@ -170,7 +173,8 @@ function lerControle(member) {
 // atributos: retroce N ranques, ou limita a um teto
 async function aplicarAtributos(member, { ranques = 0, tetoRank = null }) {
   const atuais = lerAtributos(member);
-  const trocar = [];
+  const remover = [];
+  const adicionar = [];
   const resumo = [];
 
   for (const [cat, rank] of Object.entries(atuais)) {
@@ -188,14 +192,21 @@ async function aplicarAtributos(member, { ranques = 0, tetoRank = null }) {
     if (!novoRank || novoRank === rank) continue;
 
     const dados = ATRIBUTOS[cat];
-    if (!dados?.ranks?.[rank] || !dados?.ranks?.[novoRank]) continue;
-    trocar.push(dados.ranks[rank], dados.ranks[novoRank]);
+    const cargoAtual = dados?.ranks?.[rank];
+    const cargoNovo = dados?.ranks?.[novoRank];
+    if (!cargoAtual || !cargoNovo) continue;
+    remover.push(cargoAtual);
+    adicionar.push(cargoNovo);
     resumo.push(`${cat}: ${rank} → ${novoRank}`);
   }
 
-  if (!trocar.length) return { ok: true, resumo: [], motivo: "nenhum atributo para mudar" };
+  if (!remover.length) return { ok: true, resumo: [], motivo: "nenhum atributo para mudar" };
+  const motivo = "punição: perde ranque nos atributos";
   try {
-    await member.roles.remove(trocar, "punição: perde ranque nos atributos");
+    // primeiro o novo ranque, depois tira o velho: se a pessoa ficar sem
+    // cargo nenhum no meio do processo, nao perde o bonus antigo
+    if (adicionar.length) await member.roles.add(adicionar, motivo);
+    if (remover.length) await member.roles.remove(remover, motivo);
     return { ok: true, resumo };
   } catch (err) {
     return { ok: false, resumo, motivo: err.message };
@@ -320,6 +331,7 @@ module.exports = {
   indiceRank,
   ehRankValido,
   aplicarNivel,
+  aplicarAtributos,
   lerControle,
   baseDoNick,
   calcularArcane,
