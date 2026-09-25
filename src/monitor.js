@@ -1,9 +1,28 @@
 const { OWNER } = require("./perm");
 const { log } = require("./logger");
 const pc = require("./pc");
+const path = require("path");
+const fs = require("fs");
+
+const COOLDOWN_MS = 30 * 60 * 1000;
+const ESTADO_PATH = path.join(__dirname, "..", "data", "alerta_sistema.json");
 
 let intervals = [];
 let client = null;
+let msgAlerta = null;
+
+function lerEstado() {
+  try {
+    if (fs.existsSync(ESTADO_PATH)) return JSON.parse(fs.readFileSync(ESTADO_PATH, "utf8"));
+  } catch {}
+  return {};
+}
+
+function salvarEstado(estado) {
+  try {
+    fs.writeFileSync(ESTADO_PATH, JSON.stringify(estado, null, 2), "utf8");
+  } catch {}
+}
 
 function iniciar(discordClient) {
   client = discordClient;
@@ -58,10 +77,25 @@ async function verificarSistema() {
     }
 
     if (alerts.length && client?.isReady()) {
+      const chave = alerts.join("|");
+      const estado = lerEstado();
+      const agora = Date.now();
+      if (estado.chave === chave && agora - (estado.ts || 0) < COOLDOWN_MS) return;
       try {
         const user = await client.users.fetch(OWNER);
-        await user.send("⚠️ **Alerta do Sistema:**\n" + alerts.join("\n"));
-        log("INFO", "[MONITOR] Alerta enviado", { alerts });
+        const texto = "⚠️ **Alerta do Sistema:**\n" + alerts.join("\n");
+        let editado = false;
+        if (msgAlerta) {
+          try {
+            await msgAlerta.edit(texto);
+            editado = true;
+          } catch {
+            msgAlerta = null;
+          }
+        }
+        if (!editado) msgAlerta = await user.send(texto);
+        salvarEstado({ chave, ts: agora });
+        log("INFO", "[MONITOR] Alerta enviado", { alerts, editado });
       } catch {}
     }
   } catch (err) {

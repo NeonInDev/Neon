@@ -5,11 +5,17 @@ const { lembrar } = require("./memoria");
 const axios = require("axios");
 const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL } = require("./config");
 const { OWNER } = require("./perm");
+const path = require("path");
+const fs = require("fs");
+
+const ALERTA_COOLDOWN_MS = 30 * 60 * 1000;
+const ESTADO_PATH = path.join(__dirname, "..", "data", "alerta_proativo.json");
 
 let client = null;
 let intervalId = null;
 let ultimaAcao = 0;
 let cicloCount = 0;
+let msgAlerta = null;
 const COOLDOWN_MS = 3 * 60 * 1000;
 const CICLO_MS = 15 * 60 * 1000;
 const OWNER_ID = OWNER;
@@ -18,7 +24,12 @@ async function iniciar(discordClient) {
   client = discordClient;
   ultimaAcao = Date.now();
   cicloCount = 0;
+  msgAlerta = null;
   log("INFO", "[PROATIVO] Modo Jarvis iniciado (ciclo a cada 15min)");
+  if (process.env.PROATIVO === "0") {
+    log("INFO", "[PROATIVO] Desativado via env");
+    return;
+  }
   await ciclo();
   intervalId = setInterval(ciclo, CICLO_MS);
 }
@@ -54,6 +65,37 @@ async function enviarMensagem(texto) {
   }
 }
 
+async function enviarAlerta(texto, chave) {
+  try {
+    let estado = {};
+    try {
+      if (fs.existsSync(ESTADO_PATH)) estado = JSON.parse(fs.readFileSync(ESTADO_PATH, "utf8"));
+    } catch {}
+    const agora = Date.now();
+    if (estado.chave === chave && agora - (estado.ts || 0) < ALERTA_COOLDOWN_MS) return true;
+    let editado = false;
+    if (msgAlerta) {
+      try {
+        await msgAlerta.edit(texto);
+        editado = true;
+      } catch {
+        msgAlerta = null;
+      }
+    }
+    if (!editado) {
+      const user = await client.users.fetch(OWNER_ID);
+      msgAlerta = await user.send(texto);
+    }
+    try {
+      fs.writeFileSync(ESTADO_PATH, JSON.stringify({ chave, ts: agora }, null, 2), "utf8");
+    } catch {}
+    return true;
+  } catch {
+    log("WARN", "[PROATIVO] Falha ao enviar alerta");
+    return false;
+  }
+}
+
 async function ciclo() {
   if (!client?.isReady()) return;
   cicloCount++;
@@ -63,7 +105,7 @@ async function ciclo() {
     const alertas = await verificarEmergencias();
     if (alertas.length > 0) {
       ultimaAcao = Date.now();
-      await enviarMensagem("🚨 **Neon - Alerta**\n" + alertas.join("\n"));
+      await enviarAlerta("🚨 **Neon - Alerta**\n" + alertas.join("\n"), alertas.join("|"));
     }
 
     if (cicloCount % 3 === 0) {

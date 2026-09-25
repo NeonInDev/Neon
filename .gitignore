@@ -58,3 +58,5 @@ AGENTS.md
 backups/
 logs/
 data/_emergencia_proc.ps1
+data/alerta_sistema.json
+data/alerta_proativo.json
