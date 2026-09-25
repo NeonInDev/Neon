@@ -13,7 +13,10 @@ const client = new Client({
     GatewayIntentBits.GuildVoiceStates,
     GatewayIntentBits.GuildBans,
   ],
-  partials: [Partials.Channel],
+  // GuildMember e obrigatorio: em servidores grandes (>250) o Discord faz
+  // lazy loading de membros e, sem o partial, message.member chega null
+  // (quebrava os comandos por fala natural com "reading 'permissions'").
+  partials: [Partials.Channel, Partials.GuildMember],
 });
 
 const eventFiles = readdirSync(join(__dirname, "events")).filter((f) => f.endsWith(".js"));

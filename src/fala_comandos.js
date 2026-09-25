@@ -35,7 +35,16 @@ function resolverUsuario(message, texto) {
   return alvo?.user || { id: t, username: t, tag: t, bot: false };
 }
 
-function criarInteracaoFake(message, args) {
+// Em servidores grandes o Discord entrega message.member nulo (lazy loading).
+// Busca o membro via REST para os comandos que dependem de cargo/permissao.
+async function resolverMembro(message) {
+  if (message.member && message.member.permissions) return message.member;
+  if (!message.guild) return message.member || null;
+  const completo = await message.guild.members.fetch(message.author.id).catch(() => null);
+  return completo || message.member || null;
+}
+
+function criarInteracaoFake(message, args, membro = null) {
   const saidas = [];
   let replied = false;
   const push = async (p) => {
@@ -46,7 +55,7 @@ function criarInteracaoFake(message, args) {
   return {
     saidas,
     user: message.author,
-    member: message.member,
+    member: membro || message.member,
     guild: message.guild,
     channel: message.channel,
     client: message.client,
@@ -369,7 +378,7 @@ async function interpretarFalaComando(message) {
     }
 
     const args = hit.padrao.montar ? hit.padrao.montar(hit.match, message) : {};
-    const fake = criarInteracaoFake(message, args);
+    const fake = criarInteracaoFake(message, args, await resolverMembro(message));
     await command.execute(fake);
     const saidas = (fake.saidas || []).filter(Boolean);
     if (!saidas.length) {
@@ -385,4 +394,4 @@ async function interpretarFalaComando(message) {
   }
 }
 
-module.exports = { interpretarFalaComando, buscarRota, criarInteracaoFake, ROTAS };
+module.exports = { interpretarFalaComando, buscarRota, criarInteracaoFake, resolverMembro, ROTAS };

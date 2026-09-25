@@ -779,6 +779,34 @@ module.exports = {
     if (message.author.bot) return;
     if (estaNaBlacklist(db, message.author.id)) return;
 
+    // Em servidores grandes (>250) o Discord faz lazy loading de membros e o
+    // discord.js entrega message.member = null. Sem isto, qualquer codigo que
+    // leia member.permissions estoura com "reading 'permissions'".
+    // Busca o membro completo uma vez e fixa na mensagem pra todo o resto.
+    if (message.guild && !message.member?.permissions) {
+      try {
+        const completo = await message.guild.members.fetch(message.author.id).catch(() => null);
+        if (completo) {
+          Object.defineProperty(message, "member", { value: completo, configurable: true, writable: true });
+        }
+      } catch { /* sem membro: segue o fluxo normal */ }
+    }
+
+    // Automod: roda antes de tudo (filtros de spam/invite/mencao/link)
+    if (message.guild) {
+      try {
+        const automod = require("../automod");
+        automod.aplicarNoMembro(message, message.member);
+        const violacao = automod.checarMensagem(message);
+        if (violacao) {
+          await automod.aplicarFiltro(violacao);
+          return;
+        }
+      } catch (err) {
+        log("WARN", "[AUTOMOD] erro no filtro", { erro: err.message });
+      }
+    }
+
     // Pedidos de parceria em #solicitar (qualquer pessoa que marcar o cargo divulgador)
     if (await interpretarSolicitacaoParceria(message)) return;
 

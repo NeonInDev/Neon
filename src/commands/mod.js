@@ -83,10 +83,217 @@ module.exports = {
         .addIntegerOption((o) =>
           o.setName("quantidade").setDescription("Quantas mensagens (2-100)").setRequired(true).setMinValue(2).setMaxValue(100)
         )
+    )
+    .addSubcommand((sc) =>
+      sc
+        .setName("warn")
+        .setDescription("Aplica um warn (com punição automática conforme a escala)")
+        .addUserOption((o) => o.setName("usuario").setDescription("Quem avisar").setRequired(true))
+        .addStringOption((o) => o.setName("motivo").setDescription("Motivo do warn").setMaxLength(400))
+    )
+    .addSubcommand((sc) =>
+      sc
+        .setName("histórico")
+        .setDescription("Mostra os warns de um usuário")
+        .addUserOption((o) => o.setName("usuario").setDescription("Quem consultar").setRequired(true))
+    )
+    .addSubcommand((sc) =>
+      sc
+        .setName("limparwarns")
+        .setDescription("Zera os warns de um usuário")
+        .addUserOption((o) => o.setName("usuario").setDescription("Quem limpar").setRequired(true))
+        .addBooleanOption((o) => o.setName("apagar_historico").setDescription("Apagar também o histórico (padrão: não)"))
+    )
+    .addSubcommand((sc) =>
+      sc
+        .setName("antiraid")
+        .setDescription("Liga/desliga o antiraid ou ajusta o limite")
+        .addStringOption((o) =>
+          o
+            .setName("acao")
+            .setDescription("O que fazer")
+            .setRequired(true)
+            .addChoices(
+              { name: "Ativar", value: "on" },
+              { name: "Desativar", value: "off" },
+              { name: "Configurar", value: "config" }
+            )
+        )
+        .addIntegerOption((o) => o.setName("max_joins").setDescription("Máx. entradas na janela (padrão 5)").setMinValue(2).setMaxValue(50))
+        .addIntegerOption((o) => o.setName("janela").setDescription("Janela em segundos (padrão 20)").setMinValue(5).setMaxValue(300))
+        .addStringOption((o) =>
+          o
+            .setName("punir_com")
+            .setDescription("Ação para contas novas no raid")
+            .addChoices({ name: "Kick", value: "kick" }, { name: "Timeout 1h", value: "timeout" }, { name: "Ban", value: "ban" })
+        )
+    )
+    .addSubcommand((sc) =>
+      sc
+        .setName("automod")
+        .setDescription("Liga/desliga filtros ou ajusta limites")
+        .addStringOption((o) =>
+          o
+            .setName("filtro")
+            .setDescription("Filtro")
+            .setRequired(true)
+            .addChoices(
+              { name: "Tudo (ligar/desligar)", value: "tudo" },
+              { name: "Convites de Discord", value: "convites" },
+              { name: "Menção em massa", value: "mencao" },
+              { name: "CAPS", value: "caps" },
+              { name: "Zalgo", value: "zalgo" },
+              { name: "Links", value: "links" },
+              { name: "Flood", value: "flood" },
+              { name: "Palavra proibida", value: "palavra" }
+            )
+        )
+        .addBooleanOption((o) => o.setName("ligar").setDescription("Ligar (sim) ou desligar (não)"))
+        .addStringOption((o) => o.setName("valor").setDescription("Palavra proibida, quando filtro = palavra"))
+        .addIntegerOption((o) => o.setName("limite").setDescription("Limite numérico do filtro").setMinValue(2).setMaxValue(50))
+    )
+    .addSubcommand((sc) =>
+      sc
+        .setName("canal_log")
+        .setDescription("Define onde os logs de moderação vão")
+        .addChannelOption((o) => o.setName("canal").setDescription("Canal de logs").setRequired(true))
+    )
+    .addSubcommand((sc) =>
+      sc
+        .setName("escalar")
+        .setDescription("Define a punição para um número de warns")
+        .addIntegerOption((o) => o.setName("warns").setDescription("A partir de quantos warns").setRequired(true).setMinValue(1).setMaxValue(20))
+        .addStringOption((o) =>
+          o
+            .setName("acao")
+            .setDescription("Ação")
+            .setRequired(true)
+            .addChoices(
+              { name: "Timeout (silenciar)", value: "timeout" },
+              { name: "Kick (expulsar)", value: "kick" },
+              { name: "Ban", value: "ban" },
+              { name: "Nenhuma", value: "nenhuma" }
+            )
+        )
+        .addIntegerOption((o) => o.setName("minutos").setDescription("Minutos (se for timeout)").setMinValue(1).setMaxValue(40320))
     ),
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
+    const automod = require("../automod");
+
+    // ---- subcomandos do automod ----
+    if (["warn", "histórico", "limparwarns", "antiraid", "automod", "canal_log", "escalar"].includes(sub)) {
+      const precisa = PermissionFlagsBits.ModerateMembers;
+      if (!interaction.memberPermissions?.has(precisa)) {
+        return await interaction.reply({ content: "🔒 Você precisa de Gerenciar Mensagens / Silenciar Membros.", ephemeral: true });
+      }
+      if (!interaction.guild.members.me?.permissions?.has(precisa)) {
+        return await interaction.reply({ content: "❌ Não tenho permissão de moderação aqui.", ephemeral: true });
+      }
+      const cfg = automod.configGuild(interaction.guild.id);
+      const guild = interaction.guild;
+
+      if (sub === "warn") {
+        const alvo = interaction.options.getUser("usuario", true);
+        const motivo = interaction.options.getString("motivo") || "Sem motivo informado";
+        const erro = checarAlvo(interaction, alvo, await guild.members.fetch(alvo.id).catch(() => null));
+        if (erro) return await interaction.reply({ content: `❌ ${erro}`, ephemeral: true });
+        await interaction.deferReply();
+        const r = await automod.darWarn(guild, alvo, motivo, interaction.user);
+        const extra = r.punicao ? `\n🔨 ${automod.punicaoTexto(r.punicao, r.warn)}` : "\n🔨 Sem punição automática neste nível.";
+        return await interaction.editReply(`⚠️ **${alvo.tag}** — ${r.warn}º warn (total ${r.total}).${extra}`);
+      }
+
+      if (sub === "histórico") {
+        const alvo = interaction.options.getUser("usuario", true);
+        const reg = automod.contarWarns(guild.id, alvo.id);
+        if (!reg.total) return await interaction.reply({ content: `✅ **${alvo.tag}** não tem warns.`, ephemeral: true });
+        const linhas = automod
+          .historico(guild.id, alvo.id, 10)
+          .map((h, i) => `${i + 1}. <t:${Math.floor(h.em / 1000)}:R> — ${h.motivo}${h.automatico ? " _(auto)_" : h.autorTag ? ` _(${h.autorTag})_` : ""}`)
+          .join("\n");
+        return await interaction.reply({
+          content: `📋 **${alvo.tag}** — ${reg.ativo} ativo(s), ${reg.total} no total.\n${linhas}`,
+          ephemeral: true,
+        });
+      }
+
+      if (sub === "limparwarns") {
+        const alvo = interaction.options.getUser("usuario", true);
+        const apagar = interaction.options.getBoolean("apagar_historico") || false;
+        automod.limparWarns(guild.id, alvo.id, apagar);
+        automod.persistir();
+        return await interaction.reply({
+          content: `🧹 Warns de **${alvo.tag}** limpos${apagar ? " (histórico apagado)" : " (contagem zerada)"}.`,
+          ephemeral: true,
+        });
+      }
+
+      if (sub === "antiraid") {
+        const acao = interaction.options.getString("acao");
+        if (acao === "on") cfg.antiraid.ativo = true;
+        if (acao === "off") cfg.antiraid.ativo = false;
+        const maxJoins = interaction.options.getInteger("max_joins");
+        if (maxJoins) cfg.antiraid.maxJoins = maxJoins;
+        const janela = interaction.options.getInteger("janela");
+        if (janela) cfg.antiraid.janelaSegundos = janela;
+        const punir = interaction.options.getString("punir_com");
+        if (punir) cfg.antiraid.acao = punir;
+        automod.persistir();
+        return await interaction.reply({
+          content: `🛡️ Antiraid **${cfg.antiraid.ativo ? "ATIVO" : "desativado"}** — ${cfg.antiraid.maxJoins} entradas em ${cfg.antiraid.janelaSegundos}s, punição: \`${cfg.antiraid.acao}\`.`,
+          ephemeral: true,
+        });
+      }
+
+      if (sub === "automod") {
+        const filtro = interaction.options.getString("filtro");
+        const ligar = interaction.options.getBoolean("ligar");
+        const valor = interaction.options.getString("valor");
+        const limite = interaction.options.getInteger("limite");
+        const f = cfg.filtros;
+        if (filtro === "tudo") {
+          cfg.enabled = ligar === false ? false : true;
+          f.ativo = cfg.enabled;
+        } else if (filtro === "palavra") {
+          if (valor) {
+            const idx = f.palavras.findIndex((p) => p.toLowerCase() === valor.toLowerCase());
+            if (ligar === false) {
+              if (idx >= 0) f.palavras.splice(idx, 1);
+            } else if (idx < 0) f.palavras.push(valor);
+          }
+        } else {
+          f[filtro] = ligar === false ? false : true;
+          if (limite && f[`max${filtro[0].toUpperCase()}${filtro.slice(1)}`] !== undefined) {
+            f[`max${filtro[0].toUpperCase()}${filtro.slice(1)}`] = limite;
+          }
+        }
+        automod.persistir();
+        return await interaction.reply({ content: `🛡️ Filtro **${filtro}** atualizado.`, ephemeral: true });
+      }
+
+      if (sub === "canal_log") {
+        const canal = interaction.options.getChannel("canal", true);
+        automod.setCanalLog(guild.id, canal.id);
+        return await interaction.reply({ content: `📝 Logs de moderação agora vão para ${canal}.`, ephemeral: true });
+      }
+
+      if (sub === "escalar") {
+        const n = interaction.options.getInteger("warns", true);
+        const acao = interaction.options.getString("acao", true);
+        const minutos = interaction.options.getInteger("minutos") || 10;
+        cfg.escala = cfg.escala.filter((r) => r.warns !== n);
+        if (acao !== "nenhuma") {
+          cfg.escala.push({ warns: n, acao, ...(acao === "timeout" ? { minutos } : {}) });
+        }
+        automod.persistir();
+        return await interaction.reply({
+          content: `📈 Escala atualizada: **${n}+ warns** → ${automod.punicaoTexto({ acao, minutos }, n)}`,
+          ephemeral: true,
+        });
+      }
+    }
 
     if (sub === "apagar") {
       const qtd = interaction.options.getInteger("quantidade");

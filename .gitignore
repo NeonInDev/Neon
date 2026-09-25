@@ -60,3 +60,5 @@ logs/
 data/_emergencia_proc.ps1
 data/alerta_sistema.json
 data/alerta_proativo.json
+data/automod.json
+data/backup_new_genesis_canais.json
