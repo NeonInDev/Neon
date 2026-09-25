@@ -20,26 +20,24 @@ const { log } = require("./logger");
 const ARQUIVO = path.join(__dirname, "..", "data", "automod.json");
 const NOMES_CANAL_LOG = ["mod-log", "modlogs", "moderação", "moderacao", "logs-mod", "staff", "staff-log"];
 
-// Lista pedida pelo dono: ofensas raciais,QI Violência sexual e xingamentos
-// comuns. O filtro compara SEM acento e por substring, então pega tambem
-// "estuprando", "estúprada", "negão", "maldito" etc.
+// Lista pedida pelo dono: xingamentos e ofensas. A comparacao ignora
+// acento e maiuscula e casa por substring, entao "estuprado" tambem pega
+// "estúprada", "estuprar", "abusado" e as abreviacoes.
 const PALAVRAS_PADRAO = [
-  "negro",
-  "pele escura",
   "estuprado",
   "estuprando",
   "estuprar",
   "molestar",
   "molestado",
   "abusado",
-  "preto",
-  "negao",
-  "lixo",
   "absd",
   "strpd",
   "mcc",
   "macaco",
 ];
+
+// Sobe esse numero sempre que o dono trocar a lista acima.
+const VERSAO_PALAVRAS = 2;
 
 // tira acento e deixa minusculo, pra "estuprado" pegar "estúprado" tambem
 function normalizar(txt) {
@@ -173,6 +171,14 @@ function configGuild(guildId) {
   if (!Array.isArray(c.filtros.ignorarCanais)) c.filtros.ignorarCanais = [];
   if (!Array.isArray(c.filtros.cargosLiberados)) c.filtros.cargosLiberados = [];
   if (!Array.isArray(c.filtros.dominiosBloqueados)) c.filtros.dominiosBloqueados = [];
+  // A lista de palavras tem dono: o codigo. Quando o dono troca a lista,
+  // sobe a versao e o proximo boot substitui a antiga. Palavras add depois
+  // pelo /mod sobrevivem, porque a versao ja bate.
+  if (c.filtros.versaoPalavras !== VERSAO_PALAVRAS) {
+    c.filtros.palavras = [...PALAVRAS_PADRAO];
+    c.filtros.versaoPalavras = VERSAO_PALAVRAS;
+    persistir();
+  }
   return c;
 }
 
@@ -751,6 +757,9 @@ const CONTEXTO_CLARO = [
   /\b(ficha|personagem|rp|roleplay|parceria|parcerias|recrutando|recrutamento|entra no|subindo no|server novo)\b/i,
   // Negocio de roupa / moda
   /\b(loja|roupa|moda|looks?|look|brechó|brecho|vestido|estampado|co look)\b/i,
+  // falar de animal como animal: "sabe de macacos?", "vi um gato preto".
+  // Precisa de verbo de observacao, senao "seu macaco" continuaria barrado.
+  /\b(sabe|sabia|vi|ve|viu|sobre|existem|existia|zoo|zoológico|ficou|fugiu)\b[^.!?\n]{0,25}\b(macaco|macacos|macaca|bicho|primata|primatas|animal|animais|ave|aves|peixe|gato|gatos|cao|cachorro|macacos)\b/i,
 ];
 
 // Trava o caso com certeza: se casou com um padrao local, a frase e legitima.
