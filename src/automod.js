@@ -682,10 +682,6 @@ function checarMensagem(message) {
   if (f.mencaoMassa && mencoes > f.maxMencoes) {
     return { tipo: "mencaoMassa", acao: "timeout", minutos: 120, ...base };
   }
-  const letras = texto.replace(/[^a-zA-Z]/g, "");
-  if (f.caps && letras.length >= 12 && letras === letras.toUpperCase()) {
-    return { tipo: "caps", acao: "aviso", ...base };
-  }
   if (f.zalgo) {
     const zalgo = (texto.match(/[\u0300-\u036f]/g) || []).length;
     if (zalgo > f.maxZalgo) return { tipo: "zalgo", acao: "timeout", minutos: 30, ...base };
@@ -716,6 +712,12 @@ function checarMensagem(message) {
     const achou = f.palavras.find((p) => p && alvo.includes(normalizar(p)));
     if (achou) return { tipo: "palavraProibida", acao: "timeout", minutos: 120, palavra: achou, ...base };
   }
+  // caps vem DEPOIS das palavras: escrever o xingamento em caixa alta nao
+  // pode servir de brecha pra escapar do filtro de palavra
+  const letras = texto.replace(/[^a-zA-Z]/g, "");
+  if (f.caps && letras.length >= f.maxCaps && letras === letras.toUpperCase()) {
+    return { tipo: "caps", acao: "aviso", ...base };
+  }
   if (f.flood && !(f.semFlood || []).includes(message.channel.id)) {
     const chave = `${message.author.id}:${message.channel.id}`;
     if (!historicoMsg.has(chave)) historicoMsg.set(chave, []);
@@ -730,28 +732,101 @@ function checarMensagem(message) {
   return null;
 }
 
+// Filtros que so avisam no chat: a mensagem NAO e apagada e NAO gera warn.
+const SO_AVISO = ["caps", "link"];
+
+// ---------- contexto local (antes da IA) ----------
+// Casos obvios que o filtro estouraria por acidente. Resolver aqui evita
+// gastar chamada de IA e garante liberacao mesmo com o Groq caido (429).
+// Se a frase nao bate com nenhum destes padroes, a IA e quem decide.
+const CONTEXTO_CLARO = [
+  // cor / roupa / aparencia: "eu gosto de usar roupa preta", "cabelo preto"
+  /\b(roupa|roupas|vestido|camisa|camiseta|calca|bermuda|meia|tenis|jaleco|jaqueta|casaco|blusa|saia|camisa|chapeu|boné|toca|faixa|cor|cores|pele|cabelo|cabelos|olhos|olho|sobrancelha|barba|bigode)\b[^.!?\n]{0,30}\b(preto|preta|pretos|pretas|negro|negra|negros|negras)\b/i,
+  /\b(preto|preta|negro|negra|negros|negras)\b[^.!?\n]{0,30}\b(roupa|roupas|vestido|camisa|camiseta|calca|bermuda|meia|tenis|jaqueta|casaco|blusa|saia|cabelo|cabelos|olhos|sobrancelha|barba)\b/i,
+  // "preto e branco", "ao vivo e em cores", "filme preto e branco"
+  /\bpreto\s+e\s+branco\b/i,
+  // referencia a midia/persona, nao a pessoa
+  /\b(novela|filme|jogo|video|serie|musica|desenho|personagem|heroi|vilao|anime|story|feed|reels)\b/i,
+  // ficha de RP / anuncio de parceria
+  /\b(ficha|personagem|rp|roleplay|parceria|parcerias|recrutando|recrutamento|entra no|subindo no|server novo)\b/i,
+  // Negocio de roupa / moda
+  /\b(loja|roupa|moda|looks?|look|brechó|brecho|vestido|estampado|co look)\b/i,
+];
+
+// Trava o caso com certeza: se casou com um padrao local, a frase e legitima.
+function contextoLocalmenteLegitimo(texto, termo) {
+  const t = String(texto || "");
+  if (!t) return null;
+  const alvo = String(termo || "").toLowerCase();
+  // so vale para termos que aparecem em contexto neutro; se o texto tem
+  // xingamento claro ("idiota", "merda", "porra") ignora o atalho local
+  if (/\b(idiota|imbecil|merda|porra|caralho|filha da puta|arrombado|desgraça)\b/i.test(t)) {
+    return null;
+  }
+  for (const rx of CONTEXTO_CLARO) {
+    if (rx.test(t)) {
+      // garante que o termofiltrado realmente aparece na frase
+      if (alvo && !normalizar(t).includes(normalizar(alvo))) continue;
+      return true;
+    }
+  }
+  return null;
+}
+
 async function aplicarFiltro(violacao) {
   const { guild, user, message } = violacao;
-  await message.delete().catch(() => {});
 
-  if (violacao.acao === "aviso") {
+  // ---- caps lock e link: so o lembrete, mensagem fica no chat ----
+  if (violacao.tipo === "caps") {
+    const cfgC = configGuild(guild.id);
+    const texto = String(message.content || "");
+    if ((cfgC.filtros.excecoes || []).some((e) => e && normalizar(texto).includes(normalizar(e)))) {
+      return;
+    }
     await registrarLog(guild, {
       cor: 0xf39c12,
-      titulo: `🔎 Filtro: ${violacao.tipo} (aviso)`,
+      titulo: "🔎 Caps lock (só lembrete, nada foi apagado)",
       campos: {
         Usuário: `${user.tag}\n\`${user.id}\``,
         Canal: `#${message.channel.name}`,
-        Conteúdo: message.content,
+        "Texto mantido": texto.slice(0, 500) || "(vazio)",
+        Aviso: "a Neon mandou um lembrete no canal, sem warn e sem apagar",
       },
     });
+    if (cfgC.avisarNoCanal) {
+      await message.channel
+        .send({
+          content: `⚠️ <@${user.id}> escreve sem caps lock, por favor. A mensagem foi mantida e **não** virou warn.`,
+          allowedMentions: { users: [user.id] },
+        })
+        .catch(() => {});
+    }
+    log("INFO", "[AUTOMOD] lembrete de caps (sem apagar)", { guild: guild.name, usuario: user.id });
     return;
   }
 
   // ---- a IA le a frase e decide se e ofensa de verdade ----
-  // O filtro e burro: casa "preto" em "cabelo preto". Antes de punir, a Neon
-  // le o contexto (RP, cor, anuncio de parceria) e pode liberar.
+  // O filtro e burro: casa "preto" em "cabelo preto" e "roupa preta".
+  // A IA roda ANTES de qualquer warn ou delete: se disser que a frase e
+  // legitima, o texto fica no chat e ninguem ganha warn.
   if (violacao.tipo === "palavraProibida") {
     const cfg = configGuild(guild.id);
+    const textoMsg = String(message.content || "");
+    const local = contextoLocalmenteLegitimo(textoMsg, violacao.palavra);
+    if (local) {
+      await registrarLog(guild, {
+        cor: 0x2ecc71,
+        titulo: "🧠 Liberado pelo contexto local (sem gastar IA)",
+        campos: {
+          Usuário: `${user.tag}\n\`${user.id}\``,
+          Canal: `#${message.channel.name}`,
+          Palavra: `\`${violacao.palavra}\``,
+          "Texto": textoMsg || "(vazio)",
+          "Mensagem apagada": "não — texto mantido e sem warn",
+        },
+      });
+      return;
+    }
     if (cfg.filtros.contextoIa) {
       let veredito = null;
       try {
@@ -778,7 +853,7 @@ async function aplicarFiltro(violacao) {
             Palavra: `\`${violacao.palavra}\``,
             "Texto": message.content || "(vazio)",
             "Por que liberou": veredito.razao || "(IA)",
-            "Mensagem apagada": "sim",
+            "Mensagem apagada": "não — texto mantido e sem warn",
           },
         });
         log("INFO", "[AUTOMOD] liberado pela IA", {
@@ -791,6 +866,7 @@ async function aplicarFiltro(violacao) {
       }
 
       if (veredito?.decisao === "ofensa") {
+        await message.delete().catch(() => {});
         await registrarLog(guild, {
           cor: 0xe74c3c,
           titulo: "🧠 Ofensa confirmada pelo verificador de contexto",
@@ -802,8 +878,9 @@ async function aplicarFiltro(violacao) {
             "Por que": veredito.razao || "(IA)",
           },
         });
-      } else if (cfg.filtros.contextoIaFallback === "ignorar") {
-        // IA caiu (429/timeout) e a config manda nao punir sem veredito
+        return aplicarPunicaoComWarn(guild, user, message, violacao);
+      }
+      if (cfg.filtros.contextoIaFallback === "ignorar") {
         await registrarLog(guild, {
           cor: 0x95a5a6,
           titulo: "⚠️ Sem veredito da IA (config: não punir)",
@@ -816,9 +893,29 @@ async function aplicarFiltro(violacao) {
         });
         return;
       }
+      // sem veredito e fallback = punir: apaga e segue o caminho normal
     }
   }
 
+  await message.delete().catch(() => {});
+
+  if (violacao.acao === "aviso") {
+    await registrarLog(guild, {
+      cor: 0xf39c12,
+      titulo: `🔎 Filtro: ${violacao.tipo} (aviso)`,
+      campos: {
+        Usuário: `${user.tag}\n\`${user.id}\``,
+        Canal: `#${message.channel.name}`,
+        Conteúdo: message.content,
+      },
+    });
+    return;
+  }
+
+  return aplicarPunicaoComWarn(guild, user, message, violacao);
+}
+
+async function aplicarPunicaoComWarn(guild, user, message, violacao) {
   const member = violacao.member || (await guild.members.fetch(user.id).catch(() => null));
   if (member && podeSerPunido(guild, member)) {
     await darWarn(guild, user, `automod: ${violacao.tipo}${violacao.palavra ? ` (${violacao.palavra})` : ""}`, null, {
