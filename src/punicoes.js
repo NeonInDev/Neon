@@ -91,10 +91,9 @@ const ESCALA_PUNICAO = [
     acao: "ban",
     apagarDias: 7,
     controle: 0,
-    // a API do Discord bane a CONTA, nao o IP. quem quiser derrubar os
-    // alts precisa de um cargo de IP/anti-alt em outra ferramente.
-    texto: "10º aviso — ban do servidor e 7 dias de mensagens apagadas (aguarda confirmação do Admin).",
-    obs: "A API do Discord não faz ban por IP: isso derruba a conta, e os alts precisam de um sistema de IP separado.",
+    // o nome e de assustar, como o dono pediu. o que o codigo faz de
+    // verdade e banir a CONTA e apagar 7 dias de mensagens.
+    texto: "10º aviso — banimento por IP (aguarda confirmação do Admin).",
   },
 ];
 
@@ -102,6 +101,47 @@ function nivelPara(n) {
   let alvo = ESCALA_PUNICAO[0];
   for (const r of ESCALA_PUNICAO) if (n >= r.warns) alvo = r;
   return alvo;
+}
+
+// =============================================================
+// WARN INSPIRAVEL: metade da punicao
+// -------------------------------------------------------------
+// O "warn inspiravel" e leve: a mesma infracao vale por METADE. O
+// mute corta pela metade, o controle so desce ate a metade do caminho
+// entre o percentual atual e o teto do nivel, o Arcane perde metade
+// do que perderia, e o teto de ranque afrouxa um degrau.
+// O que um warn inspiravel NUNCA faz e expulsar ou banir: isso fica
+// sempre reservado ao warn normal.
+// =============================================================
+function meioNivel(nivel) {
+  const n = { ...nivel, meio: true };
+  // o 1o aviso normal nao tem mute, e "metade de nada" continua sendo
+  // nada. mas toda quebra de regra leva mute, entao o inspiravel comeca
+  // em 30 min: bem mais leve que o 2o aviso normal (2h), mas nao zero.
+  n.minutos = nivel.minutos ? Math.max(30, Math.round(nivel.minutos / 2)) : 30;
+  if (n.arcane === "tudo") n.arcane = "metade";
+  else if (n.arcane === "metade") n.arcane = 1;
+  else if (typeof n.arcane === "number" && n.arcane > 1) n.arcane = Math.max(1, Math.round(n.arcane / 2));
+  if (n.ranques) n.ranques = Math.floor(n.ranques / 2);
+  if (n.tetoRank) {
+    const i = ORDEM_RANK.indexOf(n.tetoRank);
+    // afrouxa um degrau do teto: teto C vira teto B
+    if (i >= 0 && ORDEM_RANK[i + 1]) n.tetoRank = ORDEM_RANK[i + 1];
+  }
+  // nunca levanta o socket do ban
+  delete n.acao;
+  delete n.apagarDias;
+  return n;
+}
+
+function nivelInspiravel(n) {
+  let nivel = nivelPara(n);
+  // nunca deixa o inspiravel chegar no nivel do ban: se removesse a acao,
+  // a pessoa ficaria sem nenhuma punicao. trava no ultimo nivel de verdade.
+  if (nivel.acao) {
+    nivel = nivelPara(nivel.warns - 1);
+  }
+  return meioNivel(nivel);
 }
 
 // ---- leitura dos atributos atuais (vem dos cargos) ----
@@ -234,10 +274,13 @@ async function aplicarNivel(guild, member, nivel, opts = {}) {
   const erros = [];
   const dobro = !!opts.dobro;
 
-  // controle (teto, nunca sobe)
+  // controle (teto, nunca sobe). no meio, so desce ate a metade do caminho
   const controleAtual = lerControle(member);
   const teto = nivel.controle ?? 100;
-  const controle = Math.min(controleAtual, teto);
+  let controle = Math.min(controleAtual, teto);
+  if (nivel.meio && controle !== controleAtual) {
+    controle = Math.round(controleAtual - (controleAtual - teto) / 2);
+  }
   if (controle !== controleAtual) {
     const r = await aplicarControleNoNick(member, controle);
     if (r.ok) feito.push(`controle ${controleAtual}% → ${controle}%`);
@@ -250,8 +293,8 @@ async function aplicarNivel(guild, member, nivel, opts = {}) {
   if (nivel.minutos) {
     const ms = Math.min(nivel.minutos, 40320) * 60000;
     try {
-      await member.timeout(ms, `punição ${nivel.warns}º aviso`);
-      feito.push(`mute de ${Math.round(nivel.minutos / 60)}h`);
+      await member.timeout(ms, `punição ${nivel.warns}º aviso${nivel.meio ? " (inspirável)" : ""}`);
+      feito.push(`mute de ${Math.round(nivel.minutos / 60)}h${nivel.meio ? " (metade)" : ""}`);
     } catch (err) {
       erros.push(`mute: ${err.message}`);
     }
@@ -326,6 +369,8 @@ module.exports = {
   ORDEM_RANK,
   ATRIBUTOS,
   nivelPara,
+  nivelInspiravel,
+  meioNivel,
   lerAtributos,
   cargoRankAbaixo,
   indiceRank,

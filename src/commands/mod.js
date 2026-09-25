@@ -152,7 +152,6 @@ module.exports = {
               { name: "Tudo (ligar/desligar)", value: "tudo" },
               { name: "Convites de Discord", value: "convites" },
               { name: "Menção em massa", value: "mencao" },
-              { name: "CAPS", value: "caps" },
               { name: "Zalgo", value: "zalgo" },
               { name: "Links", value: "links" },
               { name: "Flood", value: "flood" },

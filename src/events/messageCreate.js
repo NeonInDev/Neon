@@ -805,6 +805,15 @@ module.exports = {
       } catch (err) {
         log("WARN", "[AUTOMOD] erro no filtro", { erro: err.message });
       }
+
+      // Cargos de chamada: precisa rodar em TODA mensagem, mesmo as que
+      // nao bateram em nenhum filtro. Devolve o warn se marcou fora da regra.
+      try {
+        const automod = require("../automod");
+        if (automod.marcouCargoForaDaRegra(message)) return;
+      } catch (err) {
+        log("WARN", "[INSPIRAVEL] erro na checagem", { erro: err.message });
+      }
     }
 
     // Pedidos de parceria em #solicitar (qualquer pessoa que marcar o cargo divulgador)

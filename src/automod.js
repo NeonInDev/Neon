@@ -5,7 +5,7 @@
 //  - warns: contagem + historico por usuario
 //  - punicoes: escala progressiva (mute -> kick -> ban)
 //  - antiraid: deteccao de entrada em massa (burst de joins)
-//  - filtros: spam, convite, mencao em massa, caps, zalgo, links
+//  - filtros: spam, convite, mencao em massa, zalgo, links
 //
 // Regras:
 //  - Staff/owner nunca entra no filtro.
@@ -71,7 +71,8 @@ function semearPalavras(guildId) {
   return novas;
 }
 
-const ESCALA_PADRAO = require("./punicoes").ESCALA_PUNICAO;
+const punicoes = require("./punicoes");
+const ESCALA_PADRAO = punicoes.ESCALA_PUNICAO;
 
 const ANTIRAID_PADRAO = {
   ativo: false,
@@ -88,8 +89,8 @@ const FILTROS_PADRAO = {
   convites: true,
   mencaoMassa: true,
   maxMencoes: 5,
-  caps: true,
-  maxCaps: 12,
+  caps: false,
+  maxCaps: 0,
   zalgo: true,
   maxZalgo: 12,
   links: false,
@@ -107,6 +108,53 @@ const FILTROS_PADRAO = {
   cargosLiberados: [],
 };
 
+// =============================================================
+// CARGOS INSPIRAVEIS
+// -------------------------------------------------------------
+// Cargos de chamada (Instagram, Twitter, Acontecimentos...) que so podem
+// ser marcados no canal certo e de tempos em tempos. Quebrar a regra da
+// um "warn inspiravel": conta separado, some em 1 mes e vale metade da
+// punicao normal.
+// =============================================================
+const MIN = 60 * 1000;
+const CARGOS_INSPIRAVEIS_PADRAO = [
+  {
+    id: "1498218757233967125",
+    nome: "Instagram",
+    canais: ["1498404746053029999"],
+    pessoalMs: 0,
+    globalMs: 0,
+  },
+  {
+    id: "1498218739319963738",
+    nome: "Twitter",
+    canais: ["1498404746053029999"],
+    pessoalMs: 0,
+    globalMs: 0,
+  },
+  {
+    id: "1498218702863204392",
+    nome: "Acontecimentos",
+    canais: ["1498172516055912530"],
+    pessoalMs: 10 * MIN, // o mesmo nao repete em 10m
+    globalMs: 0,
+  },
+  {
+    id: "1498218554120605827",
+    nome: "Trocas e Doações",
+    canais: ["1498206618406621184"],
+    pessoalMs: 2 * 60 * MIN, // o mesmo espera 2h
+    globalMs: 10 * MIN, // mas ninguem marca antes de 10m
+  },
+  {
+    id: "1498218513809276998",
+    nome: "Chamar RP",
+    canais: ["1498207785098416178"],
+    pessoalMs: 0, // sem intervalo pessoal
+    globalMs: 10 * MIN,
+  },
+];
+
 const CFG_PADRAO = {
   enabled: false,
   avisarNoCanal: true,
@@ -118,6 +166,12 @@ const CFG_PADRAO = {
   escala: ESCALA_PADRAO,
   antiraid: ANTIRAID_PADRAO,
   filtros: FILTROS_PADRAO,
+  cargosInspiraveis: {
+    ativo: true,
+    lista: CARGOS_INSPIRAVEIS_PADRAO,
+    // warn inspiravel: conta separado, "leve", e some depois de 1 mes
+    diasParaSumir: 30,
+  },
 };
 
 let cache = null;
@@ -170,6 +224,19 @@ function configGuild(guildId) {
   }
   if (!c.antiraid) c.antiraid = structuredClone(ANTIRAID_PADRAO);
   if (!c.filtros) c.filtros = structuredClone(FILTROS_PADRAO);
+  // os cargos inspiraveis chegaram depois dos servidores ja configurados,
+  // entao quem ja tinha config precisa receber a lista nova
+  if (!c.cargosInspiraveis || !Array.isArray(c.cargosInspiraveis.lista)) {
+    c.cargosInspiraveis = structuredClone(CFG_PADRAO.cargosInspiraveis);
+    persistir();
+  }
+  // o filtro de caps lock foi removido a pedido do dono: quem ainda tinha
+  // ligado precisa desligar, senao a config fica mentindo
+  if (c.filtros.caps) {
+    c.filtros.caps = false;
+    c.filtros.maxCaps = 0;
+    persistir();
+  }
   if (!Array.isArray(c.filtros.palavras)) c.filtros.palavras = [];
   if (!Array.isArray(c.filtros.excecoes)) c.filtros.excecoes = [];
   if (!Array.isArray(c.filtros.semFlood)) c.filtros.semFlood = [];
@@ -288,6 +355,172 @@ function contarWarns(guildId, userId) {
 }
 
 // =============================================================
+// WARN INSPIRAVEL
+// -------------------------------------------------------------
+// Contador separado do warn normal. Guarda o horario de cada infracao
+// pra poder esquecer as velhas: passado o prazo (1 mes por padrao) a
+// infracao simplesmente some da conta, sem zerar as novas.
+// =============================================================
+function inspiravel(guildId, userId) {
+  const d = carregar();
+  if (!d.warnsInspiraveis) d.warnsInspiraveis = {};
+  const chave = `${guildId}:${userId}`;
+  if (!d.warnsInspiraveis[chave]) d.warnsInspiraveis[chave] = { guildId, userId, datas: [] };
+  const r = d.warnsInspiraveis[chave];
+  if (!Array.isArray(r.datas)) r.datas = [];
+  return r;
+}
+
+// joga fora as infracoes que ja venceram, e devolve quantas sobraram
+function limparInspiraveisVencidos(guildId, userId, dias) {
+  const cfg = configGuild(guildId).cargosInspiraveis || {};
+  const prazo = (Number(dias ?? cfg.diasParaSumir) || 30) * 24 * 60 * 60 * 1000;
+  const r = inspiravel(guildId, userId);
+  const agora = Date.now();
+  const antes = r.datas.length;
+  r.datas = r.datas.filter((t) => agora - t < prazo);
+  return { ativas: r.datas.length, apagadas: antes - r.datas.length };
+}
+
+// quantas marcacoes o cargo aceitou (vale so a ultima, e so pro intervalo)
+function contarInspiraveis(guildId, userId) {
+  const { ativas } = limparInspiraveisVencidos(guildId, userId);
+  return { ativas };
+}
+
+function ultimaMarcacao(guildId, cargoId) {
+  const d = carregar();
+  if (!d.marcacoesCargo) d.marcacoesCargo = {};
+  return d.marcacoesCargo[`${guildId}:${cargoId}`] || 0;
+}
+
+function marcarCargo(guildId, cargoId, userId) {
+  const d = carregar();
+  if (!d.marcacoesCargo) d.marcacoesCargo = {};
+  const chave = `${guildId}:${cargoId}`;
+  d.marcacoesCargo[chave] = { global: Date.now(), pessoa: userId };
+  d.marcacoesCargo[`${chave}:${userId}`] = Date.now();
+}
+
+function ultimaMarcacaoPessoa(guildId, cargoId, userId) {
+  const d = carregar();
+  if (!d.marcacoesCargo) d.marcacoesCargo = {};
+  return d.marcacoesCargo[`${guildId}:${cargoId}:${userId}`] || 0;
+}
+
+// marca o uso valido do cargo. so acontece quando a marcacao passou em tudo
+function registrarMarcacaoValida(guildId, cargoId, userId) {
+  const d = carregar();
+  if (!d.marcacoesCargo) d.marcacoesCargo = {};
+  d.marcacoesCargo[`${guildId}:${cargoId}`] = Date.now();
+  d.marcacoesCargo[`${guildId}:${cargoId}:${userId}`] = Date.now();
+  persistir();
+}
+
+// =============================================================
+// A REGRA EM SI
+// -------------------------------------------------------------
+// Le as marcacoes da mensagem e devolve as quebradas. Cada quebra tem
+// o cargo, o motivo e quanto tempo faltou/faltava.
+// =============================================================
+function normalizarParaRx(s) {
+  return String(s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+// detecta mencao de verdade (<@&id>) e tambem o nome digitado com @
+function cargosMarcados(message) {
+  const said = new Set();
+  for (const r of message.mentions?.roles?.values?.() || []) said.add(String(r.id));
+  const texto = normalizarParaRx(message.content || "");
+  return said;
+}
+
+function checarCargosInspiraveis(message) {
+  const cfg = configGuild(message.guild.id).cargosInspiraveis;
+  if (!cfg?.ativo || !Array.isArray(cfg.lista) || !cfg.lista.length) return null;
+
+  const marcados = cargosMarcados(message);
+  if (!marcados.size) return null;
+
+  const texto = normalizarParaRx(message.content || "");
+  const guildId = message.guild.id;
+  const userId = message.author.id;
+  const canalId = message.channel?.id;
+  const agora = Date.now();
+  const quebras = [];
+  const validos = [];
+
+  for (const regra of cfg.lista) {
+    const id = String(regra?.id || "");
+    if (!id) continue;
+
+    let foiMarcado = marcados.has(id);
+    // alem da mencao de verdade, pega o nome digitado com @ antes
+    if (!foiMarcado) {
+      const nome = normalizarParaRx(regra.nome || "");
+      if (nome) {
+        const rx = new RegExp(`(^|\\s)@?${nome.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "i");
+        if (rx.test(texto)) foiMarcado = true;
+      }
+    }
+    if (!foiMarcado) continue;
+
+    // 1) so pode marcar no canal indicado
+    const canais = Array.isArray(regra.canais) ? regra.canais.map(String) : [];
+    if (canais.length && !canais.includes(String(canalId))) {
+      quebras.push({ cargo: regra, motivo: "canal", canais });
+      continue;
+    }
+
+    // 2) intervalo pessoal: o proprio nao repete
+    const pessoal = Number(regra.pessoalMs) || 0;
+    if (pessoal > 0) {
+      const ultima = ultimaMarcacaoPessoa(guildId, id, userId);
+      const faltam = ultima ? ultima + pessoal - agora : 0;
+      if (ultima && faltam > 0) {
+        quebras.push({ cargo: regra, motivo: "pessoal", faltam });
+        continue;
+      }
+    }
+
+    // 3) intervalo global: ninguem marca antes de todo mundo
+    const global = Number(regra.globalMs) || 0;
+    if (global > 0) {
+      const ultima = ultimaMarcacao(guildId, id);
+      const faltam = ultima ? ultima + global - agora : 0;
+      if (ultima && faltam > 0) {
+        quebras.push({ cargo: regra, motivo: "global", faltam });
+        continue;
+      }
+    }
+
+    validos.push({ regra, id });
+  }
+
+  // so marca o uso valido depois que o usuario foi avisado das quebradas
+  for (const v of validos) registrarMarcacaoValida(guildId, v.id, userId);
+  if (!quebras.length) return null;
+  return { quebras, validos: validos.length };
+}
+
+function textoQuebra(q) {
+  const nome = q.cargo?.nome || "cargo";
+  if (q.motivo === "canal") {
+    return `O cargo **${nome}** só pode ser marcado em ${q.canais.map((c) => `<#${c}>`).join(" ou ")}.`;
+  }
+  if (q.motivo === "pessoal") {
+    const min = Math.ceil(q.faltam / 60000);
+    return `Você já marcou o cargo **${nome}**. Faltavam ${min} min do intervalo de 10 min.`;
+  }
+  const min = Math.ceil(q.faltam / 60000);
+  return `O cargo **${nome}** foi marcado há pouco. Faltam ${min} min do intervalo global.`;
+}
+
+// =============================================================
 // CONTA DOBRADA
 // =============================================================
 // Regra do dono: a staff, que fica ENTRE "Equipe Staff" e o cargo da
@@ -327,6 +560,105 @@ function contaDobrada(guild, member) {
   if (!Number.isFinite(topo)) return false;
   // faixa da staff: acima de Equipe Staff e abaixo do Robotizado
   return topo > posEquipeStaff(guild) && topo < posRobotizado(guild);
+}
+
+// =============================================================
+// WARN INSPIRAVEL
+// -------------------------------------------------------------
+// Conta separada, punição leve: metade do mute, controle desce so ate
+// a metade do caminho, e nunca expulsa nem bane. As infracoes somem
+// depois de 1 mes, entao so conta o que aconteceu de verdade no mes
+// corrente.
+// =============================================================
+async function darWarnInspiravel(guild, user, motivo, quebras, opts = {}) {
+  const cfg = configGuild(guild.id);
+  const member = opts.member || (await guild.members.fetch(user.id).catch(() => null));
+  if (ehOwner(guild, member || user)) {
+    log("INFO", "[INSPIRAVEL] owner ignorado", { guild: guild.name, usuario: user.id });
+    return { warn: 0, owner: true };
+  }
+
+  const r = inspiravel(guild.id, user.id);
+  r.datas.push(Date.now());
+  const { ativas, apagadas } = limparInspiraveisVencidos(guild.id, user.id, cfg.cargosInspiraveis?.diasParaSumir);
+  persistir();
+
+  const nivel = punicoes.nivelInspiravel(ativas);
+  const detalhes = quebras.map(textoQuebra).join("\n");
+
+  await registrarLog(guild, {
+    cor: 0x8e44ad,
+    titulo: "💜 Warn inspirável (punição leve)",
+    campos: {
+      Usuário: `${user.tag || user.username}\n\`${user.id}\``,
+      Canal: opts.channelId ? `<#${opts.channelId}>` : "—",
+      "O que foi feito": quebras
+        .map((q) => `• ${q.cargo?.nome} — ${{ canal: "fora do canal", pessoal: "intervalo pessoal", global: "intervalo global" }[q.motivo]}`)
+        .join("\n"),
+      "Contador": `${ativas} warn(s) inspirável(is)${apagadas ? ` (${apagadas} velha(s) de mais de 1 mês já sumiram)` : ""}`,
+      "Punição": punicaoTexto(nivel, ativas) + " — metade da punição normal, e nunca expulsa nem bane",
+      "Aviso ao usuário": detalhes,
+    },
+  });
+
+  // aplica metade do nivel
+  let aplicado = { feito: [], erros: [], avisos: [] };
+  if (member) {
+    try {
+      aplicado = await punicoes.aplicarNivel(guild, member, nivel, { meio: true });
+    } catch (err) {
+      aplicado = { feito: [], erros: [err.message], avisos: [] };
+    }
+  }
+
+  const texto = `💜 **Warn inspirável ${ativas}º** (punição leve, vale metade)\n${detalhes}\n🔨 ${punicaoTexto(nivel, ativas)}`;
+
+  if (cfg.avisarNoCanal && member && opts.channelId) {
+    const canal = member.guild.channels.cache.get(opts.channelId);
+    if (canal?.isTextBased()) {
+      await canal.send({ content: `${texto}\n🤖 Aplicado automaticamente.`, allowedMentions: { users: [user.id] } }).catch(() => {});
+    }
+  }
+  if (cfg.dmAoPunir && member && !member.user.bot) {
+    await member.user.send(`💜 **Warn inspirável** no **${guild.name}**\n${texto}`).catch(() => {});
+  }
+
+  log("INFO", "[INSPIRAVEL] warn aplicado", {
+    guild: guild.name,
+    usuario: user.id,
+    contador: ativas,
+    quebras: quebras.length,
+    nivel: nivel.warns,
+  });
+
+  return { warn: ativas, ativas, apagadas, nivel, aplicado, detalhes, texto };
+}
+
+// atalho pro messageCreate: marca fora da regra e devolve true
+async function marcouCargoForaDaRegra(message) {
+  const r = await aplicarCargosInspiraveis(message);
+  return !!r;
+}
+
+// aplica a regra: se a mensagem quebrou algo, da o warn e para
+async function aplicarCargosInspiraveis(message) {
+  const guild = message.guild;
+  if (!guild || !message.author || message.author.bot) return null;
+  const cfg = configGuild(guild.id);
+  if (!cfg.cargosInspiraveis?.ativo) return null;
+  // staff e o dono nao sao presos nessa regra
+  const member = message.member;
+  if (!member) return null;
+  if (ehStaff(guild, member)) return null;
+
+  const r = checarCargosInspiraveis(message);
+  if (!r) return null;
+
+  const user = message.member.user || { id: message.author.id, tag: message.author.tag, username: message.author.username, bot: false };
+  return await darWarnInspiravel(guild, user, "marcou cargo de chamada fora da regra", r.quebras, {
+    member,
+    channelId: message.channel?.id,
+  });
 }
 
 async function darWarn(guild, user, motivo, autor, opts = {}) {
@@ -818,12 +1150,6 @@ function checarMensagem(message) {
       return { tipo: "palavraProibida", acao: "timeout", minutos: 120, palavra: disfarce, burlado: true, ...base };
     }
   }
-  // caps vem DEPOIS das palavras: escrever o xingamento em caixa alta nao
-  // pode servir de brecha pra escapar do filtro de palavra
-  const letras = texto.replace(/[^a-zA-Z]/g, "");
-  if (f.caps && letras.length >= f.maxCaps && letras === letras.toUpperCase()) {
-    return { tipo: "caps", acao: "aviso", ...base };
-  }
   if (f.flood && !(f.semFlood || []).includes(message.channel.id)) {
     const chave = `${message.author.id}:${message.channel.id}`;
     if (!historicoMsg.has(chave)) historicoMsg.set(chave, []);
@@ -839,7 +1165,7 @@ function checarMensagem(message) {
 }
 
 // Filtros que so avisam no chat: a mensagem NAO e apagada e NAO gera warn.
-const SO_AVISO = ["caps", "link"];
+const SO_AVISO = ["link"];
 
 // ---------- burla (filtro contornado) ----------
 // Quem tenta escapar do filtro nao ganha o beneficio da duvida: a frase
@@ -917,35 +1243,6 @@ function contextoLocalmenteLegitimo(texto, termo) {
 
 async function aplicarFiltro(violacao) {
   const { guild, user, message } = violacao;
-
-  // ---- caps lock e link: so o lembrete, mensagem fica no chat ----
-  if (violacao.tipo === "caps") {
-    const cfgC = configGuild(guild.id);
-    const texto = String(message.content || "");
-    if ((cfgC.filtros.excecoes || []).some((e) => e && normalizar(texto).includes(normalizar(e)))) {
-      return;
-    }
-    await registrarLog(guild, {
-      cor: 0xf39c12,
-      titulo: "🔎 Caps lock (só lembrete, nada foi apagado)",
-      campos: {
-        Usuário: `${user.tag}\n\`${user.id}\``,
-        Canal: `#${message.channel.name}`,
-        "Texto mantido": texto.slice(0, 500) || "(vazio)",
-        Aviso: "a Neon mandou um lembrete no canal, sem warn e sem apagar",
-      },
-    });
-    if (cfgC.avisarNoCanal) {
-      await message.channel
-        .send({
-          content: `⚠️ <@${user.id}> escreve sem caps lock, por favor. A mensagem foi mantida e **não** virou warn.`,
-          allowedMentions: { users: [user.id] },
-        })
-        .catch(() => {});
-    }
-    log("INFO", "[AUTOMOD] lembrete de caps (sem apagar)", { guild: guild.name, usuario: user.id });
-    return;
-  }
 
   // ---- a IA le a frase e decide se e ofensa de verdade ----
   // O filtro e burro: casa "preto" em "cabelo preto" e "roupa preta".
@@ -1131,6 +1428,12 @@ module.exports = {
   isLiberado,
   darWarn,
   contarWarns,
+  darWarnInspiravel,
+  checarCargosInspiraveis,
+  aplicarCargosInspiraveis,
+  marcouCargoForaDaRegra,
+  contarInspiraveis,
+  limparInspiraveisVencidos,
   historico,
   limparWarns,
   resolverEscala,
