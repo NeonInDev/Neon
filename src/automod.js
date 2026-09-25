@@ -20,6 +20,53 @@ const { log } = require("./logger");
 const ARQUIVO = path.join(__dirname, "..", "data", "automod.json");
 const NOMES_CANAL_LOG = ["mod-log", "modlogs", "moderação", "moderacao", "logs-mod", "staff", "staff-log"];
 
+// Lista pedida pelo dono: ofensas raciais,QI Violência sexual e xingamentos
+// comuns. O filtro compara SEM acento e por substring, então pega tambem
+// "estuprando", "estúprada", "negão", "maldito" etc.
+const PALAVRAS_PADRAO = [
+  "negro",
+  "pele escura",
+  "estuprado",
+  "estuprando",
+  "estuprar",
+  "molestar",
+  "molestado",
+  "abusado",
+  "preto",
+  "negao",
+  "lixo",
+  "absd",
+  "strpd",
+  "mcc",
+  "macaco",
+];
+
+// tira acento e deixa minusculo, pra "estuprado" pegar "estúprado" tambem
+function normalizar(txt) {
+  return String(txt || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+// adds a lista padrao de palavras proibidas sem duplicar nem apagar as
+// que o staff ja configurou a mao
+function semearPalavras(guildId) {
+  const c = configGuild(guildId);
+  if (!Array.isArray(c.filtros.palavras)) c.filtros.palavras = [];
+  const atuais = new Set(c.filtros.palavras.map((p) => normalizar(p)));
+  let novas = 0;
+  for (const p of PALAVRAS_PADRAO) {
+    if (!atuais.has(normalizar(p))) {
+      c.filtros.palavras.push(p);
+      atuais.add(normalizar(p));
+      novas += 1;
+    }
+  }
+  persistir();
+  return novas;
+}
+
 const ESCALA_PADRAO = [
   { warns: 1, acao: "timeout", minutos: 10 },
   { warns: 2, acao: "timeout", minutos: 60 },
@@ -476,8 +523,8 @@ function checarMensagem(message) {
     return { tipo: "link", acao: "aviso", ...base };
   }
   if (f.palavras.length) {
-    const alvo = `${texto} ${message.author.username}`.toLowerCase();
-    const achou = f.palavras.find((p) => p && alvo.includes(String(p).toLowerCase()));
+    const alvo = normalizar(`${texto} ${message.author.username} ${message.author.globalName || ""}`);
+    const achou = f.palavras.find((p) => p && alvo.includes(normalizar(String(p))));
     if (achou) return { tipo: "palavraProibida", acao: "timeout", minutos: 120, palavra: achou, ...base };
   }
   if (f.flood) {
@@ -553,6 +600,9 @@ module.exports = {
   membroDe,
   registrarLog,
   limpar,
+  semearPalavras,
+  normalizar,
+  PALAVRAS_PADRAO,
   CFG_PADRAO,
   ESCALA_PADRAO,
   ANTIRAID_PADRAO,

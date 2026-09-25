@@ -258,10 +258,22 @@ module.exports = {
           f.ativo = cfg.enabled;
         } else if (filtro === "palavra") {
           if (valor) {
-            const idx = f.palavras.findIndex((p) => p.toLowerCase() === valor.toLowerCase());
+            const idx = f.palavras.findIndex((p) => automod.normalizar(p) === automod.normalizar(valor));
             if (ligar === false) {
               if (idx >= 0) f.palavras.splice(idx, 1);
             } else if (idx < 0) f.palavras.push(valor);
+          } else if (ligar === false) {
+            f.palavras = [];
+          } else {
+            // sem valor = semeia a lista padrao (ofensas/xingamentos do dono)
+            const novas = automod.semearPalavras(guild.id);
+            return await interaction.reply({
+              content:
+                `🚫 **${novas}** palavras proibidas adicionadas (${f.palavras.length} no total).\n` +
+                `Igre: ${automod.PALAVRAS_PADRAO.join(", ")}\n` +
+                `A comparação ignora acentos e pega variações (ex.: "estuprando").`,
+              ephemeral: true,
+            });
           }
         } else {
           f[filtro] = ligar === false ? false : true;
