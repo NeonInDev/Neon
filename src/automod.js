@@ -290,11 +290,24 @@ function contarWarns(guildId, userId) {
 // =============================================================
 // CONTA DOBRADA
 // =============================================================
-// Regra do dono: quem tem cargo ABAIXO do "Robotizado" (cargo da propria
-// Neon, 222) conta 2 warns por infracao. Quem esta acima disso e staff e
-// conta normal. O owner do servidor fica sempre de fora.
+// Regra do dono: a staff, que fica ENTRE "Equipe Staff" e o cargo da
+// propria Neon ("Robotizado"), conta 2 warns por infracao. Abaixo de
+// Equipe Staff (membro comum) conta normal, e em cima da Neon tambem.
+// O owner do servidor fica sempre de fora.
+const POS_EQUIPE_STAFF = 210; // usado se o cargo nao for encontrado pelo nome
+
 function ehOwner(guild, user) {
   return !!user && !!guild && user.id === guild.ownerId;
+}
+
+// procura "Equipe Staff" pelo nome, para sobreviver a reordenacao de cargos
+function posEquipeStaff(guild) {
+  const lista = guild?.roles?.cache;
+  if (lista && typeof lista.find === "function") {
+    const alvo = lista.find((r) => /equipe\s*staff/i.test(r?.name || ""));
+    if (Number.isFinite(alvo?.position)) return alvo.position;
+  }
+  return POS_EQUIPE_STAFF;
 }
 
 function contaDobrada(guild, member) {
@@ -304,7 +317,8 @@ function contaDobrada(guild, member) {
   if (!Number.isFinite(meuTopo)) return false;
   const topo = member.roles?.highest?.position;
   if (!Number.isFinite(topo)) return false;
-  return topo < meuTopo;
+  // faixa da staff: acima de Equipe Staff e abaixo do cargo da Neon
+  return topo > posEquipeStaff(guild) && topo < meuTopo;
 }
 
 async function darWarn(guild, user, motivo, autor, opts = {}) {
