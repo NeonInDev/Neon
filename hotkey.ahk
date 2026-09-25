@@ -1,15 +1,14 @@
-#Requires AutoHotkey v2.0
+#Requires AutoHotkey >=2.0
+#SingleInstance Force
 
 ; ===== Neo setup: Ctrl+Shift+Alt+Z e Ctrl+Shift+Alt+X =====
-; Abre Medal, Discord, VSCode, Steam e Roblox + liga a Neon (se não estiver online)
-; Se você não interagir em 5 minutos, fecha Steam e Roblox.
+; Abre Medal, Discord e VSCode + liga a Neon (se não estiver online)
+; 25/09: Steam e Roblox REMOVIDOS do atalho (dono não quer mais que abram)
 
 abrirTudo() {
     Run 'C:\Users\Pichau\AppData\Local\Medal\Medal.exe'
     Run 'C:\Users\Pichau\AppData\Local\Discord\Update.exe --processStart Discord.exe'
     Run 'C:\Users\Pichau\AppData\Local\Programs\Microsoft VS Code\Code.exe'
-    Run 'C:\Program Files (x86)\Steam\steam.exe'
-    Run 'C:\Users\Pichau\AppData\Local\Roblox\Versions\version-4310300497aa4917\RobloxPlayerBeta.exe'
 
     ; Ligar a Neon só se ela ainda não estiver online (proteção anti-duplicata)
     if (!neonOnline()) {
@@ -21,19 +20,6 @@ abrirTudo() {
         ToolTip 'Tudo aberto. Neon já estava online.'
     }
     SetTimer(() => ToolTip(), -2500)
-
-    ; Se não houver interação em 5 min (A_TimeIdle ~5 min), fecha Steam e Roblox
-    SetTimer(fecharSteamSeOcioso, 5000)
-}
-
-fecharSteamSeOcioso() {
-    if (A_TimeIdle >= 300000) {
-        ProcessClose("steam.exe")
-        ProcessClose("RobloxPlayerBeta.exe")
-        ToolTip 'Steam e Roblox fechados (5 min sem uso).'
-        SetTimer(() => ToolTip(), -2500)
-        SetTimer(fecharSteamSeOcioso, 0)
-    }
 }
 
 ; Checka se a Neon está online via API de health

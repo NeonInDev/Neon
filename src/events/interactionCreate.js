@@ -35,6 +35,47 @@ module.exports = {
       return;
     }
 
+    // Botoes de confirmacao de kick/ban do automod
+    if (interaction.isButton() && interaction.customId.startsWith("automod:")) {
+      try {
+        const [, acao, guildId, userId] = interaction.customId.split(":");
+        const automod = require("../automod");
+        const guild = interaction.guild;
+        if (!guild || guild.id !== guildId) {
+          return interaction.reply({ content: "❌ Esse pedido é de outro servidor.", ephemeral: true });
+        }
+        if (!automod.ehAdmin(guild, interaction.user)) {
+          return interaction.reply({
+            content: "⛔ Só o **dono do servidor** ou alguém com **Administrador** confirma punição.",
+            ephemeral: true,
+          });
+        }
+        const r = await automod.decidirPuncao(guild, userId, acao === "aprovar", interaction.user);
+        const row = interaction.message?.components?.[0];
+        if (r.ok && row) {
+          await interaction.update({
+            components: [],
+            embeds: [
+              {
+                color: acao === "aprovar" ? 0xe74c3c : 0x2ecc71,
+                title: r.texto,
+                description: `Decidido por ${interaction.user.tag}`,
+                timestamp: new Date().toISOString(),
+              },
+            ],
+          }).catch(() => interaction.reply({ content: r.texto, ephemeral: true }));
+        } else {
+          await interaction.reply({ content: r.erro || "erro", ephemeral: true }).catch(() => {});
+        }
+      } catch (err) {
+        log("ERROR", "Erro no botão do automod", { erro: err.message });
+        const p = { content: "❌ erro interno", ephemeral: true };
+        if (interaction.replied || interaction.deferred) await interaction.editReply(p).catch(() => {});
+        else await interaction.reply(p).catch(() => {});
+      }
+      return;
+    }
+
     if (!interaction.isChatInputCommand()) return;
 
     const command = commands.get(interaction.commandName);

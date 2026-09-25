@@ -14,7 +14,7 @@
 // =============================================================
 const fs = require("fs");
 const path = require("path");
-const { PermissionFlagsBits } = require("discord.js");
+const { PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const { log } = require("./logger");
 
 const ARQUIVO = path.join(__dirname, "..", "data", "automod.json");
@@ -102,6 +102,10 @@ const FILTROS_PADRAO = {
   palavras: [],
   excecoes: [],
   ignorarCanais: [],
+  semFlood: [],
+  semConvite: [],
+  contextoIa: true,
+  contextoIaFallback: "punir",
   cargosLiberados: [],
 };
 
@@ -109,6 +113,10 @@ const CFG_PADRAO = {
   enabled: false,
   avisarNoCanal: true,
   dmAoPunir: true,
+  // kick e ban NUNCA sao automaticos: viram pedido e esperam o Admin
+  // confirmar. Ate la a pessoa fica so com mute temporario.
+  confirmarPunicao: true,
+  timeoutPendente: 40320,
   escala: ESCALA_PADRAO,
   antiraid: ANTIRAID_PADRAO,
   filtros: FILTROS_PADRAO,
@@ -122,13 +130,14 @@ function carregar() {
     if (fs.existsSync(ARQUIVO)) {
       cache = JSON.parse(fs.readFileSync(ARQUIVO, "utf8"));
     } else {
-      cache = { servidores: {}, warns: {} };
+      cache = { servidores: {}, warns: {}, pendentes: {} };
     }
     if (!cache.servidores) cache.servidores = {};
     if (!cache.warns) cache.warns = {};
+    if (!cache.pendentes) cache.pendentes = {};
   } catch (err) {
     log("ERROR", "[AUTOMOD] Falha ao carregar", { erro: err.message });
-    cache = { servidores: {}, warns: {} };
+    cache = { servidores: {}, warns: {}, pendentes: {} };
   }
   return cache;
 }
@@ -159,6 +168,8 @@ function configGuild(guildId) {
   if (!c.filtros) c.filtros = structuredClone(FILTROS_PADRAO);
   if (!Array.isArray(c.filtros.palavras)) c.filtros.palavras = [];
   if (!Array.isArray(c.filtros.excecoes)) c.filtros.excecoes = [];
+  if (!Array.isArray(c.filtros.semFlood)) c.filtros.semFlood = [];
+  if (!Array.isArray(c.filtros.semConvite)) c.filtros.semConvite = [];
   if (!Array.isArray(c.filtros.ignorarCanais)) c.filtros.ignorarCanais = [];
   if (!Array.isArray(c.filtros.cargosLiberados)) c.filtros.cargosLiberados = [];
   if (!Array.isArray(c.filtros.dominiosBloqueados)) c.filtros.dominiosBloqueados = [];
@@ -352,6 +363,13 @@ async function aplicarPunicao(guild, member, regra, motivo) {
     return { ok: false, erro: "Alvo não pode ser punido." };
   }
   const motivoFinal = `${String(motivo || regra.motivo || "automod").slice(0, 450)} (Neon automod)`;
+
+  // kick e ban exigem confirmacao de um Admin: vira pedido e a pessoa fica
+  // so com mute temporario ate alguem com Administrador decidir
+  if (cfg.confirmarPunicao && (regra.acao === "kick" || regra.acao === "ban")) {
+    return await pedirConfirmacao(guild, member, regra, motivoFinal);
+  }
+
   try {
     if (regra.acao === "timeout") {
       const ms = Math.min(Math.max(Number(regra.minutos) || 10, 1), 40320) * 60000;
@@ -393,6 +411,172 @@ async function aplicarPunicao(guild, member, regra, motivo) {
   });
   log("INFO", "[AUTOMOD] punição aplicada", { guild: guild.name, usuario: member.id, acao: regra.acao });
   return { ok: true, acao: regra.acao };
+}
+
+// =============================================================
+// PEDIDO DE CONFIRMACAO (kick/ban)
+// =============================================================
+// Regra do dono: a Neon NUNCA expulsa nem bane sozinha. Ela silencia a
+// pessoa e pergunta a um Administrador. Discord nao tem timeout
+// permanente: o teto e 28 dias (40320 min), entao "permanente" aqui
+// significa 28 dias, renovaveis quantas vezes o Admin quiser.
+const TIMEOUT_MAX_MS = 40320 * 60000;
+
+function ehAdmin(guild, user) {
+  if (!user) return false;
+  if (user.id === guild.ownerId) return true;
+  const m = guild.members.cache.get(user.id);
+  if (!m) return false;
+  return m.permissions?.has(PermissionFlagsBits.Administrator) === true;
+}
+
+async function pedirConfirmacao(guild, member, regra, motivoFinal) {
+  const d = carregar();
+  if (!d.pendentes[guild.id]) d.pendentes[guild.id] = {};
+  const cfg = configGuild(guild.id);
+
+  const min = Math.min(Math.max(Number(cfg.timeoutPendente) || 40320, 1), 40320);
+  let muteOk = true;
+  try {
+    await member.timeout(TIMEOUT_MAX_MS, `${motivoFinal} — aguardando confirmação do Admin`);
+  } catch {
+    muteOk = false;
+  }
+
+  d.pendentes[guild.id][member.id] = {
+    userId: member.id,
+    userTag: member.user.tag,
+    acao: regra.acao,
+    motivo: motivoFinal,
+    apagarDias: regra.apagarDias || 0,
+    pedidoEm: Date.now(),
+    muteAplicado: muteOk,
+    minutosMute: min,
+  };
+  persistir();
+
+  const aviso = await registrarLogComBotoes(guild, {
+    cor: 0xe74c3c,
+    titulo: `⏸️ Pedido de ${regra.acao === "ban" ? "BAN" : "KICK"} — aguardando Admin`,
+    campos: {
+      Usuário: `${member.user.tag}\n\`${member.id}\``,
+      "Ação pedida": punicaoTexto(regra, 0),
+      Motivo: motivoFinal,
+      "Enquanto espera": muteOk
+        ? `🔇 silenciado por ${min} min (teto do Discord)`
+        : "⚠️ não consegui silenciar (cargo acima do meu?)",
+    },
+    guildId: guild.id,
+    userId: member.id,
+  });
+
+  if (cfg.dmAoPunir && !member.user.bot) {
+    await member.user
+      .send(
+        `⏸️ **${guild.name}**\nUm pedido de ${regra.acao === "ban" ? "ban" : "kick"} foi aberto pra você.\n` +
+          `📄 Motivo: ${motivoFinal}\n🔇 Enquanto um administrador não confirma, você fica só silenciado.`
+      )
+      .catch(() => {});
+  }
+
+  log("WARN", "[AUTOMOD] punição aguardando Admin", {
+    guild: guild.name,
+    usuario: member.id,
+    acao: regra.acao,
+    aviso: aviso ? "pedido criado" : "sem canal de log",
+  });
+  return { ok: true, acao: "pendente", pedido: regra.acao, muteAplicado: muteOk };
+}
+
+async function registrarLogComBotoes(guild, dados) {
+  const canal = canalLog(guild);
+  if (!canal?.isTextBased()) return null;
+  const embed = {
+    color: dados.cor,
+    title: dados.titulo,
+    fields: Object.entries(dados.campos || {})
+      .filter(([, v]) => v !== undefined && v !== null && v !== "")
+      .slice(0, 25)
+      .map(([k, v]) => ({ name: String(k).slice(0, 256), value: barra(v), inline: true })),
+    timestamp: new Date().toISOString(),
+    footer: { text: guild.name },
+  };
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`automod:aprovar:${dados.guildId}:${dados.userId}`)
+      .setLabel("Confirmar (Admin)")
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji("🔨"),
+    new ButtonBuilder()
+      .setCustomId(`automod:recusar:${dados.guildId}:${dados.userId}`)
+      .setLabel("Recusar e liberar o mute")
+      .setStyle(ButtonStyle.Success)
+      .setEmoji("✅")
+  );
+  return canal.send({ embeds: [embed], components: [row] }).catch(() => null);
+}
+
+function listarPendentes(guildId) {
+  const d = carregar();
+  return Object.values(d.pendentes?.[guildId] || {});
+}
+
+function pendente(guildId, userId) {
+  return carregar().pendentes?.[guildId]?.[userId] || null;
+}
+
+async function decidirPuncao(guild, userId, aprovar, aprovador) {
+  const d = carregar();
+  const p = d.pendentes?.[guild.id]?.[userId];
+  if (!p) return { ok: false, erro: "Não há pedido pendente desse usuário." };
+  if (!ehAdmin(guild, aprovador)) {
+    return { ok: false, erro: "Só o dono do servidor ou alguém com **Administrador** pode decidir." };
+  }
+  const member = await guild.members.fetch(userId).catch(() => null);
+  const quem = `${aprovador.user?.tag || aprovador.tag} (${aprovador.id})`;
+  let texto = "";
+
+  if (aprovar) {
+    try {
+      if (p.acao === "ban") {
+        await guild.members.ban(userId, {
+          reason: `${p.motivo} — confirmado por ${quem}`,
+          deleteMessageSeconds: Math.min(Math.max(Number(p.apagarDias) || 0, 0), 7) * 86400,
+        });
+        texto = `🔨 **${p.userTag}** foi **banido**.`;
+      } else {
+        if (!member) return { ok: false, erro: "A pessoa não está mais no servidor, então não dá para expulsar." };
+        await member.kick(`${p.motivo} — confirmado por ${quem}`);
+        texto = `👢 **${p.userTag}** foi **expulso**.`;
+      }
+    } catch (err) {
+      return { ok: false, erro: `Falha ao executar: ${err.message}` };
+    }
+  } else {
+    // recusou: o pedido estava errado, entao o mute temporario tambem cai
+    if (member?.isCommunicationDisabled()) {
+      await member.timeout(null, `Pedido recusado por ${quem}`).catch(() => {});
+      texto = `✅ Pedido recusado. O mute de **${p.userTag}** foi retirado.`;
+    } else {
+      texto = `✅ Pedido recusado. **${p.userTag}** não estava silenciado.`;
+    }
+  }
+
+  delete d.pendentes[guild.id][userId];
+  persistir();
+
+  await registrarLog(guild, {
+    cor: aprovar ? 0xe74c3c : 0x2ecc71,
+    titulo: aprovar ? `🔨 Punição confirmada por Admin` : `✅ Pedido recusado por Admin`,
+    campos: {
+      Usuário: `${p.userTag}\n\`${userId}\``,
+      "Ação": aprovar ? punicaoTexto({ acao: p.acao }, 0) : "nenhuma (recusado)",
+      Motivo: p.motivo,
+      Decidiu: quem,
+    },
+  });
+  log("INFO", "[AUTOMOD] pedido decidido", { guild: guild.name, usuario: userId, aprovar, quem });
+  return { ok: true, texto, acao: p.acao };
 }
 
 function limparWarns(guildId, userId, tudo = false) {
@@ -490,7 +674,8 @@ function checarMensagem(message) {
   const f = cfg.filtros;
   const base = { guild: message.guild, user: message.author, member: membro, message };
 
-  if (f.convites && /discord(?:app)?\.com\/invite\/[\w-]{2,}|discord\.gg\/[\w-]{2,}/i.test(texto)) {
+  if (f.convites && !(f.semConvite || []).includes(message.channel.id) &&
+      /discord(?:app)?\.com\/invite\/[\w-]{2,}|discord\.gg\/[\w-]{2,}/i.test(texto)) {
     return { tipo: "convite", acao: "timeout", minutos: 60, ...base };
   }
   const mencoes = message.mentions.users.size + message.mentions.roles.size;
@@ -531,7 +716,7 @@ function checarMensagem(message) {
     const achou = f.palavras.find((p) => p && alvo.includes(normalizar(p)));
     if (achou) return { tipo: "palavraProibida", acao: "timeout", minutos: 120, palavra: achou, ...base };
   }
-  if (f.flood) {
+  if (f.flood && !(f.semFlood || []).includes(message.channel.id)) {
     const chave = `${message.author.id}:${message.channel.id}`;
     if (!historicoMsg.has(chave)) historicoMsg.set(chave, []);
     const lista = historicoMsg.get(chave);
@@ -560,6 +745,78 @@ async function aplicarFiltro(violacao) {
       },
     });
     return;
+  }
+
+  // ---- a IA le a frase e decide se e ofensa de verdade ----
+  // O filtro e burro: casa "preto" em "cabelo preto". Antes de punir, a Neon
+  // le o contexto (RP, cor, anuncio de parceria) e pode liberar.
+  if (violacao.tipo === "palavraProibida") {
+    const cfg = configGuild(guild.id);
+    if (cfg.filtros.contextoIa) {
+      let veredito = null;
+      try {
+        const { avaliarContexto } = require("./contexto_ia");
+        veredito = await avaliarContexto({
+          texto: message.content,
+          termo: violacao.palavra,
+          filtro: "palavra proibida",
+          canal: message.channel.name,
+          autor: user.tag,
+          ms: 5000,
+        });
+      } catch (err) {
+        log("WARN", "[AUTOMOD] verificador de contexto falhou", { erro: err.message?.slice(0, 100) });
+      }
+
+      if (veredito?.decisao === "legitimo") {
+        await registrarLog(guild, {
+          cor: 0x2ecc71,
+          titulo: "🧠 Liberado pelo verificador de contexto",
+          campos: {
+            Usuário: `${user.tag}\n\`${user.id}\``,
+            Canal: `#${message.channel.name}`,
+            Palavra: `\`${violacao.palavra}\``,
+            "Texto": message.content || "(vazio)",
+            "Por que liberou": veredito.razao || "(IA)",
+            "Mensagem apagada": "sim",
+          },
+        });
+        log("INFO", "[AUTOMOD] liberado pela IA", {
+          guild: guild.name,
+          usuario: user.id,
+          palavra: violacao.palavra,
+          razao: veredito.razao,
+        });
+        return;
+      }
+
+      if (veredito?.decisao === "ofensa") {
+        await registrarLog(guild, {
+          cor: 0xe74c3c,
+          titulo: "🧠 Ofensa confirmada pelo verificador de contexto",
+          campos: {
+            Usuário: `${user.tag}\n\`${user.id}\``,
+            Canal: `#${message.channel.name}`,
+            Palavra: `\`${violacao.palavra}\``,
+            "Texto": message.content || "(vazio)",
+            "Por que": veredito.razao || "(IA)",
+          },
+        });
+      } else if (cfg.filtros.contextoIaFallback === "ignorar") {
+        // IA caiu (429/timeout) e a config manda nao punir sem veredito
+        await registrarLog(guild, {
+          cor: 0x95a5a6,
+          titulo: "⚠️ Sem veredito da IA (config: não punir)",
+          campos: {
+            Usuário: `${user.tag}\n\`${user.id}\``,
+            Canal: `#${message.channel.name}`,
+            Palavra: `\`${violacao.palavra}\``,
+            "Texto": message.content || "(vazio)",
+          },
+        });
+        return;
+      }
+    }
   }
 
   const member = violacao.member || (await guild.members.fetch(user.id).catch(() => null));
@@ -610,6 +867,10 @@ module.exports = {
   resolverEscala,
   punicaoTexto,
   aplicarPunicao,
+  listarPendentes,
+  pendente,
+  decidirPuncao,
+  ehAdmin,
   registrarJoin,
   checarMensagem,
   aplicarFiltro,

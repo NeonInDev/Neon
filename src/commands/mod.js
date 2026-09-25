@@ -106,6 +106,17 @@ module.exports = {
     )
     .addSubcommand((sc) =>
       sc
+        .setName("pendentes")
+        .setDescription("Lista kick/ban que esperam confirmação de um Admin")
+        .addUserOption((o) => o.setName("usuario").setDescription("Decide o pedido desta pessoa"))
+        .addBooleanOption((o) =>
+          o
+            .setName("aprovar")
+            .setDescription("true = confirma a punição, false = recusa e libera o mute")
+        )
+    )
+    .addSubcommand((sc) =>
+      sc
         .setName("antiraid")
         .setDescription("Liga/desliga o antiraid ou ajusta o limite")
         .addStringOption((o) =>
@@ -146,11 +157,14 @@ module.exports = {
               { name: "Links", value: "links" },
               { name: "Flood", value: "flood" },
               { name: "Palavra proibida", value: "palavra" },
-              { name: "Exceção (liberar frase)", value: "excecao" }
+              { name: "Exceção (liberar frase)", value: "excecao" },
+              { name: "Canal sem flood", value: "semflood" },
+              { name: "Canal sem bloqueio de convite", value: "semconvite" }
             )
         )
         .addBooleanOption((o) => o.setName("ligar").setDescription("Ligar (sim) ou desligar (não)"))
         .addStringOption((o) => o.setName("valor").setDescription("Palavra proibida, quando filtro = palavra"))
+        .addChannelOption((o) => o.setName("canal_flood").setDescription("Canal a isentar (semflood / semconvite)"))
         .addIntegerOption((o) => o.setName("limite").setDescription("Limite numérico do filtro").setMinValue(2).setMaxValue(50))
     )
     .addSubcommand((sc) =>
@@ -231,6 +245,46 @@ module.exports = {
         });
       }
 
+      if (sub === "pendentes") {
+        const alvo = interaction.options.getUser("usuario");
+        if (alvo) {
+          if (interaction.options.getBoolean("aprovar") === null) {
+            const p = automod.pendente(guild.id, alvo.id);
+            if (!p) return await interaction.reply({ content: `📭 Não há pedido pendente de ${alvo.tag}.`, ephemeral: true });
+            return await interaction.reply({
+              content:
+                `⏸️ Pedido de **${p.acao === "ban" ? "BAN" : "KICK"}** para ${p.userTag}\n` +
+                `📄 ${p.motivo}\n` +
+                `Use: \`/mod pendentes usuario:${alvo.id} aprovar:true\` ou \`aprovar:false\`.`,
+              ephemeral: true,
+            });
+          }
+          if (!automod.ehAdmin(guild, interaction.user)) {
+            return await interaction.reply({
+              content: "⛔ Só o **dono do servidor** ou alguém com **Administrador** decide punição.",
+              ephemeral: true,
+            });
+          }
+          const r = await automod.decidirPuncao(guild, alvo.id, interaction.options.getBoolean("aprovar"), interaction.user);
+          return await interaction.reply({ content: r.ok ? r.texto : `❌ ${r.erro}`, ephemeral: true });
+        }
+
+        const lista = automod.listarPendentes(guild.id);
+        if (!lista.length) {
+          return await interaction.reply({ content: "✅ Nenhum kick/ban aguardando confirmação.", ephemeral: true });
+        }
+        const linhas = lista
+          .slice(0, 20)
+          .map((p) => `⏸️ **${p.userTag}** (\`${p.userId}\`) — ${p.acao.toUpperCase()}\n   📄 ${String(p.motivo).slice(0, 120)}`)
+          .join("\n");
+        return await interaction.reply({
+          content:
+            `⏸️ **${lista.length}** punição(ões) aguardando um Admin:\n${linhas}\n\n` +
+            `Confirme pelo botão 🔨 no aviso do log, ou use \`/mod pendentes usuario:<id> aprovar:true\`.`,
+          ephemeral: true,
+        });
+      }
+
       if (sub === "antiraid") {
         const acao = interaction.options.getString("acao");
         if (acao === "on") cfg.antiraid.ativo = true;
@@ -288,11 +342,31 @@ module.exports = {
             return await interaction.reply({
               content:
                 `🚫 **${novas}** palavras proibidas adicionadas (${f.palavras.length} no total).\n` +
-                `Igre: ${automod.PALAVRAS_PADRAO.join(", ")}\n` +
+                `Lista: ${automod.PALAVRAS_PADRAO.join(", ")}\n` +
                 `A comparação ignora acentos e pega variações (ex.: "estuprando").`,
               ephemeral: true,
             });
           }
+        } else if (filtro === "semflood" || filtro === "semconvite") {
+          const lista = filtro === "semflood" ? "semFlood" : "semConvite";
+          if (!Array.isArray(f[lista])) f[lista] = [];
+          const canalFlood = interaction.options.getChannel("canal_flood");
+          if (canalFlood) {
+            const idx = f[lista].indexOf(canalFlood.id);
+            if (ligar === false) {
+              if (idx >= 0) f[lista].splice(idx, 1);
+            } else if (idx < 0) f[lista].push(canalFlood.id);
+          } else if (ligar === false) {
+            f[lista] = [];
+          }
+          automod.persistir();
+          const nome = filtro === "semflood" ? "flood (texto grande)" : "bloqueio de convite";
+          return await interaction.reply({
+            content: f[lista].length
+              ? `✅ **${f[lista].length}** canal(is) sem ${nome}: ${f[lista].map((id) => `<#${id}>`).join(" ")}`
+              : `✅ Todos os canais voltaram a ter filtro de ${nome}.`,
+            ephemeral: true,
+          });
         } else {
           f[filtro] = ligar === false ? false : true;
           if (limite && f[`max${filtro[0].toUpperCase()}${filtro.slice(1)}`] !== undefined) {
