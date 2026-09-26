@@ -1,6 +1,23 @@
 const { log } = require("./logger")
 
+// Uma tarefa que nunca resolve segura `processing` em true e trava a fila
+// daquele usuario para sempre: ele continua falando e a Neon cala, sem erro
+// no log. O timeout abaixo e o que impede isso. Precisa ser MAIOR que o
+// tempo maximo que a IA pode levar (ver avisarAtraso em messageCreate.js).
+const TIMEOUT_MS = Number(process.env.FILA_TIMEOUT_MS) || 6 * 60 * 1000
+
 const filas = new Map()
+
+function comTimeout(taskFn, userId) {
+  let timer
+  const limite = new Promise((_, reject) => {
+    timer = setTimeout(() => {
+      const seg = TIMEOUT_MS >= 1000 ? `${Math.round(TIMEOUT_MS / 1000)}s` : `${TIMEOUT_MS}ms`
+      reject(new Error(`tarefa travou por mais de ${seg}`))
+    }, TIMEOUT_MS)
+  })
+  return Promise.race([taskFn(), limite]).finally(() => clearTimeout(timer))
+}
 
 function enfileirar(userId, taskFn) {
   return new Promise((resolve, reject) => {
@@ -23,13 +40,21 @@ async function processarProxima(userId) {
   fila.processing = true
   const { taskFn, resolve, reject } = fila.queue.shift()
   log("DEBUG", "[FILA] Processando tarefa", { userId, restante: fila.queue.length })
+  const inicio = Date.now()
   try {
-    const resultado = await taskFn()
+    const resultado = await comTimeout(taskFn, userId)
     resolve(resultado)
   } catch (err) {
+    log("WARN", "[FILA] tarefa falhou ou travou, liberando a fila", {
+      userId,
+      ms: Date.now() - inicio,
+      erro: err.message,
+    })
     reject(err)
+  } finally {
+    // precisa rodar mesmo com erro: se nao rodar, a fila morre aqui
+    processarProxima(userId)
   }
-  processarProxima(userId)
 }
 
 function status(userId) {
