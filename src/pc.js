@@ -751,7 +751,19 @@ function caminhoLauncher(chave) {
   return null;
 }
 
-async function abrirAppPorNome(nome) {
+// Janela em popup e o jeito mais facil de atrapalhar quem ta jogando: a IA
+// abre janela sozinha pra "mostrar" o resultado e rouba o foco. Entao abrir
+// app, URL ou WhatsApp so acontece com pedido explicito do dono -- quem chama
+// sem { explicito: true } (o caminho da IA via MCP) toma recusacao.
+const SEM_EXPLICITO = {
+  ok: false,
+  popup: true,
+  erro: "Não vou abrir janela sem você pedir.",
+  motivo: "A IA tentou abrir uma janela sozinha. Isso foi barrado de propósito para não atrapalhar o jogo. Peça na lata, ex: 'abre o spotify'.",
+};
+
+async function abrirAppPorNome(nome, opcoes = {}) {
+  if (!opcoes.explicito) return { ...SEM_EXPLICITO };
   const alvo = String(nome || "").trim();
   if (!alvo || /[\r\n]/.test(alvo)) {
     return { ok: false, erro: `Nome de aplicativo inválido` };
@@ -825,7 +837,8 @@ async function resumoCommits(limite = 8) {
   return { ok: true, commits: stdout.trim() || "Nenhum commit encontrado." };
 }
 
-async function abrirWhatsApp() {
+async function abrirWhatsApp(opcoes = {}) {
+  if (!opcoes.explicito) return { ...SEM_EXPLICITO };
   await execAsync(
     `powershell -NoProfile -Command "Start-Process -FilePath 'whatsapp:'"`,
     { timeout: 10000, windowsHide: true }
@@ -833,7 +846,8 @@ async function abrirWhatsApp() {
   return { ok: true, mensagem: "Abrindo o WhatsApp porque você pediu." };
 }
 
-async function abrirUrl(url) {
+async function abrirUrl(url, opcoes = {}) {
+  if (!opcoes.explicito) return { ...SEM_EXPLICITO };
   const alvo = String(url || "").trim();
   if (!/^https?:\/\/\S+$/i.test(alvo) || /[\r\n]/.test(alvo)) {
     return { ok: false, erro: "URL inválida" };

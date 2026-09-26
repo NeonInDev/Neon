@@ -631,7 +631,7 @@ function iniciar(port = 3000) {
           case "cancelar_desligar": resultado = await pc.cancelarDesligar(); break;
           case "abrir_app": {
             if (!nome) { responder(res, 400, { erro: "nome é obrigatório" }); return; }
-            resultado = await pc.abrirAppPorNome(nome);
+            resultado = await pc.abrirAppPorNome(nome, { explicito: true });
             break;
           }
           default: responder(res, 400, { erro: "acao desconhecida" }); return;

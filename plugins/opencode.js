@@ -303,7 +303,8 @@ async function decidir(tarefa) {
     "Analise a mensagem abaixo.",
     "Se for conversa, dúvida, cumprimento ou pedido que não exige executar nada no computador, responda exatamente: __NEON_PASS__",
     "Se for uma ação explícita, execute-a agora usando suas ferramentas. Depois responda em português brasileiro, em uma frase curta, começando exatamente por: __NEON_ACTION__",
-    "Nunca diga que executou algo sem executar. Para abrir programas no Windows, use Start-Process ou start \"\" \"<nome>\" como interface gráfica.",
+    "Nunca diga que executou algo sem executar.",
+    "NUNCA abra programa, janela, navegador ou aplicativo no PC para mostrar, ilustrar ou comprovar resultado: isso atrapalha o dono enquanto ele joga. Entregue o resultado por aqui (texto, imagem no Discord, arquivo). Só abra algo se o dono pedir na mensagem dele, e mesmo assim prefira responder por aqui.",
     "",
     `Mensagem do usuário: ${String(tarefa).slice(0, 3000)}`,
   ].join("\n");

@@ -1405,7 +1405,9 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     const nome = encontrarCodarApp(texto);
     log("INFO", "[ACTION] abrindo app via codar", { nome, texto });
     // Primeiro tenta abrir direto no PC (rápido, sem depender do opencode)
-    const direto = await pc.abrirAppPorNome(nome);
+    // explicito: true porque este caminho só chega aqui quando o dono pediu
+    // "abre o app X" na própria mensagem. Sem isso o pc.js barra como popup.
+    const direto = await pc.abrirAppPorNome(nome, { explicito: true });
     if (direto?.ok) return direto.mensagem.slice(0, 500);
     // Fallback: delega ao opencode (usado quando o app precisa de resolução extra)
     const resultado = await opencode.executar(`Abra o app "${nome}" no Windows usando Start-Process ou 'start "" "<nome>"' para abrir como interface grafica (GUI), nunca no terminal. Responda apenas com o resultado (ex.: "Abrindo ${nome}.").`);

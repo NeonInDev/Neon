@@ -79,7 +79,7 @@ const FERRAMENTAS = [
   },
   {
     name: "pc_abrir_app",
-    description: "Abre um aplicativo/jogo/programa do Windows pelo nome (ex: 'notepad', 'steam', 'discord', 'chrome'). Usa Start-Process para abrir como interface grafica.",
+    description: "Abre um aplicativo/jogo/programa do Windows pelo nome (ex: 'notepad', 'steam', 'discord', 'chrome'). Use SOMENTE quando o dono pedir explicitamente para abrir aquele programa. Nunca use para mostrar, ilustrar ou comprovar um resultado — envie o resultado por Discord. Fora de um pedido explícito a chamada é recusada de propósito para não atrapalhar o dono enquanto joga.",
     inputSchema: {
       type: "object",
       properties: { nome: { type: "string", description: "Nome do app (ex: notepad, chrome, steam)" } },
