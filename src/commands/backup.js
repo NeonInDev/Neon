@@ -1,9 +1,20 @@
 const fs = require("fs");
 const path = require("path");
-const { SlashCommandBuilder, InteractionContextType, ApplicationIntegrationType, PermissionFlagsBits } = require("discord.js");
+const {
+  SlashCommandBuilder,
+  InteractionContextType,
+  ApplicationIntegrationType,
+  PermissionFlagsBits,
+  ActionRowBuilder,
+  StringSelectMenuBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  EmbedBuilder,
+} = require("discord.js");
 const { log } = require("../logger");
 
 const BACKUP_DIR = path.join(__dirname, "..", "..", "backups");
+const MAX_MENU = 25; // limite do select menu do Discord
 
 module.exports = {
   data: new SlashCommandBuilder()
@@ -22,6 +33,7 @@ module.exports = {
         .addStringOption((o) => o.setName("arquivo").setDescription("Nome do arquivo de backup (ex.: 1700000000000-my-guild.json)").setRequired(true))
     ),
   adminOnly: true,
+  componentSubmit,
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
     if (sub === "listar") return listar(interaction);
@@ -37,25 +49,265 @@ module.exports = {
   },
 };
 
-function listar(interaction) {
-  fs.mkdirSync(BACKUP_DIR, { recursive: true });
-  const arquivos = fs.readdirSync(BACKUP_DIR).filter((f) => f.endsWith(".json"));
-  if (!arquivos.length) {
-    return interaction.reply("📭 Nenhum backup salvo ainda. Use `/backup criar`.");
+// Dois formatos convivem na mesma pasta, e isso quebrava a listagem:
+//  - "estrutura": criado pelo /backup criar (tem canais/cargos/membros)
+//  - "mensagens": scan do New Genesis (tem mensagens/filtro/total*)
+// A listagem antiga mostrava "0 canais, 0 cargos" pros dois, porque lia campos
+// que so existem no primeiro. O `restaurar` ainda era pior: num backup de
+// mensagens criaria ZERO canais e ainda confirmaria que deu certo.
+function classificar(meta) {
+  if (Array.isArray(meta?.canais) || Array.isArray(meta?.cargos)) return "estrutura";
+  if (Array.isArray(meta?.mensagens) || meta?.filtro) return "mensagens";
+  return "desconhecido";
+}
+
+function lerBackup(arquivo) {
+  const caminho = path.join(BACKUP_DIR, arquivo);
+  try {
+    const meta = JSON.parse(fs.readFileSync(caminho, "utf8"));
+    return { arquivo, tipo: classificar(meta), meta, bytes: fs.statSync(caminho).size };
+  } catch (e) {
+    return { arquivo, tipo:"corrompido", meta: null, bytes: 0, erro: e.code || e.message };
   }
-  const linhas = arquivos.slice(-15).reverse().map((f) => {
-    try {
-      const meta = JSON.parse(fs.readFileSync(path.join(BACKUP_DIR, f), "utf8"));
-      const data = new Date(meta.criadoEm).toLocaleString("pt-BR");
-      const canais = (meta.canais || []).length;
-      const cargos = (meta.cargos || []).length;
-      const membros = (meta.membros || []).length;
-      return `• \`${f}\` — ${data} · ${canais} canais · ${cargos} cargos · ${membros} membros`;
-    } catch {
-      return `• \`${f}\` — (arquivo corrompido)`;
-    }
+}
+
+function listarArquivos() {
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  return fs
+    .readdirSync(BACKUP_DIR)
+    .filter((f) => f.toLowerCase().endsWith(".json"))
+    .map((f) => lerBackup(f))
+    .sort((a, b) => String(b.meta?.criadoEm || "").localeCompare(String(a.meta?.criadoEm || "")));
+}
+
+function dataBR(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "data desconhecida" : d.toLocaleString("pt-BR");
+}
+
+function tamanho(bytes) {
+  if (!bytes) return "?";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+// rotulo curto pro select menu (limite de 100 chars)
+function rotuloMenu(b) {
+  const icone = b.tipo === "estrutura" ? "🗂" : b.tipo === "mensagens" ? "💬" : "❓";
+  const quando = dataBR(b.meta?.criadoEm).replace(/\s/, " ").slice(0, 16);
+  return `${icone} ${quando} · ${b.arquivo}`.slice(0, 100);
+}
+
+function linhaResumo(b) {
+  if (b.tipo === "estrutura") {
+    const m = b.meta;
+    return `🗂 **Estrutura** — ${(m.canais || []).length} canais · ${(m.cargos || []).length} cargos · ${(m.membros || []).length} membros · ${(m.emojis || []).length} emojis`;
+  }
+  if (b.tipo === "mensagens") {
+    const m = b.meta;
+    const total = Array.isArray(m.mensagens) ? m.mensagens.length : 0;
+    return `💬 **Mensagens** — ${total} mensagens (${m.totalSistema || 0} do sistema, ${m.totalConversa || 0} de conversa, ${m.totalComando || 0} comandos)`;
+  }
+  if (b.tipo === "corrompido") return `❓ **Corrompido/ilegível** — ${b.erro}`;
+  return `❓ **Formato desconhecido** — não parece backup do Neon`;
+}
+
+function embedDetalhe(b) {
+  const cor = b.tipo === "estrutura" ? 0x3498db : b.tipo === "mensagens" ? 0x9b59b6 : 0x7f8c8d;
+  const emb = new EmbedBuilder()
+    .setColor(cor)
+    .setTitle(b.arquivo.slice(0, 256))
+    .setDescription(linhaResumo(b))
+    .addFields({ name: "Criado em", value: dataBR(b.meta?.criadoEm), inline: true })
+    .addFields({ name: "Tamanho", value: tamanho(b.bytes), inline: true });
+
+  if (b.tipo === "estrutura") {
+    const m = b.meta;
+    emb.addFields({ name: "Servidor", value: `${m.guild?.name || "?"}\n\`${m.guild?.id || "?"}\``, inline: true });
+    emb.addFields({ name: "Canais", value: String((m.canais || []).length), inline: true });
+    emb.addFields({ name: "Cargos", value: String((m.cargos || []).length), inline: true });
+    emb.addFields({ name: "Membros", value: String((m.membros || []).length), inline: true });
+    emb.addFields({ name: "Emojis", value: String((m.emojis || []).length), inline: true });
+    emb.addFields({ name: "Stickers", value: String((m.stikers || []).length), inline: true });
+    emb.setFooter({ text: "Use o botão Restaurar pra recriar canais e cargos neste servidor." });
+  } else if (b.tipo === "mensagens") {
+    const m = b.meta;
+    emb.addFields({ name: "Servidor", value: `${m.guild || "?"}\n\`${m.guildId || "?"}\``, inline: true });
+    emb.addFields({ name: "Filtro", value: String(m.filtro || "?").slice(0, 200) });
+    emb.addFields({ name: "Do sistema", value: String(m.totalSistema ?? 0), inline: true });
+    emb.addFields({ name: "De conversa", value: String(m.totalConversa ?? 0), inline: true });
+    emb.addFields({ name: "Comandos", value: String(m.totalComando ?? 0), inline: true });
+    emb.addFields({ name: "Total guardado", value: String(Array.isArray(m.mensagens) ? m.mensagens.length : 0), inline: true });
+    emb.setFooter({ text: "Backup de conteúdo: não tem canais/cargos, então não é restaurável." });
+  } else {
+    emb.setFooter({ text: "Esse arquivo não é um backup do Neon; não dá pra restaurar." });
+  }
+  return emb;
+}
+
+
+function montarMenu(backups) {
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId("backup:menu")
+    .setPlaceholder("Ver detalhes de um backup…")
+    .addOptions(
+      backups.slice(0, MAX_MENU).map((b) => ({
+        label: rotuloMenu(b),
+        description: linhaResumo(b).replace(/[*_`]/g, "").slice(0, 100),
+        value: b.arquivo,
+      }))
+    );
+  return new ActionRowBuilder().addComponents(menu);
+}
+
+function montarBotoes() {
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId("backup:atualizar")
+      .setLabel("Atualizar")
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji("🔄"),
+    new ButtonBuilder()
+      .setCustomId("backup:fechar")
+      .setLabel("Fechar")
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji("✖️")
+  );
+}
+
+function embedLista(backups) {
+  const emb = new EmbedBuilder()
+    .setColor(0x3498db)
+    .setTitle("📦 Backups salvos")
+    .setDescription(
+      backups.length
+        ? "Use o menu abaixo pra abrir cada backup e ver o que tem dentro."
+        : "Nenhum backup ainda. Use `/backup criar`."
+    )
+    .setFooter({ text: `${backups.length} arquivo(s) em backups/` });
+  const estrutura = backups.filter((b) => b.tipo === "estrutura").length;
+  const mensagens = backups.filter((b) => b.tipo === "mensagens").length;
+  const outros = backups.length - estrutura - mensagens;
+  emb.addFields(
+    { name: "🗂 Estrutura", value: String(estrutura), inline: true },
+    { name: "💬 Mensagens", value: String(mensagens), inline: true },
+    { name: "❓ Outros", value: String(outros), inline: true }
+  );
+  for (const b of backups.slice(0, 10)) {
+    emb.addFields({
+      name: b.arquivo.slice(0, 256),
+      value: `${linhaResumo(b)}\n\`${dataBR(b.meta?.criadoEm)}\` · ${tamanho(b.bytes)}`,
+    });
+  }
+  if (backups.length > 10) {
+    emb.setFooter({ text: `${backups.length} arquivo(s) em backups/ — mostrando os 10 mais recentes` });
+  }
+  return emb;
+}
+
+async function responderLista(interaction) {
+  const backups = listarArquivos();
+  const payload = {
+    embeds: [embedLista(backups)],
+    components: backups.length ? [montarMenu(backups), montarBotoes()] : [montarBotoes()],
+    ephemeral: true,
+  };
+  if (interaction.replied || interaction.deferred) {
+    return interaction.editReply(payload).catch(() => null);
+  }
+  return interaction.reply(payload).catch((err) => {
+    log("ERROR", "Falha ao responder /backup listar", { erro: err.message });
+    return null;
   });
-  return interaction.reply(`📦 **Backups salvos** (últimos 15):\n${linhas.join("\n")}`);
+}
+
+async function listar(interaction) {
+  return responderLista(interaction);
+}
+
+// treatador dos botoes/menu do /backup listar
+async function componentSubmit(interaction) {
+  // os componentes chegam no interactionCreate ANTES do gate de mestre que
+  // protege os slash commands, entao a permissao tem que ser cobrada aqui
+  // tambem, senao qualquer pessoa da guild mexeria nos backups.
+  const { db } = require("../db");
+  const { permitido, isGuest } = require("../perm");
+  const uid = interaction.user.id;
+  if (!permitido(uid)) {
+    return interaction.reply({ content: "❌ Acesso negado.", ephemeral: true });
+  }
+  if (isGuest(uid)) {
+    return interaction.reply({ content: "👥 Convidados só podem conversar com a Neon.", ephemeral: true });
+  }
+  if (!db.data.users?.[uid]?.mestre) {
+    return interaction.reply({ content: "❌ acesso negado.", ephemeral: true });
+  }
+
+  const id = interaction.customId;
+
+  if (id === "backup:atualizar") {
+    await interaction.deferUpdate().catch(() => {});
+    return responderLista(interaction);
+  }
+
+  if (id === "backup:fechar") {
+    return interaction.update({ content: "Fechado.", embeds: [], components: [] }).catch(() => null);
+  }
+
+  if (id === "backup:menu") {
+    const arquivo = interaction.values?.[0];
+    // o valor vem do cliente: nunca confiar no path direto
+    const alvo = listarArquivos().find((b) => b.arquivo === path.basename(String(arquivo || "")));
+    if (!alvo) {
+      return interaction.reply({ content: "❌ Esse backup não existe mais. Use Atualizar.", ephemeral: true });
+    }
+    const row = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId("backup:voltar")
+        .setLabel("Voltar")
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji("↩️")
+    );
+    if (alvo.tipo === "estrutura") {
+      row.addComponents(
+        new ButtonBuilder()
+          .setCustomId(`backup:restaurar:${alvo.arquivo}`)
+          .setLabel("Restaurar este")
+          .setStyle(ButtonStyle.Danger)
+          .setEmoji("♻️")
+      );
+    }
+    return interaction.update({ embeds: [embedDetalhe(alvo)], components: [row] }).catch((err) => {
+      log("ERROR", "Falha ao abrir detalhe do backup", { arquivo: alvo.arquivo, erro: err.message });
+      return null;
+    });
+  }
+
+  if (id === "backup:voltar") {
+    await interaction.deferUpdate().catch(() => {});
+    return responderLista(interaction);
+  }
+
+  if (id.startsWith("backup:restaurar:")) {
+    const arquivo = path.basename(id.slice("backup:restaurar:".length));
+    const alvo = listarArquivos().find((b) => b.arquivo === arquivo);
+    if (!alvo || alvo.tipo !== "estrutura") {
+      return interaction.reply({ content: "❌ Só backup de estrutura pode ser restaurado.", ephemeral: true });
+    }
+    if (!interaction.inGuild()) {
+      return interaction.reply({ content: "❌ restaurar só funciona dentro do servidor.", ephemeral: true });
+    }
+    return interaction.reply({
+      content:
+        `♻️ Restaurar \`${arquivo}\`?\n` +
+        `Use \`/backup restaurar arquivo:${arquivo}\` e confirme com **confirmar** em 30s.\n` +
+        `Canais e cargos existentes são mantidos.`,
+      ephemeral: true,
+    });
+  }
+
+  return null;
 }
 
 async function criar(interaction, guild) {
@@ -154,6 +406,20 @@ async function restaurar(interaction, guild) {
     backup = JSON.parse(fs.readFileSync(caminho, "utf8"));
   } catch {
     return interaction.reply("❌ Arquivo de backup corrompido.");
+  }
+
+  // Sem isto, um backup de mensagens do New Genesis (que nao tem canais/cargos)
+  // passava pela contagem e criaria ZERO canais, ainda respondendo "restaurado".
+  const tipo = classificar(backup);
+  if (tipo === "mensagens") {
+    const total = Array.isArray(backup.mensagens) ? backup.mensagens.length : 0;
+    return interaction.reply(
+      `💬 \`${path.basename(nome)}\` é um backup de **mensagens** (${total} salvas), não de estrutura.\n` +
+        `Ele não tem canais/cargos, então não tem o que restaurar. Use \`/backup listar\` pra ver o conteúdo.`
+    );
+  }
+  if (tipo !== "estrutura") {
+    return interaction.reply(`❌ \`${path.basename(nome)}\` não parece um backup do Neon (formato desconhecido).`);
   }
 
   const botMe = guild.members.me;

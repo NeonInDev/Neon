@@ -35,6 +35,25 @@ module.exports = {
       return;
     }
 
+    // Componentes com prefixo "comando:..." (menus e botoes dos slash commands)
+    if (interaction.isAnyComponent() && typeof interaction.customId === "string") {
+      const [prefixo] = interaction.customId.split(":");
+      if (prefixo !== "automod") {
+        const cmd = commands.get(prefixo);
+        if (cmd && typeof cmd.componentSubmit === "function") {
+          try {
+            return await cmd.componentSubmit(interaction);
+          } catch (err) {
+            log("ERROR", "Erro no componentSubmit", { cmd: prefixo, id: interaction.customId, erro: err.message });
+            const p = { content: "❌ erro interno", ephemeral: true };
+            if (interaction.replied || interaction.deferred) await interaction.editReply(p).catch(() => {});
+            else await interaction.reply(p).catch(() => {});
+            return;
+          }
+        }
+      }
+    }
+
     // Botoes de confirmacao de kick/ban do automod
     if (interaction.isButton() && interaction.customId.startsWith("automod:")) {
       try {
