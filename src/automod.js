@@ -103,6 +103,7 @@ const FILTROS_PADRAO = {
   ignorarCanais: [],
   semFlood: [],
   semConvite: [],
+  semZalgo: [],
   contextoIa: true,
   contextoIaFallback: "punir",
   cargosLiberados: [],
@@ -241,6 +242,7 @@ function configGuild(guildId) {
   if (!Array.isArray(c.filtros.excecoes)) c.filtros.excecoes = [];
   if (!Array.isArray(c.filtros.semFlood)) c.filtros.semFlood = [];
   if (!Array.isArray(c.filtros.semConvite)) c.filtros.semConvite = [];
+  if (!Array.isArray(c.filtros.semZalgo)) c.filtros.semZalgo = [];
   if (!Array.isArray(c.filtros.ignorarCanais)) c.filtros.ignorarCanais = [];
   if (!Array.isArray(c.filtros.cargosLiberados)) c.filtros.cargosLiberados = [];
   if (!Array.isArray(c.filtros.dominiosBloqueados)) c.filtros.dominiosBloqueados = [];
@@ -1122,7 +1124,7 @@ function checarMensagem(message) {
   if (f.mencaoMassa && mencoes > f.maxMencoes) {
     return { tipo: "mencaoMassa", acao: "timeout", minutos: 120, ...base };
   }
-  if (f.zalgo) {
+  if (f.zalgo && !(f.semZalgo || []).includes(message.channel.id)) {
     const zalgo = (texto.match(/[\u0300-\u036f]/g) || []).length;
     if (zalgo > f.maxZalgo) return { tipo: "zalgo", acao: "timeout", minutos: 30, ...base };
   }
@@ -1459,6 +1461,7 @@ module.exports = {
   limpar,
   semearPalavras,
   normalizar,
+  palavraBurla,
   PALAVRAS_PADRAO,
   CFG_PADRAO,
   ESCALA_PADRAO,

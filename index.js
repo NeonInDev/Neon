@@ -65,6 +65,10 @@ client.once("ready", () => {
   iniciarModulos();
   // efeito sonoro de boot quando roda no PC local
   try { require("./src/som").tocar("online"); } catch {}
+  // gravador de call: so entra em canal de voz se /gravar ligar
+  try { require("./src/gravador").iniciar(client); } catch (err) {
+    log("ERROR", "[GRAVADOR] Falha ao iniciar", { erro: err.message });
+  }
 });
 
 iniciarAPI();

@@ -57,6 +57,8 @@ AGENTS.md
 # Dados sensiveis de servidores/backups
 backups/
 logs/
+gravacoes/
+data/gravador.json
 data/_emergencia_proc.ps1
 data/alerta_sistema.json
 data/alerta_proativo.json

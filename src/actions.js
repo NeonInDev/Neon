@@ -518,6 +518,67 @@ function encontrarLembrete(texto) {
   return false;
 }
 
+const UNIDADE_MS = { h: 3600000, m: 60000, s: 1000 };
+// Alternativas da MAIS LONGA pra mais curta: sem isso "minuto" casa antes de
+// "minutos" e a unidade fica truncada. (?![a-z]) impede "2 sapatos" de virar
+// 2 segundos, porque letra colada depois nao e unidade.
+const RE_DURACAO = /(\d+(?:[.,]\d+)?)\s*(h(?:oras|ora)?|m(?:inutos|uto|in|n)?|s(?:egundos|egundo|eg)?)(?![a-z])/gi;
+
+// Le "7 minutos e 30 segundos", "7m30s", "1h30", "15m" e devolve o tempo total
+// ja em ms, junto do recado (o que sobra depois do tempo, sem "de"/"pra").
+function interpretarDuracao(texto) {
+  const t = String(texto || "");
+  RE_DURACAO.lastIndex = 0;
+  let total = 0, achou = false, primeiro = -1, fim = 0, ultima = null;
+  let m;
+  while ((m = RE_DURACAO.exec(t)) !== null) {
+    const n = parseFloat(m[1].replace(",", "."));
+    if (!Number.isFinite(n)) continue;
+    const u = m[2][0].toLowerCase();
+    total += n * UNIDADE_MS[u];
+    if (primeiro < 0) primeiro = m.index;
+    fim = RE_DURACAO.lastIndex;
+    ultima = u;
+    achou = true;
+
+    // Forma compacta: em "1h30" o "30" herda a unidade da esquerda (h -> minuto,
+    // m -> segundo). (?![0-9a-z]) e obrigatorio: em "30s" um (?![a-z]) sozinho
+    // aceitaria "3" e comeria so um digito.
+    const colado = /^(\d+)(?![0-9a-z])/.exec(t.slice(fim));
+    if (colado) {
+      const herdada = ultima === "h" ? "m" : ultima === "m" ? "s" : null;
+      if (herdada) {
+        total += parseInt(colado[1], 10) * UNIDADE_MS[herdada];
+        fim += colado[1].length;
+        RE_DURACAO.lastIndex = fim;
+      }
+    }
+  }
+  if (!achou) return null;
+
+  let recado = t.slice(fim)
+    .replace(/^[\s,;:]*(?:de|do|da|pra|para|em|que|sobre)+[\s,;:]*/i, "")
+    .trim();
+  if (!recado) {
+    recado = t.slice(0, primeiro)
+      .replace(/^\s*(?:me\s+)?(?:lembra|lembre|lembrete|lembrar|avisa|aviso|alerta|anota|guarda)\s*(?:me)?\s*(?:de|do|da|pra|para|em|que|sobre)?\s*/i, "")
+      .trim();
+  }
+  return { delayMs: Math.round(total), mensagem: recado || t.trim() };
+}
+
+function humanizarDuracao(ms) {
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s} segundo(s)`;
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  if (m < 60) return r ? `${m} minuto(s) e ${r} segundo(s)` : `${m} minuto(s)`;
+  const h = Math.floor(m / 60);
+  const rm = m % 60;
+  if (!rm) return `${h} hora(s)`;
+  return r ? `${h} hora(s) e ${rm} minuto(s) e ${r} segundo(s)` : `${h} hora(s) e ${rm} minuto(s)`;
+}
+
 function encontrarCustomCommand(texto) {
   const cmd = detectarCustom(texto);
   return !!cmd;
@@ -2193,16 +2254,11 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
         return `⏰ Lembrete recorrente criado (${desc}): "${mensagem}" — vou repetir automaticamente.`;
       }
 
-      const m = lower.match(/(\d+)\s*(?:min|minutos|minuto|s|seg|segundos|segundo|h|hora|horas)\s*(?:pra|para|em|de)?\s*(.+)/i);
-      if (!m) return "❌ Use: me lembra em X minutos de Y (ou: me lembra todo dia às 08:00 de Y)";
-      const valor = parseInt(m[1]);
-      const unidade = m[2].includes("h") || /horas?/.test(m[2]) ? "h" : "min";
-      // Extrai a mensagem após o tempo
-      const msgMatch = lower.match(/(?:pra|para|em|de)\s+(?:me\s+)?(?:lembrar\s+)?(?:de\s+)?(.+)/i);
-      const mensagem = msgMatch?.[1]?.trim() || texto;
-      const delayMs = unidade === "h" ? valor * 3600000 : valor * 60000;
+      const leitura = interpretarDuracao(lower);
+      if (!leitura) return "❌ Use: me lembra em X minutos de Y (ou: me lembra todo dia às 08:00 de Y)";
+      const { delayMs, mensagem } = leitura;
       const id = await criarLembrete(message.author.id, message.channel, delayMs, mensagem);
-      return `⏰ Lembrete criado! Vou te avisar em ${valor} ${unidade === "h" ? "hora(s)" : "minuto(s)"}: "${mensagem}"`;
+      return `⏰ Lembrete criado! Vou te avisar em ${humanizarDuracao(delayMs)}: "${mensagem}"`;
     } catch (err) {
       return `❌ Erro ao criar lembrete: ${err.message}`;
     }
@@ -2851,4 +2907,4 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   return null;
 }
 
-module.exports = { executarAcao, steamGames, continuar, enviarMultiPartes };
+module.exports = { executarAcao, steamGames, continuar, enviarMultiPartes, interpretarDuracao, humanizarDuracao };

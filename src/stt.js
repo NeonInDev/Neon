@@ -78,7 +78,10 @@ async function transcribeWithGroq(wavPath, opts = {}) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), opts.timeout || DEFAULT_TIMEOUT);
     const blob = new Blob([fs.readFileSync(wavPath)], { type: 'audio/wav' });
-    const FormData = require('form-data');
+    // Usa o FormData NATIVO (global do Node 18+), nao o pacote "form-data".
+    // O pacote npm chama source.on() no valor enviado, e um Blob nao tem .on:
+    // resultava em "source.on is not a function" e o Groq nunca funcionou.
+    // O fetch abaixo tambem e o nativo, entao os dois conversam direto.
     const form = new FormData();
     form.append('file', blob, 'audio.wav');
     form.append('model', 'whisper-large-v3-turbo');
