@@ -39,8 +39,13 @@ try {
         }
 
         Registrar "Neon fora do ar - subindo via start.bat"
-        $arg = '/c start "" /d "' + $dir + '" "' + (Join-Path $dir "start.bat") + '"'
-        Start-Process -FilePath "cmd.exe" -ArgumentList $arg -WorkingDirectory $dir -WindowStyle Hidden
+        # Sem "start" aqui de proposito. O "start \"\" ..." criava uma JANELA
+        # NOVA e visivel para o start.bat (titulo "Neon - Auto Restart"), e o
+        # -WindowStyle Hidden abaixo so esconde o cmd.exe inicial. Resultado:
+        # cada restart da Neon abria um popup na tela do dono, no meio do jogo.
+        # Rodando o .bat direto dentro deste cmd ja oculto, o node herda
+        # escondido e nao aparece nada.
+        Start-Process -FilePath "cmd.exe" -ArgumentList '/c "start.bat"' -WorkingDirectory $dir -WindowStyle Hidden
 
         # Espera a porta abrir antes de decidir de novo, senao o laco dispara
         # varias vezes durante o boot e sobe varias instancias.
