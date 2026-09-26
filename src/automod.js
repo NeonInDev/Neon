@@ -1038,6 +1038,25 @@ function limparWarns(guildId, userId, tudo = false) {
   persistir();
 }
 
+// Quem tem warn neste servidor. Só existia contagem por usuário (contarWarns),
+// então não dava pra listar o ranking inteiro. Ordena por warn ativo e
+// depois pelo total: quem está perto de estourar a escala aparece primeiro.
+function listarWarns(guildId) {
+  const d = carregar();
+  const out = [];
+  for (const [chave, r] of Object.entries(d.warns || {})) {
+    if (!chave.startsWith(`${guildId}:`)) continue;
+    out.push({
+      userId: r.userId,
+      ativo: Number(r.ativo) || 0,
+      total: Number(r.total) || 0,
+      historico: Array.isArray(r.historico) ? r.historico : [],
+    });
+  }
+  out.sort((a, b) => b.ativo - a.ativo || b.total - a.total);
+  return out;
+}
+
 function historico(guildId, userId, limite = 10) {
   return contarWarns(guildId, userId).historico.slice(-limite).reverse();
 }
@@ -1449,6 +1468,7 @@ module.exports = {
   contarInspiraveis,
   limparInspiraveisVencidos,
   historico,
+  listarWarns,
   limparWarns,
   resolverEscala,
   punicaoTexto,

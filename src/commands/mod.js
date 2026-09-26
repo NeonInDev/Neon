@@ -3,7 +3,67 @@ const {
   PermissionFlagsBits,
   InteractionContextType,
   ApplicationIntegrationType,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
 } = require("discord.js");
+
+const POR_PAGINA = 8;
+
+// Avisa a quantos warns a próxima punição da escala dispara, para dar
+// contexto de quem está perto de estourar.
+function proximoNivel(escala, ativo) {
+  const prox = (escala || [])
+    .filter((r) => Number(r.warns) > Number(ativo))
+    .sort((a, b) => a.warns - b.warns)[0];
+  if (!prox) return "";
+  const acao = prox.acao || (prox.minutos ? "mute" : "nada");
+  return ` → ${acao} em ${prox.warns} warns`;
+}
+
+function linhaWarn(guild, escala, r, i) {
+  const tag = guild.members.cache.get(r.userId)?.user?.tag || `<@${r.userId}>`;
+  const ultimo = r.historico[r.historico.length - 1];
+  const quando = ultimo?.em ? ` · <t:${Math.floor(ultimo.em / 1000)}:R>` : "";
+  const motivo = ultimo?.motivo ? ` — ${String(ultimo.motivo).slice(0, 45)}` : "";
+  const marca = r.ativo > 0 ? "🔴" : "⚪";
+  return `${marca} **${i}.** ${tag}\n　　**${r.ativo}** ativo(s) · ${r.total} no total${quando}${motivo}${proximoNivel(escala, r.ativo)}`;
+}
+
+async function responderListaWarns(interaction, pagina = 1) {
+  const automod = require("../automod");
+  const guild = interaction.guild;
+  const todos = automod.listarWarns(guild.id);
+  if (!todos.length) {
+    return interaction.reply({ content: "✅ Ninguém tem warn na automod agora.", ephemeral: true });
+  }
+  const cfg = automod.configGuild(guild.id);
+  const totalPaginas = Math.max(1, Math.ceil(todos.length / POR_PAGINA));
+  const pag = Math.min(Math.max(1, pagina), totalPaginas);
+  const fatia = todos.slice((pag - 1) * POR_PAGINA, pag * POR_PAGINA);
+  const comAtivo = todos.filter((r) => r.ativo > 0).length;
+
+  const linhas = fatia.map((r, i) => linhaWarn(guild, cfg.escala, r, (pag - 1) * POR_PAGINA + i + 1));
+  const rodape = `Página **${pag}/${totalPaginas}** · ${todos.length} pessoa(s) com histórico · ${comAtivo} com warn ativo 🔴`;
+
+  const botoes = [];
+  if (pag > 1) {
+    botoes.push(new ButtonBuilder().setCustomId(`mod:listarwarns:ant:${pag}`).setLabel("⬅️ Anterior").setStyle(ButtonStyle.Secondary));
+  }
+  if (pag < totalPaginas) {
+    botoes.push(new ButtonBuilder().setCustomId(`mod:listarwarns:prox:${pag}`).setLabel("Próxima ➡️").setStyle(ButtonStyle.Secondary));
+  }
+
+  const payload = {
+    content: `⚠️ **Warns da automod**\n\n${linhas.join("\n")}\n\n${rodape}`,
+    components: botoes.length ? [new ActionRowBuilder().addComponents(botoes)] : [],
+    ephemeral: true,
+  };
+  if (interaction.replied || interaction.deferred) {
+    return interaction.editReply(payload).catch(() => null);
+  }
+  return interaction.reply(payload).catch(() => null);
+}
 
 // cada subcomando exige sua propria permissao (nao todas de uma vez)
 const PERM_SUB = {
@@ -174,6 +234,31 @@ module.exports = {
     )
     .addSubcommand((sc) =>
       sc
+        .setName("listarwarns")
+        .setDescription("Lista todo mundo que tem warn na automod, do maior pro menor")
+        .addIntegerOption((o) =>
+          o.setName("pagina").setDescription("Página inicial").setRequired(false).setMinValue(1)
+        )
+    )
+    .addSubcommand((sc) =>
+      sc
+        .setName("isentar")
+        .setDescription("Isenta o canal atual do automod inteiro (ou só de um filtro)")
+        .addStringOption((o) =>
+          o
+            .setName("filtro")
+            .setDescription("Qual filtro isentar. 'todos' deixa o canal fora do automod")
+            .setRequired(false)
+            .addChoices(
+              { name: "todos (automod inteiro)", value: "todos" },
+              { name: "só zalgo", value: "semZalgo" },
+              { name: "só flood", value: "semFlood" },
+              { name: "só convite", value: "semConvite" }
+            )
+        )
+    )
+    .addSubcommand((sc) =>
+      sc
         .setName("escalar")
         .setDescription("Define a punição para um número de warns")
         .addIntegerOption((o) => o.setName("warns").setDescription("A partir de quantos warns").setRequired(true).setMinValue(1).setMaxValue(20))
@@ -191,6 +276,19 @@ module.exports = {
         )
         .addIntegerOption((o) => o.setName("minutos").setDescription("Minutos (se for timeout)").setMinValue(1).setMaxValue(40320))
     ),
+
+  // ---------- /mod listarwarns ----------
+  // Paginação por botões: o total de pessoas com warn cresce rápido e o
+  // Discord corta mensagem acima de 2000 caracteres.
+  async componentSubmit(interaction) {
+    const automodMod = require("../automod");
+    const m = /^mod:listarwarns:(ant|prox):(\d+)$/.exec(interaction.customId || "");
+    if (!m) return null;
+    const atual = Number(m[2]);
+    const pagina = m[1] === "prox" ? atual + 1 : atual - 1;
+    await interaction.deferUpdate().catch(() => {});
+    return responderListaWarns(interaction, Math.max(1, pagina));
+  },
 
   async execute(interaction) {
     const sub = interaction.options.getSubcommand();
@@ -380,6 +478,33 @@ module.exports = {
         const canal = interaction.options.getChannel("canal", true);
         automod.setCanalLog(guild.id, canal.id);
         return await interaction.reply({ content: `📝 Logs de moderação agora vão para ${canal}.`, ephemeral: true });
+      }
+
+      if (sub === "listarwarns") {
+        const paginaInicial = interaction.options.getInteger("pagina") || 1;
+        return await responderListaWarns(interaction, paginaInicial);
+      }
+
+      if (sub === "isentar") {
+        const filtro = interaction.options.getString("filtro") || "todos";
+        const canal = interaction.channel;
+        const lista = filtro === "todos" ? cfg.filtros.ignorarCanais : cfg.filtros[filtro];
+        if (lista.includes(canal.id)) {
+          return await interaction.reply({
+            content: `✅ ${canal} já está isento (${filtro === "todos" ? "automod inteiro" : filtro}).`,
+            ephemeral: true,
+          });
+        }
+        lista.push(canal.id);
+        automod.persistir();
+        return await interaction.reply({
+          content:
+            `✅ **${canal}** isento.\n` +
+            (filtro === "todos"
+              ? "A automod não vai mais olhar este canal (nenhum filtro)."
+              : `Só o filtro **${filtro}** foi desligado aqui; os outros continuam valendo.`),
+          ephemeral: true,
+        });
       }
 
       if (sub === "escalar") {
