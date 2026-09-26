@@ -172,8 +172,12 @@ async function interpretarPurgatorio(message) {
       naturalRem ||
       /^(adiciona|adicionar|add|tira|tirar|remove|remover|bota|coloca|abaixa|baixa)\s+/i.test(resto);
     if (querMexer) {
+      const nome = (d.apelidos || {})[message.author.id];
       await message
-        .reply("🎲 Você pode **rolar** o Purgatório, mas não mexer na tabela. Mudar a lista é só do chefe.")
+        .reply(
+          `🎲 ${nome ? `**${nome}**, ` : ""}você pode **rolar** o Purgatório, mas não mexer na tabela. ` +
+            "Mudar a lista é só do chefe."
+        )
         .catch(() => {});
       return true;
     }
@@ -287,10 +291,14 @@ async function interpretarPurgatorio(message) {
   const quirk = pool[numero - 1];
   const link = linkDaQuirk(quirk);
   const temAjuste = d.extras.some((e) => normalizar(e.quirk) === normalizar(quirk));
-  log("INFO", "[PURGATORIO] rolagem", { numero, quirk, autor: message.author.id });
+  // como o dono pediu pra chamar os liberados pelo apelido
+  const apelido = (d.apelidos || {})[message.author.id] || null;
+  log("INFO", "[PURGATORIO] rolagem", { numero, quirk, autor: message.author.id, apelido });
   await message
     .reply(
-      `🎲 **PURGATÓRIO — rolagem**\n**Nº ${numero}/${pool.length}**\n🪄 **${quirk}**` +
+      `🎲 **PURGATÓRIO — rolagem**\n` +
+        (apelido ? `*${apelido}* puxou ` : "") +
+        `**Nº ${numero}/${pool.length}**\n🪄 **${quirk}**` +
         (temAjuste ? "\n⚡ _quirk com ajuste no pool_" : "") +
         (link ? `\n🔗 ${link}` : "")
     )

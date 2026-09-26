@@ -36,7 +36,16 @@ module.exports = {
     }
 
     // Componentes com prefixo "comando:..." (menus e botoes dos slash commands)
-    if (interaction.isAnyComponent() && typeof interaction.customId === "string") {
+    // O nome do metodo variou entre versoes do discord.js: isComponent() virou
+    // isMessageComponent() e isAnyComponent() nunca chegou nesta. Checar so por
+    // customId ja resolve, porque slash command nao tem customId.
+    const ehComponente =
+      typeof interaction.isMessageComponent === "function"
+        ? interaction.isMessageComponent()
+        : typeof interaction.isAnyComponent === "function"
+        ? interaction.isAnyComponent()
+        : typeof interaction.customId === "string";
+    if (ehComponente && typeof interaction.customId === "string") {
       const [prefixo] = interaction.customId.split(":");
       if (prefixo !== "automod") {
         const cmd = commands.get(prefixo);
