@@ -134,8 +134,7 @@ async function entregar(user, embeds) {
 }
 
 module.exports = {
-  data: new SlashCommandBuilder()
-    .setName("relatorio")
+  data: new SlashCommandBuilder()    .setName("relatorio")
     .setDescription("Manda um relatório pro seu celular e (opcionalmente) desliga o PC")
     .setContexts(InteractionContextType.Guild, InteractionContextType.BotDM)
     .setIntegrationTypes(ApplicationIntegrationType.GuildInstall, ApplicationIntegrationType.UserInstall)
@@ -185,3 +184,6 @@ module.exports = {
     );
   },
 };
+
+module.exports.embedsProjeto = embedsProjeto;
+module.exports.embedsPC = embedsPC;
