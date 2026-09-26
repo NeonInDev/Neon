@@ -21,6 +21,16 @@ function negritoUnicode(s) {
     .join("");
 }
 
+// inverso do negritoUnicode: devolve o texto legível pra comparar/buscar.
+// Sem isso nao da pra ler o titulo de um card, porque "ZOOM" gravado no
+// canal aparece como "𝐙𝐨𝐨𝐦" e nenhuma comparacao por string casaria.
+function desNegritoUnicode(s) {
+  return String(s || "")
+    .replace(/[\u{1D400}-\u{1D419}]/gu, (c) => String.fromCharCode(c.codePointAt(0) - 0x1d400 + 65))
+    .replace(/[\u{1D41A}-\u{1D433}]/gu, (c) => String.fromCharCode(c.codePointAt(0) - 0x1d41a + 97))
+    .replace(/[\u{1D7CE}-\u{1D7D7}]/gu, (c) => String.fromCharCode(c.codePointAt(0) - 0x1d7ce + 48));
+}
+
 // linha de topo do card (box)
 const LINHA_TOP = "╭─────────────── ⋆⋅☆⋅⋆ ───────────────╮";
 const LINHA_HEADER = "          𓆩 ⚡ 𝐐𝐔𝐈𝐑𝐊 𝐅𝐈𝐋𝐄 ⚡ 𓆪";
@@ -109,4 +119,4 @@ function enquadrarResposta(texto, titulo, icone) {
   return pedacos.map((p) => cab + p + rodape);
 }
 
-module.exports = { moldeQuirkFile, moldeChatStaff, negritoUnicode, enquadrarResposta, LINHA_FIM };
+module.exports = { moldeQuirkFile, moldeChatStaff, negritoUnicode, desNegritoUnicode, enquadrarResposta, LINHA_FIM };

@@ -287,6 +287,7 @@ async function enviarQuirk(client, q, tipo, origem = "pacote") {
       imagens: painel ? ["LOCAL:" + path.basename(painel)] : [],
     });
     salvarAdicionadas(adic);
+    if (nomeAlvo(tipo) === "quirks-livres") agendarSumario(client);
     return msg;
   }
 
@@ -295,7 +296,32 @@ async function enviarQuirk(client, q, tipo, origem = "pacote") {
   q.canal = nomeAlvo(tipo);
   q.link = msg.url;
   persistir();
+  if (nomeAlvo(tipo) === "quirks-livres") agendarSumario(client);
   return msg;
+}
+
+// refaz o sumário pouco depois de um card novo, pra ele entrar sozinho sem
+// ninguém precisar mandar comando. O debounce junta vários cards seguidos num
+// rebuild só, senão postar 3 quirks seguidas ia reescrever as 20 partes 3x e
+// tomar rate limit. Só roda pra quirks livres: o canal de sorteio tem sumário
+// próprio e não é afetado.
+let timerSumario = null;
+let reconstruindoSumario = false;
+function agendarSumario(client) {
+  if (timerSumario) clearTimeout(timerSumario);
+  timerSumario = setTimeout(async () => {
+    timerSumario = null;
+    if (reconstruindoSumario) return;
+    reconstruindoSumario = true;
+    try {
+      await reconstruirSumario(client);
+    } catch (e) {
+      console.error("[quirks_envio] não consegui refazer o sumário:", e.message);
+    } finally {
+      reconstruindoSumario = false;
+    }
+  }, 8000);
+  timerSumario.unref?.();
 }
 
 async function acharMensagem(canal, titulo) {
@@ -356,10 +382,27 @@ function remover(titulo) {
 
 // ===== SUMÁRIO =====
 
+// título de um card postado no canal.
+// O formato atual é a linha "◈ 𝐓𝐈𝐓𝐋𝐄 ◈", com as letras em negrito unicode
+// que o molde gera. O formato antigo era "**Título;**" e era o único que o
+// código sabia ler: por isso o mapeamento morreu quando o formato do card
+// mudou, e nenhuma quirk nova entrava no sumário sozinha.
+function tituloDoCard(conteudo) {
+  const c = String(conteudo || "");
+  const linha = c.match(/◈\s*(.+?)\s*◈/);
+  if (linha) {
+    const { desNegritoUnicode } = require("./moldes");
+    return desNegritoUnicode(linha[1].replace(/\*/g, "")).trim();
+  }
+  const antigo = c.match(/\*\*([^*\n]{1,100}?);\*\*/);
+  return antigo ? antigo[1].trim() : null;
+}
+
 // varre o canal e guarda o link de cada card já enviado que ainda não tem link no pacote
 async function mapearLinks(canal) {
   let antes = null;
   let novos = 0;
+  let novosAdic = 0;
   const vistos = new Set();
   let varreuTudo = false;
   for (let i = 0; i < 12; i++) {
@@ -370,13 +413,20 @@ async function mapearLinks(canal) {
     }
     for (const m of lote.values()) {
       vistos.add(m.id);
-      const t = m.content.match(/\*\*([^*\n]{1,100}?);\*\*/);
+      const t = tituloDoCard(m.content);
       if (!t) continue;
-      const q = carregar().find((x) => !x.link && mesmoTitulo(t[1], x.titulo));
-      if (q) {
-        q.link = m.url;
-        q.canal = "livres";
+      const alvo = carregar().find((x) => !x.link && mesmoTitulo(t, x.titulo));
+      if (alvo) {
+        alvo.link = m.url;
+        alvo.canal = "livres";
         novos++;
+        continue;
+      }
+      const adic = carregarAdicionadas().find((x) => !x.link && mesmoTitulo(t, x.titulo));
+      if (adic) {
+        adic.link = m.url;
+        adic.canal = "livres";
+        novosAdic++;
       }
     }
     antes = lote.last().id;
@@ -406,8 +456,8 @@ async function mapearLinks(canal) {
     }
   }
   if (novos || mortos) persistir();
-  if (mortosAdic) salvarAdicionadas(carregarAdicionadas());
-  return novos;
+  if (novosAdic || mortosAdic) salvarAdicionadas(carregarAdicionadas());
+  return novos + novosAdic;
 }
 
 // apaga os sumarios anteriores do canal.
