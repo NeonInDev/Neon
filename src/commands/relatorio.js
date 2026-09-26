@@ -54,6 +54,7 @@ function embedsProjeto() {
     new EmbedBuilder()
       .setTitle("🎬 A carcaça")
       .setColor(DOURADO)
+      .setDescription("A parte estética: tambor de aço pintado de preto, moldura de alumínio e o núcleo de LED no meio, com a janela de acrílico na frente.")
       .addFields(
         {
           name: "Para comprar",
