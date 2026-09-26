@@ -37,6 +37,60 @@ neonOnline() {
     return false
 }
 
+; ===== Reinício da Neon: Ctrl+Shift+N =====
+; Para a Neon de um jeito limpo: pede o encerramento gracioso pela API
+; e espera ela voltar. Se ela nao voltar sozinha, relanca pelo start.bat.
+; (Nao usa taskkill: o PID e' de um processo que pode ser outro)
+
+reiniciarNeon() {
+    ToolTip 'Reiniciando a Neon...'
+
+    if (neonOnline()) {
+        tentarDesligar()
+        ; espera ela cair
+        if (!esperarNeon(false, 10)) {
+            ; ainda de pe apos o pedido: força o relançamento do start.bat
+            ; (o start.bat tem auto-restart proprio)
+            Run 'cmd.exe /c start "" /d "C:\Users\Pichau\Neon" "C:\Users\Pichau\Neon\start.bat"', , "Hide"
+        }
+    } else {
+        Run 'cmd.exe /c start "" /d "C:\Users\Pichau\Neon" "C:\Users\Pichau\Neon\start.bat"', , "Hide"
+    }
+
+    if (esperarNeon(true, 45)) {
+        ToolTip 'Neon reiniciada. Deu bom.'
+    } else {
+        ToolTip 'Neon nao voltou. Olha o log.'
+    }
+    SetTimer(() => ToolTip(), -3000)
+}
+
+; pede o encerramento gracioso (a API emite SIGTERM)
+tentarDesligar() {
+    try {
+        req := ComObject("WinHttp.WinHttpRequest.5.1")
+        req.Open("POST", "http://100.115.96.52:3000/api/shutdown", true)
+        req.SetRequestHeader("x-hud-key", "TESEU")
+        req.SetRequestHeader("Content-Type", "application/json")
+        req.SetTimeouts(3000, 3000, 3000, 3000)
+        req.Send("{}")
+        req.WaitForResponse(3)
+    } catch {
+        ; endpoint fora do ar: o start.bat abaixo cobre esse caso
+    }
+}
+
+; espera a Neon ficar online (true) ou offline (false)
+esperarNeon(alvo, segundos) {
+    limite := A_TickCount + (segundos * 1000)
+    while (A_TickCount < limite) {
+        if (neonOnline() = alvo)
+            return true
+        Sleep(700)
+    }
+    return false
+}
+
 ^!+z::
 {
     abrirTudo()
@@ -46,5 +100,11 @@ neonOnline() {
 ^!+x::
 {
     abrirTudo()
+    return
+}
+
+^+n::
+{
+    reiniciarNeon()
     return
 }
