@@ -825,7 +825,10 @@ module.exports = {
         // O await e obrigatorio: marcouCargoForaDaRegra e async, e uma Promise sem
     // await e sempre truthy - o if virava "sempre verdade" e descartava TODA
     // mensagem de guild antes da IA. Era por isso que a Neon calava em todo canal.
-    if (await automod.marcouCargoForaDaRegra(message)) return;
+    if (await automod.marcouCargoForaDaRegra(message)) {
+      log("DEBUG", "[MSG] PORTAO inspiravel: cargo fora da regra", { autor: message.author.id });
+      return;
+    }
       } catch (err) {
         log("WARN", "[INSPIRAVEL] erro na checagem", { erro: err.message });
       }
@@ -963,6 +966,7 @@ module.exports = {
 
     // Debounce: agrupa mensagens do mesmo usuário no mesmo canal enviadas em sequência
     // (conversas de canais DIFERENTES rodam em fila própria → paralelo real)
+    log("DEBUG", "[MSG] passou todos os portoes, indo pro debounce", { canal: message.channelId });
     const chave = chaveConversa(message.author.id, message.channelId);
     const pendente = mensagensPendentes.get(chave);
     if (pendente) {
