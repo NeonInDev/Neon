@@ -141,13 +141,15 @@ async function transcribeFile(wavPath, opts = {}) {
     const groq = await transcribeWithGroq(wavPath, { language, timeout });
     if (groq && groq.text) return { text: groq.text, provider: groq.provider };
 
-    // 2) Whisper local (offline; ~sem latência de rede, mas lento na CPU)
-    const local = await transcribeWithWhisper(wavPath, { language, model: opts.model, timeout });
-    if (local && local.text) return { text: local.text, provider: local.provider };
-
-    // 3) OpenAI
+    // 2) Outro provedor de nuvem antes de carregar/inferir o modelo local.
+    // Isso evita que uma falha do Groq obrigue a Neon a esperar o Whisper na CPU
+    // quando já existe uma chave de API disponível.
     const openai = await transcribeWithOpenAI(wavPath, { language, timeout });
     if (openai && openai.text) return { text: openai.text, provider: openai.provider };
+
+    // 3) Whisper local continua como fallback offline.
+    const local = await transcribeWithWhisper(wavPath, { language, model: opts.model, timeout });
+    if (local && local.text) return { text: local.text, provider: local.provider };
 
     return null;
   } catch (err) {

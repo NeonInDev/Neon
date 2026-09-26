@@ -189,14 +189,15 @@ function iniciarServer() {
   });
 }
 
-async function executar(tarefa) {
+async function executar(tarefa, options = {}) {
   if (!tarefa || !String(tarefa).trim()) return null;
   if (economiaAtiva) {
     log("INFO", "[OPENCODE] Pausado (modo economia)");
     return null;
   }
   abortado = false;
-  const maxAttempts = 2;
+  const maxAttempts = Number(options.maxAttempts) || 2;
+  const requestTimeoutMs = Number(options.timeoutMs) || 300000;
   let tentativa = 0;
 
   while (tentativa < maxAttempts) {
@@ -231,7 +232,7 @@ async function executar(tarefa) {
             model: { providerID: "opencode", modelID: "big-pickle" },
             parts: [{ type: "text", text: tarefa }],
           },
-          300000
+          requestTimeoutMs
         );
 
         if (msg && msg.info && msg.info.name && msg.info.name !== "Text") {
@@ -246,6 +247,7 @@ async function executar(tarefa) {
         }
         throw new Error("resposta vazia do opencode serve");
       } catch (err) {
+        if (options.throwOnTimeout && err.message === "timeout") throw err;
         if (abortado) {
           log("INFO", "[OPENCODE] Execucao abortada durante HTTP");
           const e = new Error("ABORTED");
@@ -306,7 +308,14 @@ async function decidir(tarefa) {
     `Mensagem do usuário: ${String(tarefa).slice(0, 3000)}`,
   ].join("\n");
 
-  const resposta = await executar(instrucoes);
+  let resposta;
+  try {
+    const timeoutMs = Math.max(15000, parseInt(process.env.OPENCODE_DECISION_TIMEOUT_MS, 10) || 60000);
+    resposta = await executar(instrucoes, { maxAttempts: 1, timeoutMs, throwOnTimeout: true });
+  } catch (err) {
+    log("WARN", "[OPENCODE] Decisão de ação excedeu o limite", { erro: err.message?.slice(0, 100) });
+    return { acao: false, resposta: null, erro: true };
+  }
   if (!resposta) return { acao: false, resposta: null };
 
   const texto = resposta.trim();

@@ -10,6 +10,7 @@ const FFMPEG = require('ffmpeg-static') || 'ffmpeg'
 const TTS_VOICE_DEFAULT = process.env.TTS_VOICE_DEFAULT || process.env.VOZ_NEON || 'pt-BR-FranciscaNeural'
 const TTS_VOICE_ULTRON = process.env.TTS_VOICE_ULTRON || 'pt-BR-AntonioNeural'
 const CACHE_SIZE = parseInt(process.env.TTS_CACHE_SIZE, 10) || 20
+const EDGE_TTS_TIMEOUT_MS = Math.max(3000, parseInt(process.env.EDGE_TTS_TIMEOUT_MS, 10) || 15000)
 
 let edgeTts = null
 try { edgeTts = require('edge-tts-universal') } catch (e) { log('INFO', '[TTS] edge-tts-universal nao instalado') }
@@ -67,7 +68,13 @@ async function gerarAudio(texto, voz = 'auto', velocidade = 1.0, tom = 0) {
       const pitch = paraPitch(tom)
       if (rate) tts.rate = rate
       if (pitch) tts.pitch = pitch
-      const result = await tts.synthesize()
+      let timer
+      const result = await Promise.race([
+        tts.synthesize(),
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error('Edge TTS excedeu o tempo limite')), EDGE_TTS_TIMEOUT_MS)
+        }),
+      ]).finally(() => clearTimeout(timer))
       let buf = Buffer.from(await result.audio.arrayBuffer())
 
       // Fallback p/ velocidade se o motor nativo não aplicar (muito marginal):

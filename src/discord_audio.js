@@ -141,10 +141,13 @@ async function transcreverComLocal(wavPath) {
     const wavBuf = fs.readFileSync(wavPath)
     const samples = lerWavSamples(wavBuf)
     log("INFO", "[AUDIO] Whisper processando", { amostras: samples.length })
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), TRANSCRIPTION_TIMEOUT)
-    const result = await transcriber(samples, { language: IDIOMA_AUDIO, task: "transcribe" })
-    clearTimeout(timeout)
+    let timeout
+    const result = await Promise.race([
+      transcriber(samples, { language: IDIOMA_AUDIO, task: "transcribe" }),
+      new Promise((_, reject) => {
+        timeout = setTimeout(() => reject(new Error("Whisper local excedeu o tempo limite")), TRANSCRIPTION_TIMEOUT)
+      }),
+    ]).finally(() => clearTimeout(timeout))
     const texto = result?.text?.trim()
     if (texto) log("INFO", "[AUDIO] Whisper local OK", { texto: texto.slice(0, 100) })
     return texto || null
@@ -205,22 +208,37 @@ async function processarAudioMessage(msg) {
   const authorName = msg.author.username
   const isDM = msg.channel.type === 1
   log("INFO", "[AUDIO] Voice message detectada", { autor: authorName, nome: att.name, tamanho: att.size, isDM })
-  await msg.channel.sendTyping()
+  let statusMsg = null
+  try { statusMsg = await msg.reply("🎧 Recebi seu áudio. Vou transcrever e já te respondo...") } catch {}
+  const atualizarStatus = async (texto) => {
+    if (statusMsg) {
+      try { await statusMsg.edit(texto) } catch (err) { log("WARN", "[AUDIO] Não consegui atualizar o status", { erro: err.message }) }
+    } else {
+      try { statusMsg = await msg.reply(texto) } catch {}
+    }
+  }
+  await msg.channel.sendTyping().catch(() => {})
 
   let caminhoAudio
   try {
     caminhoAudio = await baixarAudio(att, msg.id)
   } catch (err) {
     log("ERROR", "[AUDIO] Download falhou", { erro: err.message })
-    await msg.reply("Nao consegui baixar o audio.")
+    await atualizarStatus("Não consegui baixar o áudio.")
     return true
   }
 
-  const texto = await transcreverAudio(caminhoAudio)
+  await atualizarStatus("🎧 Transcrevendo seu áudio...")
+  let texto
+  try {
+    texto = await transcreverAudio(caminhoAudio)
+  } catch (err) {
+    log("ERROR", "[AUDIO] Transcrição falhou", { erro: err.message })
+  }
   try { fs.unlinkSync(caminhoAudio) } catch {}
 
   if (!texto) {
-    await msg.reply("Nao consegui entender o audio. Tenta de novo?")
+    await atualizarStatus("Não consegui entender o áudio. Tenta mandar de novo?")
     return true
   }
 
@@ -228,20 +246,23 @@ async function processarAudioMessage(msg) {
   const mestre = db.data.users?.[authorId]?.mestre || false
 
   const { executarAcao } = require("./actions")
-  const acao = await executarAcao(texto, mestre, authorId, msg)
+  let acao = null
+  try { acao = await executarAcao(texto, mestre, authorId, msg) }
+  catch (err) { log("WARN", "[AUDIO] Roteador de ação falhou; seguindo para conversa", { erro: err.message }) }
   if (acao && !acao.startsWith("❌")) {
     const { add: addContexto } = require("./contexto")
     addContexto(authorId, authorName, texto, acao)
-    await msg.reply(acao)
+    await atualizarStatus(acao)
     await enviarTTSReply(msg, acao)
     return true
   }
 
   const { askNeon } = require("./ai")
+  await atualizarStatus("💭 Entendi. Estou preparando a resposta...")
   const reply = await askNeon(authorId, authorName, texto)
   const { add: addContexto } = require("./contexto")
   addContexto(authorId, authorName, texto, reply)
-  await msg.reply(reply)
+  await atualizarStatus(reply || "Não consegui responder agora. Tenta de novo?")
   await enviarTTSReply(msg, reply)
   return true
 }

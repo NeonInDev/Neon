@@ -61,9 +61,7 @@ function enquadrarPlano(texto) {
 }
 
 const processando = new Set();
-const cooldowns = new Map();
-const COOLDOWN_MS = 3000;
-const DEBOUNCE_MS = 1000;
+const DEBOUNCE_MS = Math.max(250, parseInt(process.env.MESSAGE_DEBOUNCE_MS, 10) || 600);
 const mensagensPendentes = new Map();
 
 function chaveConversa(userId, channelId) {
@@ -95,14 +93,6 @@ async function verificarChaveMestra(message) {
     log("WARN", "Falha ao enviar DM da chave mestra", { usuario: message.author.username });
   }
   return true;
-}
-
-function checkCooldown(userId) {
-  const agora = Date.now();
-  const ultimo = cooldowns.get(userId);
-  if (ultimo && agora - ultimo < COOLDOWN_MS) return true;
-  cooldowns.set(userId, agora);
-  return false;
 }
 
 function interpretarAbortar(message) {
@@ -684,6 +674,7 @@ function algumaAtiva(mensagens, message) {
   // 1) @mention real da Neon (ex.: "@Neon faz X") — @everyone/@here/cargo NÃO contam
   if (message.mentions?.has(bot?.id)) return true;
   for (const m of mensagens) {
+    if (m.mentions?.has(bot?.id)) return true;
     const lower = m.content.toLowerCase();
     // 2) Prefixo neon no INÍCIO (ex.: "neon ..." ou "/neon ...") — nunca no final
     if (/^\s*neon[\s,!.\-:;]/.test(lower) || /^\s*\/neon\b/.test(lower)) return true;
@@ -705,39 +696,43 @@ async function processarLote(chave, lote) {
   const message = lote.ultimoObjeto;
   const userId = String(chave).split(":")[0];
 
-  const combinedInput = combinarTextoMensagens(lote.mensagens);
+  const imageUrls = lote.mensagens
+    .flatMap((m) => [...(m.attachments?.values?.() || [])])
+    .filter((a) => String(a.contentType || "").startsWith("image/") || /\.(png|jpe?g|gif|webp)(?:[?#]|$)/i.test(a.url || ""))
+    .map((a) => a.url)
+    .slice(0, 4);
+  let combinedInput = combinarTextoMensagens(lote.mensagens);
+  if (!combinedInput && imageUrls.length) combinedInput = "Descreva as imagens ou GIFs que enviei.";
   if (!combinedInput) return;
   if (!algumaAtiva(lote.mensagens, message)) return;
-  if (checkCooldown(chave)) return;
-
   // Remove "neon" do início/fim pra não poluir o contexto
   const textoLimpo = combinedInput
     .replace(/^\s*neon[\s,!.\-:;]+\s*/i, "")
     .replace(/[\s,!.\-:;]*\s*neon\s*$/i, "")
     .trim() || combinedInput;
 
-  enfileirar(chave, async () => {
+  const progresso = await require("../progresso").iniciar(message, "Recebi, já estou vendo isso...");
+  const onProgress = progresso.ok
+    ? (texto, emoji) => progresso.atualizar(texto, emoji)
+    : null;
+
+  enfileirar(chave, async (signal) => {
     processando.delete(message.id);
     try {
       const username = message.author.username;
 
       await message.channel.sendTyping();
-      const imageUrl = message.attachments.first()?.url || null;
       const avisarAtraso = isOwner(userId)
         ? () => message.author.send("⚠️ O OpenCode está processando há mais de 3 minutos. A Neon continuará aguardando até 5 minutos antes de informar o erro.")
-        : null;
-
-      // Progresso em ações longas (mensagem editada)
-      const progresso = await require("../progresso").iniciar(message, "Processando...");
-      const onProgress = progresso.ok
-        ? (texto, emoji) => progresso.atualizar(texto, emoji)
         : null;
 
       const objetivoAtivo = objetivo.objetivoAtivo();
       const guildId = message.guild?.id || null;
       const reply = objetivoAtivo && isOwner(userId)
         ? await objetivo.executarObjetivo(userId, username, textoLimpo, avisarAtraso)
-        : await askNeon(userId, username, textoLimpo, imageUrl, false, avisarAtraso, onProgress, guildId);
+        : await askNeon(userId, username, textoLimpo, imageUrls, false, avisarAtraso, onProgress, guildId, { signal });
+
+      if (signal.aborted) return;
 
       const textoResposta = reply || "";
       if (progresso.ok) {
@@ -763,13 +758,26 @@ async function processarLote(chave, lote) {
         await enviarResposta(message, textoResposta);
       }
     } catch (err) {
+      if (signal.aborted) return;
       log("ERROR", "Erro ao processar lote", { usuario: message.author.username, erro: err.message });
       try {
-        await message.reply("❌ erro interno");
+        if (progresso.ok) await progresso.finalizar("Não consegui concluir agora. Pode tentar de novo?", "⚠️");
+        else await message.reply("❌ Não consegui responder agora. Tenta de novo?");
       } catch {}
     } finally {
       processando.delete(message.id);
     }
+  }).catch(async (err) => {
+    if (err?.code === "FILA_TIMEOUT") {
+      log("WARN", "[FILA] Pedido excedeu o tempo limite", { canal: message.channelId });
+      if (progresso.ok) await progresso.finalizar("Demorei demais para concluir. Tenta mandar de novo?", "⚠️");
+      else await message.reply("⚠️ Demorei demais para concluir. Tenta mandar de novo?").catch(() => {});
+      return;
+    }
+    if (err?.message === "Fila limpa") return;
+    log("ERROR", "[FILA] Falha ao enfileirar resposta", { erro: err?.message });
+    if (progresso.ok) await progresso.finalizar("Não consegui responder agora. Tenta de novo?", "⚠️");
+    else await message.reply("❌ Não consegui responder agora. Tenta de novo?").catch(() => {});
   });
 }
 

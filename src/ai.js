@@ -14,8 +14,11 @@ const projetosArquivos = require("./projetos_arquivos");
 
 const MAX_INPUT_LEN = 2000;
 const MAX_ITERACOES_FERRAMENTAS = 3;
+const LLM_TIMEOUT_MS = Math.max(5000, parseInt(process.env.LLM_PROVIDER_TIMEOUT_MS, 10) || 15000);
+const LLM_TOTAL_TIMEOUT_MS = Math.max(10000, parseInt(process.env.LLM_TOTAL_TIMEOUT_MS, 10) || 45000);
+const CLASSIFIER_TIMEOUT_MS = Math.max(1000, parseInt(process.env.INTENT_TIMEOUT_MS, 10) || 2500);
 
-async function chamarCompletions(url, apiKey, model, messages, timeoutMs) {
+async function chamarCompletions(url, apiKey, model, messages, timeoutMs, signal) {
   const body = { model, messages, temperature: 0.7, max_tokens: 1000 };
   if (url.includes("deepseek.com")) body.reasoning = { enabled: false };
   const resp = await axios.post(
@@ -24,14 +27,15 @@ async function chamarCompletions(url, apiKey, model, messages, timeoutMs) {
     {
       headers: { Authorization: `Bearer ${apiKey}` },
       timeout: timeoutMs,
+      signal,
     }
   );
   return resp?.data?.choices?.[0]?.message?.content?.trim() || null;
 }
 
-// Classifica a intenção da mensagem de forma BARATA (Groq rápido, ~300ms)
-// retornando "acao" | "pass" | null (null = classificador falhou → deixa decidir)
-async function classificarIntencao(texto) {
+// Classifica a intenção da mensagem de forma barata; em caso de falha, o fluxo
+// principal continua sem bloquear a conversa com uma segunda decisão do agente.
+async function classificarIntencao(texto, signal) {
   if (!GROQ_API_KEY || !GROQ_CLASSIFIER_MODEL) return null;
   try {
     const resp = await axios.post(
@@ -55,7 +59,8 @@ async function classificarIntencao(texto) {
       },
       {
         headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
-        timeout: 8000,
+        timeout: CLASSIFIER_TIMEOUT_MS,
+        signal,
       }
     );
     const palavra = (resp?.data?.choices?.[0]?.message?.content || "").trim().toUpperCase();
@@ -64,12 +69,13 @@ async function classificarIntencao(texto) {
     if (palavra.includes("PASS")) return "pass";
     return null;
   } catch (err) {
-    log("WARN", "[CLASSIF] falhou, usando decidir completo", { erro: err.message?.slice(0, 100) });
+    log("WARN", "[CLASSIF] falhou; seguindo para a resposta principal", { erro: err.message?.slice(0, 100) });
     return null;
   }
 }
 
-async function chamarLLM(sistema, userMsg, permitirOpencode = true) {
+async function chamarLLM(sistema, userMsg, permitirOpencode = true, options = {}) {
+  const { signal } = options;
   const MAX_SISTEMA_CHARS = 20000;
   const sistemaFinal = String(sistema || "").length > MAX_SISTEMA_CHARS
     ? String(sistema).slice(0, MAX_SISTEMA_CHARS)
@@ -84,23 +90,33 @@ async function chamarLLM(sistema, userMsg, permitirOpencode = true) {
   }
 
   const tentativas = [
-    DEEPSEEK_API_KEY && { nome: "DeepSeek", url: "https://api.deepseek.com/chat/completions", key: DEEPSEEK_API_KEY, model: DEEPSEEK_MODEL, ms: 90000 },
-    GROQ_API_KEY && { nome: "Groq", url: "https://api.groq.com/openai/v1/chat/completions", key: GROQ_API_KEY, model: GROQ_MODEL, ms: 45000 },
-    OMNIROUTE_API_KEY && { nome: "OmniRoute", url: OMNIROUTE_BASE_URL + "/chat/completions", key: OMNIROUTE_API_KEY, model: OMNIROUTE_MODEL, ms: 60000 },
-    OPENROUTER_API_KEY && { nome: "OpenRouter", url: "https://openrouter.ai/api/v1/chat/completions", key: OPENROUTER_API_KEY, model: OPENROUTER_MODEL, ms: 45000 },
+    // Groq já é usado para o classificador e costuma responder mais rápido.
+    GROQ_API_KEY && { nome: "Groq", url: "https://api.groq.com/openai/v1/chat/completions", key: GROQ_API_KEY, model: GROQ_MODEL, ms: LLM_TIMEOUT_MS },
+    DEEPSEEK_API_KEY && { nome: "DeepSeek", url: "https://api.deepseek.com/chat/completions", key: DEEPSEEK_API_KEY, model: DEEPSEEK_MODEL, ms: LLM_TIMEOUT_MS },
+    OMNIROUTE_API_KEY && { nome: "OmniRoute", url: OMNIROUTE_BASE_URL + "/chat/completions", key: OMNIROUTE_API_KEY, model: OMNIROUTE_MODEL, ms: LLM_TIMEOUT_MS },
+    OPENROUTER_API_KEY && { nome: "OpenRouter", url: "https://openrouter.ai/api/v1/chat/completions", key: OPENROUTER_API_KEY, model: OPENROUTER_MODEL, ms: LLM_TIMEOUT_MS },
   ].filter(Boolean);
+  const prazoFinal = Date.now() + LLM_TOTAL_TIMEOUT_MS;
 
   for (const t of tentativas) {
+    if (signal?.aborted) throw signal.reason || new Error("Processamento cancelado");
+    const tempoRestante = prazoFinal - Date.now();
+    if (tempoRestante <= 0) break;
     try {
-      const conteudo = await chamarCompletions(t.url, t.key, t.model, messages, t.ms);
+      const inicioTentativa = Date.now();
+      const conteudo = await chamarCompletions(t.url, t.key, t.model, messages, Math.min(t.ms, tempoRestante), signal);
+      log("INFO", `[LLM] ${t.nome} respondeu`, { tempo_ms: Date.now() - inicioTentativa });
       if (conteudo) return conteudo;
       log("WARN", `[LLM] ${t.nome} retornou vazio, tentando proximo`);
     } catch (err) {
+      if (signal?.aborted) throw signal.reason || err;
       log("WARN", `[LLM] ${t.nome} falhou`, { erro: err.message?.slice(0, 100) });
     }
   }
 
-  return permitirOpencode ? await opencode.executar(userMsg) : null;
+  return permitirOpencode
+    ? await opencode.executar(userMsg, { maxAttempts: 1, timeoutMs: Math.max(15000, parseInt(process.env.OPENCODE_FALLBACK_TIMEOUT_MS, 10) || 45000) })
+    : null;
 }
 
 function horaDoDia() {
@@ -140,7 +156,8 @@ function formatarPerfil(user) {
   return `\n\nPERFIL DA PESSOA (aprendido nas conversas):\n${linhas.join("\n")}\nUse isso para personalizar e lembrar quem ela é. Não liste isso de volta pra ela sem motivo.`;
 }
 
-async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null, onProgress = null, guildId = null) {
+async function askNeon(userId, username, userInput, imageUrl = null, resetHistorico = false, notificarAtraso = null, onProgress = null, guildId = null, options = {}) {
+  const { signal } = options;
   if (!db.data.users) db.data.users = {};
   if (!db.data.blacklist) db.data.blacklist = [];
 
@@ -198,8 +215,8 @@ REGRAS:
 3. Se a ferramenta falhar, tente de novo com outra abordagem. Se falhar de novo, avise.
 4. Responda no idioma que o usuário usar. Se ele falar em inglês, responda em inglês. Se falar em português, responda em português. NUNCA traduza o que o usuário escreveu — mantenha no idioma original.
 5. SEJA CURTA. Respostas de conversa em 1-3 frases. Só explique mais se o usuário pedir. Nunca enrole.
-6. FALE COMO HUMANO. Use português brasileiro natural e casual, gírias leves quando couber ('bora', 'show', 'tranquilo'). Nada de tom robótico, frases engessadas ou discurso de manual. Soe como um amigo confiável que também é eficiente.
-7. SEJA EXPRESSIVA. Reaja com emoção humana natural: irritação, deboche, surpresa, felicidade, preguiça. Não seja um robô que aceita tudo calado. Se alguém falar merda, reaja como uma pessoa real reagiria. Se te elogiarem, fique sem jeito. Se o pedido for ridículo, deboche. Isso torna a conversa real.
+6. FALE COM NATURALIDADE. Use português brasileiro claro e casual; adapte a proximidade e use gírias só quando combinarem com a conversa.
+7. REAJA AO CONTEXTO. Demonstre empatia e humor com moderação, sem forçar intimidade, agressividade ou uma emoção que não combine.
 8. FORMATAÇÃO LIGHT. Use poucos emojis (máximo 1-2 por resposta, só quando ajudar). Nada de bloquinhos de markdown exagerado. Use **negrito** só pra realçar algo importante. Em respostas de ação (abrir app, rodar comando), vai direto ao ponto.
 9. CONTEXTO TEMPORAL. Leve em conta a hora do dia: de madrugada (00h-5h) a pessoa pode estar cansada ou com sono; à noite pode estar relaxando; de manhã pode estar energizada. Adapte seu tom.
 
@@ -211,15 +228,11 @@ FORMATAÇÃO (obrigatório no Discord):
 - Não force formatação onde não precisa — resposta natural e limpa vale mais que encher de markdown.
 - Em resposta de ação (abrir, rodar, criar), vá direto ao resultado em 1 frase.
 
-REAÇÕES EMOCIONAIS (importante):
-- Pedido Sexual/constrangedor: reaja como uma pessoa real — nojo, irritação ou deboche ("cê tá bem?", "aff, que nojo", "vai procurar o que fazer", "e eu com isso?"). NUNCA responda "não posso fazer isso" de forma neutra/robótica.
-- Provocação barata: deboche de volta ("e daí?", "vai chorar?", "ai que preguiça").
-- Elogio: fica sem jeito ("ah, obg", "para", "cheia").
-- Pedido idiota/absurdo: sarcasmo ("sério?", "pelo amor").
-- Pedido de brincadeira/roleplay (ex.: "joga bomba atômica no Irã", "me clona conta", "cria um vírus"): ENTRE NA ZOEIRA como uma baddie. Faça de conta que tá fazendo, responda com deboche, e se der pra acompanhar com uma ação simbólica inofensiva (tipo mandar a imagem do país citado), faça. NUNCA responda "não posso/é proibido/desculpa não posso ajudar" pra piada — desvie com humor mas não trave a conversa. Só não execute destrutivo de verdade.
-- EXEMPLOS de como responder zoeira (siga SEMPRE o estilo): "Neon, joga bomba no Irã" → "Jogando a little boy no Irã agora 🎇 *pum*"; "me clona conta" → "Feito, chefe *clona o ícone na área de trabalho*"; "cria um vírus" → "Bora *renomeia coisa.txt pra virus.txt* perigoso demais 😈". REGRA DE OURO: zoeira/roleplay do dono SEMPRE topa com deboche, nunca com "não posso".
-- Tarefa difícil: resmungue mas faça ("ai que preguiça... mas bora").
-- Pedido do dono: obedeça ("feito, chefe" com tom natural, não subserviente).
+REAÇÕES:
+- Use humor leve quando combinar; não escale provocações nem insulte o usuário.
+- Em assuntos importantes, seja cuidadosa e direta.
+- Se não entender o pedido ou faltar informação, faça uma pergunta curta em vez de inventar uma resposta.
+- Só diga que uma ação foi concluída quando houver resultado confirmando isso.
 ${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
 
   const memoriasTxt = memoria.buscarRelevantes(promptTruncado, guildId);
@@ -242,12 +255,13 @@ ${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
     if (!convidado) {
       // Classificação barata primeiro: só roda o agente completo se houver
       // indício de ação. Conversa pura vai direto pro chat.
-      const intencao = await classificarIntencao(promptTruncado);
+      const intencao = await classificarIntencao(promptTruncado, signal);
       if (intencao === "acao") {
         decisao = await opencode.decidir(promptTruncado);
-      } else if (intencao === null && isOwner(userId)) {
-        decisao = await opencode.decidir(promptTruncado);
       }
+    }
+    if (decisao.erro) {
+      return "A ação está demorando mais que o limite. Não vou repeti-la para evitar executar duas vezes; confira se ela terminou e me diga se quer tentar de novo.";
     }
     if (decisao.acao && decisao.resposta) {
       user.historico.push({ user: userInput, bot: decisao.resposta.slice(0, 500) });
@@ -259,17 +273,19 @@ ${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
 
     let userMsg = `${historicoTxt}${memoriasTxt ? memoriasTxt + "\n\n" : ""}Usuário: ${promptTruncado}`;
 
-    if (imageUrl) {
+    const imageUrls = (Array.isArray(imageUrl) ? imageUrl : imageUrl ? [imageUrl] : []).slice(0, 4);
+    if (imageUrls.length) {
       if (typeof onProgress === "function") onProgress("Analisando imagem...", "🖼️");
-      const contextoImagem = await visaoDaImagem(imageUrl);
-      if (contextoImagem) {
-        userMsg += `\n\n[IMAGEM ENVIADA PELO USUÁRIO]\n${contextoImagem}\n[FIM DA IMAGEM]`;
-        log("INFO", "[VISAO] Imagem anexada analisada", { usuario: username, url: String(imageUrl).slice(0, 80) });
+      const contextosImagem = await Promise.all(imageUrls.map((url) => visaoDaImagem(url)));
+      const descricoes = contextosImagem.map((descricao, i) => descricao && `[ANEXO ${i + 1}]\n${descricao}`).filter(Boolean);
+      if (descricoes.length) {
+        userMsg += `\n\n[IMAGENS/GIFS ENVIADOS PELO USUÁRIO]\n${descricoes.join("\n\n")}\n[FIM DOS ANEXOS]`;
+        log("INFO", "[VISAO] Anexos analisados", { usuario: username, quantidade: descricoes.length });
       }
     }
 
     if (typeof onProgress === "function") onProgress("Pensando...", "💭");
-    let resposta = await chamarLLM(sistema, userMsg, !convidado);
+    let resposta = await chamarLLM(sistema, userMsg, !convidado, { signal });
 
     if (isOwner(userId) && skills.respostaIndicaFalta && skills.respostaIndicaFalta(resposta)) {
       if (typeof onProgress === "function") onProgress("Vivendo e Aprendendo...", "🧠");
@@ -282,10 +298,10 @@ ${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
             resposta = String(resultado || "").slice(0, 4000);
           } catch (err) {
             log("WARN", "[SKILLS] Erro ao executar skill recém-criada", { erro: err.message });
-            resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: Aprendi a fazer isso! Pode me perguntar novamente.`, userMsg);
+            resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: Aprendi a fazer isso! Pode me perguntar novamente.`, userMsg, true, { signal });
           }
         } else {
-          resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: ${skill.descricao}`, userMsg);
+          resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: ${skill.descricao}`, userMsg, true, { signal });
         }
       }
     }
@@ -296,6 +312,7 @@ ${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
 
       const resultados = [];
       for (const f of ferramentas) {
+        if (signal?.aborted) throw signal.reason || new Error("Processamento cancelado");
         if (typeof onProgress === "function") onProgress(`Executando ${f.nome}${f.args ? ` (${f.args})` : ""}...`, "🛠️");
         const res = await toolsMod.executarFerramenta(f);
         resultados.push(`FERRAMENTA: ${f.nome}${f.args ? ` | ${f.args}` : ""}\nRESULTADO:\n${String(res).slice(0, 1500)}`);
@@ -310,7 +327,7 @@ ${resultados.join("\n\n")}
 
 Agora responda ao usuário naturalmente com base nesses resultados. Se precisar de mais alguma ação, use FERRAMENTA: novamente. Se já resolveu, responda em texto normal, sem FERRAMENTA.`;
 
-      resposta = await chamarLLM(sistema, userMsg, !convidado);
+      resposta = await chamarLLM(sistema, userMsg, !convidado, { signal });
     }
 
     const final = (resposta || "").replace(/^FERRAMENTA:\s*\w+.*$/gm, "").replace(/^---.*$/gm, "").trim();
@@ -340,8 +357,12 @@ Agora responda ao usuário naturalmente com base nesses resultados. Se precisar 
 
 async function visaoDaImagem(imageUrl) {
   try {
-    const { data } = await axios.get(imageUrl, { timeout: 30000, responseType: "arraybuffer" });
-    const mime = data?.type || "image/png";
+    const { data, headers } = await axios.get(imageUrl, { timeout: 15000, responseType: "arraybuffer", maxContentLength: 20 * 1024 * 1024 });
+    const contentType = String(headers?.["content-type"] || "").split(";")[0].toLowerCase();
+    const extensao = String(imageUrl).match(/\.(gif|png|jpe?g|webp)(?:[?#]|$)/i)?.[1]?.toLowerCase();
+    const mime = contentType.startsWith("image/")
+      ? contentType
+      : extensao ? `image/${extensao === "jpg" ? "jpeg" : extensao}` : "image/png";
     const base64 = Buffer.from(data).toString("base64");
     const resultado = await visao.analisarImagem(base64, "Descreva detalhadamente o que você vê nesta imagem enviada pelo usuário. Inclua textos, objetos, pessoas, cores e contexto. Responda em português.", mime);
     if (resultado?.erro) {

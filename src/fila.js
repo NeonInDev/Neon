@@ -8,41 +8,46 @@ const TIMEOUT_MS = Number(process.env.FILA_TIMEOUT_MS) || 6 * 60 * 1000
 
 const filas = new Map()
 
-function comTimeout(taskFn, userId) {
+function comTimeout(taskFn, userId, controller) {
   let timer
   const limite = new Promise((_, reject) => {
     timer = setTimeout(() => {
       const seg = TIMEOUT_MS >= 1000 ? `${Math.round(TIMEOUT_MS / 1000)}s` : `${TIMEOUT_MS}ms`
-      reject(new Error(`tarefa travou por mais de ${seg}`))
+      const erro = new Error(`tarefa travou por mais de ${seg}`)
+      erro.code = "FILA_TIMEOUT"
+      controller.abort(erro)
+      reject(erro)
     }, TIMEOUT_MS)
   })
-  return Promise.race([taskFn(), limite]).finally(() => clearTimeout(timer))
+  return Promise.race([Promise.resolve().then(() => taskFn(controller.signal)), limite]).finally(() => clearTimeout(timer))
 }
 
 function enfileirar(userId, taskFn) {
   return new Promise((resolve, reject) => {
     if (!filas.has(userId)) {
-      filas.set(userId, { queue: [], processing: false })
+      filas.set(userId, { queue: [], processing: false, activeController: null })
     }
     const fila = filas.get(userId)
     fila.queue.push({ taskFn, resolve, reject })
     log("DEBUG", "[FILA] Tarefa enfileirada", { userId, tamanho: fila.queue.length })
-    if (!fila.processing) processarProxima(userId)
+    if (!fila.processing) processarProxima(userId, fila)
   })
 }
 
-async function processarProxima(userId) {
-  const fila = filas.get(userId)
-  if (!fila || fila.queue.length === 0) {
+async function processarProxima(userId, fila) {
+  if (filas.get(userId) !== fila) return
+  if (fila.queue.length === 0) {
     if (fila) fila.processing = false
     return
   }
   fila.processing = true
+  const controller = new AbortController()
+  fila.activeController = controller
   const { taskFn, resolve, reject } = fila.queue.shift()
   log("DEBUG", "[FILA] Processando tarefa", { userId, restante: fila.queue.length })
   const inicio = Date.now()
   try {
-    const resultado = await comTimeout(taskFn, userId)
+    const resultado = await comTimeout(taskFn, userId, controller)
     resolve(resultado)
   } catch (err) {
     log("WARN", "[FILA] tarefa falhou ou travou, liberando a fila", {
@@ -53,7 +58,10 @@ async function processarProxima(userId) {
     reject(err)
   } finally {
     // precisa rodar mesmo com erro: se nao rodar, a fila morre aqui
-    processarProxima(userId)
+    if (filas.get(userId) === fila) {
+      fila.activeController = null
+      processarProxima(userId, fila)
+    }
   }
 }
 
@@ -86,6 +94,7 @@ function limpar(userId) {
   for (const chave of chaves) {
     const fila = filas.get(chave);
     if (fila) {
+      if (fila.activeController) fila.activeController.abort(new Error("Fila limpa"))
       for (const item of fila.queue) {
         item.reject(new Error("Fila limpa"));
       }
