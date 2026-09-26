@@ -742,6 +742,10 @@ async function darWarn(guild, user, motivo, autor, opts = {}) {
     await aplicarPunicao(guild, member, regra, `warn ${r.ativo}: ${motivo}`);
   }
 
+  // a assinatura é pra quem pediu a punição, não pra quem foi punido
+  const requesting = autor?.user?.id || autor?.id || (autor === user ? user.id : null);
+  if (requesting) require("./resolucao").marcar(requesting, "warn");
+
   return { warn: r.ativo, total: r.total, punicao: regra || null, dobro };
 }
 
@@ -1018,6 +1022,7 @@ async function decidirPuncao(guild, userId, aprovar, aprovador) {
     },
   });
   log("INFO", "[AUTOMOD] pedido decidido", { guild: guild.name, usuario: userId, aprovar, quem });
+  if (aprovar) require("./resolucao").marcar(aprovador?.user?.id || aprovador?.id, p.acao);
   return { ok: true, texto, acao: p.acao };
 }
 

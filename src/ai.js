@@ -291,6 +291,7 @@ ${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
       if (typeof onProgress === "function") onProgress("Vivendo e Aprendendo...", "🧠");
       const skill = await skills.aprenderExecutavel(promptTruncado, resposta);
       if (skill) {
+        require("./resolucao").marcar(userId, "skill nova");
         const mod = skills.carregarModuloSkill(skill.id);
         if (mod && typeof mod.executar === "function") {
           try {

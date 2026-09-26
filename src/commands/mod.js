@@ -437,6 +437,7 @@ module.exports = {
         if (!membro.moderatable) return await interaction.editReply(`❌ Não consigo silenciar **${alvo.tag}** (cargo acima do meu).`);
         const mins = interaction.options.getInteger("minutos", true);
         await membro.timeout(mins * 60 * 1000, `${motivo} (por ${interaction.user.tag})`);
+        require("../resolucao").marcar(interaction.user.id, "mute");
         return await interaction.editReply(
           `🔇 **${alvo.tag}** silenciado por **${mins} min**.\n📄 Motivo: ${motivo}`
         );

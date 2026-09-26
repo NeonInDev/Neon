@@ -643,9 +643,12 @@ async function enviarResposta(message, texto) {
     }
   }
   const MAX = 2000;
-  if (texto.length > MAX) {
+  // assinatura de "Xeque Mate": só entra se a Neon acabou de resolver algo
+  // (warn, mute, expulsão, skill nova) para essa pessoa
+  const textoAssinado = require("../resolucao").assinar(texto, message.author?.id);
+  if (textoAssinado.length > MAX) {
     const partes = [];
-    let restante = texto;
+    let restante = textoAssinado;
     while (restante.length > MAX) {
       let corte = restante.lastIndexOf("\n", MAX);
       if (corte <= 0) corte = MAX;
@@ -658,7 +661,7 @@ async function enviarResposta(message, texto) {
     }
     return;
   }
-  await enviarEmoldurado(message, texto);
+  await enviarEmoldurado(message, textoAssinado);
 }
 
 function combinarTextoMensagens(mensagens) {
