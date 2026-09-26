@@ -712,9 +712,10 @@ async function bloquear() {
   return "🔒 PC bloqueado.";
 }
 
-async function desligar() {
-  await execAsync(`shutdown /s /t 5 /c "Neon desligou o PC"`, { timeout: 5000, windowsHide: true }).catch(() => {});
-  return "🔌 Desligando o PC em 5 segundos...";
+async function desligar(segundos = 5) {
+  const s = Math.min(3600, Math.max(0, parseInt(segundos, 10) || 5));
+  await execAsync(`shutdown /s /t ${s} /c "Neon desligou o PC"`, { timeout: 5000, windowsHide: true }).catch(() => {});
+  return `🔌 Desligando o PC em ${s} segundos...`;
 }
 
 async function cancelarDesligar() {

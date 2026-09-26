@@ -1,12 +1,15 @@
 // =============================================================
-// APAGAR AS MENSAGENS DE UM USUARIO
+// AVE EXPURGO
 // -------------------------------------------------------------
-// Discord so deixa apagar em lote mensagens com menos de 14 dias.
+// O expurgo: apaga todas as mensagens de um usuario em todo o
+// servidor, sem deixar rastro.
+//
+// O Discord so deixa apagar em lote mensagens com menos de 14 dias.
 // As mais velhas precisam ser apagadas uma por uma, entao o script faz
 // os dois caminhos.
 //
-// uso: node scripts/apagar_msgs_usuario.js <userId> [--executar]
-//      sem --executar ele so conta
+// uso: node scripts/ave_expurgo.js <userId> [--executar]
+//      sem --executar ele so conta (e nao apaga nada)
 // =============================================================
 require("dotenv").config();
 const { Client, GatewayIntentBits, ChannelType } = require("discord.js");
@@ -18,7 +21,7 @@ const LIMITE_MS = 14 * 24 * 60 * 60 * 1000;
 const PAUSA = 800;
 
 if (!ALVO) {
-  console.log("uso: node scripts/apagar_msgs_usuario.js <userId> [--executar]");
+  console.log("uso: node scripts/ave_expurgo.js <userId> [--executar]");
   process.exit(1);
 }
 
@@ -47,7 +50,7 @@ client.once("clientReady", async () => {
     console.log("aviso: nao consegui puxar o usuario do cache (pode ter saído do servidor)");
   }
   console.log(`alvo: ${alvoTag} (${ALVO})`);
-  console.log(`modo: ${EXECUTAR ? "APAGAR" : "só contar"}\n`);
+  console.log(`modo: ${EXECUTAR ? "EXPURGO (apagar tudo)" : "só contar"}\n`);
 
   await g.channels.fetch().catch(() => {});
   const canais = [...g.channels.cache.values()].filter(
@@ -122,7 +125,7 @@ client.once("clientReady", async () => {
     console.log(`  ${ch.name}: ${doUsuario.length} apagadas (${novas.length} lote, ${velhas.length} antigas)`);
   }
 
-  console.log(`\n=== resultado ===`);
+  console.log(`\n=== ave expurgo ===`);
   console.log(`canais com mensagem do alvo: ${porCanal}`);
   console.log(`mensagens encontradas:       ${totalAchei}`);
   console.log(`mensagens apagadas:          ${deletados}`);
