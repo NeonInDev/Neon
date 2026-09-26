@@ -635,9 +635,16 @@ async function darWarnInspiravel(guild, user, motivo, quebras, opts = {}) {
 }
 
 // atalho pro messageCreate: marca fora da regra e devolve true
+// Só devolve true quando o warn foi MESMO aplicado. O automod ignora o dono
+// do servidor (e a staff) de propósito, devolvendo { warn: 0, owner: true } -
+// isso e "nao punir", nao "mensagem tratada". Antes, `!!r` transformava esse
+// "nao punir" em true e o messageCreate descartava a mensagem do dono em
+// silencio: a Neon calava no canal, sem warn, sem log de punicao, sem cura.
 async function marcouCargoForaDaRegra(message) {
   const r = await aplicarCargosInspiraveis(message);
-  return !!r;
+  if (!r) return false;
+  if (r.owner) return false;
+  return Number(r.warn || 0) > 0;
 }
 
 // aplica a regra: se a mensagem quebrou algo, da o warn e para

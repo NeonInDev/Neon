@@ -735,10 +735,11 @@ async function processarLote(chave, lote) {
       if (signal.aborted) return;
 
       const textoResposta = reply || "";
+      const base = String(textoResposta).trim() || "Pronto!";
       if (progresso.ok) {
         // A mensagem de progresso (já enviada) vira a resposta final, editada.
         // Assim a Neon mostra a resposta "na mesma mensagem", sem mandar outra duplicada.
-        const textoEdit = String(textoResposta).slice(0, 2000);
+        const textoEdit = base.slice(0, 2000);
         await progresso.finalizar(textoEdit || "Pronto!");
         // Se a resposta exceder 2000 chars, envia o restante como continuação.
         const excedente = String(textoResposta).slice(2000);
@@ -755,7 +756,7 @@ async function processarLote(chave, lote) {
       } else if (!message.replied) {
         addContexto(userId, username, textoLimpo, textoResposta);
         auditar(userId, username, textoLimpo, textoResposta?.slice(0, 100));
-        await enviarResposta(message, textoResposta);
+        await enviarResposta(message, base);
       }
     } catch (err) {
       if (signal.aborted) return;
@@ -818,7 +819,10 @@ module.exports = {
       // nao bateram em nenhum filtro. Devolve o warn se marcou fora da regra.
       try {
         const automod = require("../automod");
-        if (automod.marcouCargoForaDaRegra(message)) return;
+        // O await e obrigatorio: marcouCargoForaDaRegra e async, e uma Promise sem
+    // await e sempre truthy - o if virava "sempre verdade" e descartava TODA
+    // mensagem de guild antes da IA. Era por isso que a Neon calava em todo canal.
+    if (await automod.marcouCargoForaDaRegra(message)) return;
       } catch (err) {
         log("WARN", "[INSPIRAVEL] erro na checagem", { erro: err.message });
       }
