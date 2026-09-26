@@ -360,10 +360,16 @@ function remover(titulo) {
 async function mapearLinks(canal) {
   let antes = null;
   let novos = 0;
+  const vistos = new Set();
+  let varreuTudo = false;
   for (let i = 0; i < 12; i++) {
     const lote = await canal.messages.fetch({ limit: 100, before: antes }).catch(() => null);
-    if (!lote || !lote.size) break;
+    if (!lote || !lote.size) {
+      varreuTudo = true;
+      break;
+    }
     for (const m of lote.values()) {
+      vistos.add(m.id);
       const t = m.content.match(/\*\*([^*\n]{1,100}?);\*\*/);
       if (!t) continue;
       const q = carregar().find((x) => !x.link && mesmoTitulo(t[1], x.titulo));
@@ -375,7 +381,32 @@ async function mapearLinks(canal) {
     }
     antes = lote.last().id;
   }
-  if (novos) persistir();
+  // limpa o link de card que foi apagado do canal, pra ele sair do sumario
+  // em vez de ficar apontando pra mensagem morta. Três cuidados: só quando a
+  // varredura chegou no inicio do canal (se bateu no limite de 12 lotes o
+  // card pode só ser antigo), só quando o link é DESTE canal (a mesma quirk
+  // pode ter o card no canal de sorteio, e aí não é pra mexer), e grava no
+  // arquivo certo, porque adicionadas.json é separado do envio_v2.json.
+  let mortos = 0;
+  let mortosAdic = 0;
+  if (varreuTudo) {
+    for (const [lista, ehAdic] of [
+      [carregar(), false],
+      [carregarAdicionadas(), true],
+    ]) {
+      for (const q of lista) {
+        const m = String(q.link || "").match(/channels\/\d+\/(\d+)\/(\d+)/);
+        if (!m || m[1] !== canal.id) continue;
+        if (vistos.has(m[2])) continue;
+        q.link = null;
+        q.canal = null;
+        if (ehAdic) mortosAdic++;
+        else mortos++;
+      }
+    }
+  }
+  if (novos || mortos) persistir();
+  if (mortosAdic) salvarAdicionadas(carregarAdicionadas());
   return novos;
 }
 
@@ -401,25 +432,14 @@ async function apagarSumarioAntigo(canal) {
   return apagar.length;
 }
 
-// lista do sumário: pacote primeiro (quem tem card no canal usa o link do
-// card, que vale mais que o da wiki) e depois o resto das livres da fandom
-// usando o link da wiki. título repetido não entra duas vezes.
+// lista do sumário: só as quirks que têm card com descrição no canal de
+// quirks livres. O link é o da própria mensagem, não o da wiki — o sumário
+// existe pra levar direto na descrição. Sem link não entra na lista, senão
+// apareceria um item que não abre nada.
 function listaResumo() {
-  const fora = [];
-  const vistos = new Set();
-  const marcar = (t) => {
-    const k = normalizar(t).replace(/[^a-z0-9]/g, "");
-    if (!k || vistos.has(k)) return false;
-    vistos.add(k);
-    return true;
-  };
-  for (const q of [...carregar(), ...carregarAdicionadas()]) {
-    if (marcar(q.titulo)) fora.push({ titulo: q.titulo, link: q.link || q.url || null });
-  }
-  for (const f of carregarFandom()) {
-    if (marcar(f.nome)) fora.push({ titulo: f.nome, link: f.url || null });
-  }
-  return fora;
+  return [...carregar(), ...carregarAdicionadas()]
+    .filter((q) => q.link)
+    .map((q) => ({ titulo: q.titulo, link: q.link }));
 }
 
 function montarChunksSumario(listaFonte) {
