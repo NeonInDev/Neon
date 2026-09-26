@@ -379,15 +379,21 @@ async function mapearLinks(canal) {
   return novos;
 }
 
-async function apagarSumarioAntigo(canal, client) {
+// apaga os sumarios anteriores do canal.
+//
+// Nao filtra mais por autor: os primeiros foram postados pela conta
+// beyond_mizuki e nunca foram embora, porque o filtro de "so mensagem minha"
+// da Neon nao os alcancava. A garantia de que e sumario (e nao um card de
+// quirk qualquer) vem do marcador do cabecalho + ter linha de lista.
+async function apagarSumarioAntigo(canal) {
   let antes = null;
   const apagar = [];
   for (let i = 0; i < 10; i++) {
     const lote = await canal.messages.fetch({ limit: 100, before: antes }).catch(() => null);
     if (!lote || !lote.size) break;
     for (const m of lote.values()) {
-      const ehDoBot = client ? m.author.id === client.user.id : true;
-      if (ehDoBot && m.content.includes("Sumário")) apagar.push(m);
+      if (!m.content) continue;
+      if (m.content.includes(MARCADOR) && /^- \[/m.test(m.content)) apagar.push(m);
     }
     antes = lote.last().id;
   }
@@ -446,7 +452,7 @@ function montarChunksSumario(listaFonte) {
 async function reconstruirSumario(client) {
   const canal = await acharCanal(client, "livres");
   if (!canal) throw new Error("canal quirks-livres não encontrado pro sumário");
-  await apagarSumarioAntigo(canal, client);
+  await apagarSumarioAntigo(canal);
   await mapearLinks(canal);
   const chunks = montarChunksSumario();
   for (const c of chunks) await canal.send({ content: c });
