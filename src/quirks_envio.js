@@ -401,8 +401,29 @@ async function apagarSumarioAntigo(canal) {
   return apagar.length;
 }
 
+// lista do sumário: pacote primeiro (quem tem card no canal usa o link do
+// card, que vale mais que o da wiki) e depois o resto das livres da fandom
+// usando o link da wiki. título repetido não entra duas vezes.
+function listaResumo() {
+  const fora = [];
+  const vistos = new Set();
+  const marcar = (t) => {
+    const k = normalizar(t).replace(/[^a-z0-9]/g, "");
+    if (!k || vistos.has(k)) return false;
+    vistos.add(k);
+    return true;
+  };
+  for (const q of [...carregar(), ...carregarAdicionadas()]) {
+    if (marcar(q.titulo)) fora.push({ titulo: q.titulo, link: q.link || q.url || null });
+  }
+  for (const f of carregarFandom()) {
+    if (marcar(f.nome)) fora.push({ titulo: f.nome, link: f.url || null });
+  }
+  return fora;
+}
+
 function montarChunksSumario(listaFonte) {
-  const lista = (listaFonte || [...carregar(), ...carregarAdicionadas()])
+  const lista = (listaFonte || listaResumo())
     .map((q) => ({
       titulo: q.titulo || q.nome || "?",
       link: q.link || q.url || null,
