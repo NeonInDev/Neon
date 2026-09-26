@@ -6,16 +6,21 @@ const path = require("path");
 const { log } = require("./logger");
 
 const ARQ = path.join(__dirname, "..", "data", "purgatorio.json");
+// Acesso total: rola E mexe na tabela (adicionar/tirar quirk).
 const PERMITIDOS = ["1442928336329379925", "1221320772224553071"];
+// Só rolar. Ficam em data/purgatorio.json (campo "liberados") pra dar e tirar
+// a permissão sem precisar editar código e reiniciar a Neon.
+const ROLA_SO = [];
 
 function carregar() {
   try {
     const d = JSON.parse(fs.readFileSync(ARQ, "utf8"));
     if (!Array.isArray(d.quirks)) throw new Error("sem quirks");
     if (!Array.isArray(d.extras)) d.extras = [];
+    if (!Array.isArray(d.liberados)) d.liberados = [];
     return d;
   } catch {
-    return { quirks: [], extras: [] };
+    return { quirks: [], extras: [], liberados: [] };
   }
 }
 
@@ -69,8 +74,16 @@ function linkDaQuirk(nome) {
   return null;
 }
 
+// Acesso total: rolar e mexer na tabela de quirks.
 function permitido(userId) {
   return PERMITIDOS.includes(userId);
+}
+
+// Só rolar: os liberados de data/purgatorio.json entram aqui.
+function podeRolar(userId) {
+  if (permitido(userId)) return true;
+  const d = carregar();
+  return (d.liberados || ROLA_SO).includes(userId);
 }
 
 function resumoExtras(d) {
@@ -128,7 +141,7 @@ async function interpretarPurgatorio(message) {
   const ante = (m[1] || "").trim();
   const resto = (m[2] || "").trim();
 
-  if (!permitido(message.author.id)) {
+  if (!podeRolar(message.author.id)) {
     await message.reply("🔒 Esse comando é exclusivo do chefe.").catch(() => {});
     return true;
   }
@@ -143,6 +156,22 @@ async function interpretarPurgatorio(message) {
   const trecho = `${ante} purgatorio ${resto}`.replace(/\s+/g, " ").trim();
   const naturalAdd = VERBOS_ADD.test(trecho);
   const naturalRem = VERBOS_REM.test(trecho);
+
+  // Quem só pode rolar não mexe na tabela: barra adicionar/tirar antes de
+  // qualquer escrita. Ler o pool continua liberado (não altera nada).
+  if (!permitido(message.author.id)) {
+    const querMexer =
+      naturalAdd ||
+      naturalRem ||
+      /^(adiciona|adicionar|add|tira|tirar|remove|remover|bota|coloca|abaixa|baixa)\s+/i.test(resto);
+    if (querMexer) {
+      await message
+        .reply("🎲 Você pode **rolar** o Purgatório, mas não mexer na tabela. Mudar a lista é só do chefe.")
+        .catch(() => {});
+      return true;
+    }
+  }
+
   if (naturalAdd || naturalRem) {
     const acao = naturalAdd ? "adicionar" : "tirar";
     // remove o verbo e pega o que sobra como alvo (nome [, motivo] [, requisitos])
@@ -262,4 +291,4 @@ async function interpretarPurgatorio(message) {
   return true;
 }
 
-module.exports = { interpretarPurgatorio, montarPool, separarCampos, extrairNomeNatural };
+module.exports = { interpretarPurgatorio, montarPool, separarCampos, extrairNomeNatural, permitido, podeRolar, carregar };

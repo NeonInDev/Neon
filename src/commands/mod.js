@@ -30,9 +30,50 @@ function linhaWarn(guild, escala, r, i) {
   return `${marca} **${i}.** ${tag}\n　　**${r.ativo}** ativo(s) · ${r.total} no total${quando}${motivo}${proximoNivel(escala, r.ativo)}`;
 }
 
-async function responderListaWarns(interaction, pagina = 1) {
+// modo pessoa: /mod listarwarns usuario:@fulano -> histórico inteiro dela
+async function responderWarnsDe(interaction, usuario) {
   const automod = require("../automod");
   const guild = interaction.guild;
+  const cfg = automod.configGuild(guild.id);
+  const reg = automod.listarWarns(guild.id).find((r) => r.userId === usuario.id);
+  const tag = guild.members.cache.get(usuario.id)?.user?.tag || `<@${usuario.id}>`;
+
+  if (!reg) {
+    return interaction.reply({
+      content: `✅ **${tag}** não tem warn nenhum na automod.`,
+      ephemeral: true,
+    });
+  }
+
+  const ultima = reg.historico[reg.historico.length - 1];
+  const cabecalho =
+    `⚠️ **Warns de ${tag}**\n` +
+    `**${reg.ativo}** ativo(s) · **${reg.total}** no total${proximoNivel(cfg.escala, reg.ativo)}` +
+    (ultima?.em ? `\nÚltimo: <t:${Math.floor(ultima.em / 1000)}:f> (<t:${Math.floor(ultima.em / 1000)}:R>)` : "");
+
+  // mostra o mais recente primeiro, que é o que interessa
+  const linhas = [...reg.historico]
+    .reverse()
+    .slice(0, 20)
+    .map((h) => {
+      const quando = h.em ? `<t:${Math.floor(h.em / 1000)}:d>` : "sem data";
+      const peso = h.peso != null ? ` · peso ${h.peso}` : "";
+      const quem = h.por ? ` · por <@${h.por}>` : "";
+      return `• <t:${Math.floor((h.em || Date.now()) / 1000)}:d> — **${String(h.motivo || "sem motivo").slice(0, 120)}**${peso}${quem}`;
+    });
+
+  const resto = reg.historico.length > 20 ? `\n_…e mais ${reg.historico.length - 20} registro(s)._` : "";
+
+  return interaction.reply({
+    content: `${cabecalho}\n\n${linhas.join("\n")}${resto}`,
+    ephemeral: true,
+  });
+}
+
+async function responderListaWarns(interaction, pagina = 1, usuario = null) {
+  const automod = require("../automod");
+  const guild = interaction.guild;
+  if (usuario) return responderWarnsDe(interaction, usuario);
   const todos = automod.listarWarns(guild.id);
   if (!todos.length) {
     return interaction.reply({ content: "✅ Ninguém tem warn na automod agora.", ephemeral: true });
@@ -236,6 +277,12 @@ module.exports = {
       sc
         .setName("listarwarns")
         .setDescription("Lista todo mundo que tem warn na automod, do maior pro menor")
+        .addUserOption((o) =>
+          o
+            .setName("usuario")
+            .setDescription("Mostra só essa pessoa, com o histórico inteiro")
+            .setRequired(false)
+        )
         .addIntegerOption((o) =>
           o.setName("pagina").setDescription("Página inicial").setRequired(false).setMinValue(1)
         )
@@ -481,8 +528,9 @@ module.exports = {
       }
 
       if (sub === "listarwarns") {
+        const alvo = interaction.options.getUser("usuario");
         const paginaInicial = interaction.options.getInteger("pagina") || 1;
-        return await responderListaWarns(interaction, paginaInicial);
+        return await responderListaWarns(interaction, paginaInicial, alvo);
       }
 
       if (sub === "isentar") {
