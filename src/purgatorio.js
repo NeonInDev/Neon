@@ -134,10 +134,17 @@ function extrairNomeNatural(texto) {
 
 async function interpretarPurgatorio(message) {
   const texto = (message.content || "").trim();
-  const m = texto.match(
-    /^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(.+?\b)?purgat[oó]rio\b(.*)$/is
-  );
-  if (!m) return false;
+  // Forma principal: precisa do "neon" ou menção na frente.
+  let m = texto.match(/^\s*(?:neon|<@!?\d+>)[\s,!.\-:;]+(.+?\b)?purgat[oó]rio\b(.*)$/is);
+  if (!m) {
+    // Sem prefixo, só aceita se a mensagem INTEIRA for o comando. Se bastasse
+    // conter "purgatorio", qualquer conversa sobre o tema viraria rolagem.
+    const semPrefixo = texto.match(
+      /^\s*(?:rola|roda|sorteia|puxa|me\s+d[aeo]|queria|chama)?\s*(?:uma?\s+|o\s+)?purgat[oó]rio\s*[!.?]*$/i
+    );
+    if (!semPrefixo) return false;
+    m = ["", "", "", ""];
+  }
   const ante = (m[1] || "").trim();
   const resto = (m[2] || "").trim();
 

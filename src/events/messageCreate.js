@@ -834,6 +834,23 @@ module.exports = {
     // Pedidos de parceria em #solicitar (qualquer pessoa que marcar o cargo divulgador)
     if (await interpretarSolicitacaoParceria(message)) return;
 
+    // Purgatório — rolagem de quirk com pool ajustável.
+    // Fica ANTES do bloquear(): quem só pode rolar (purgatorio.json,
+    // "liberados") não está em ALLOWED_USERS, então o gate geral devolvia
+    // "acesso negado" e a rolagem nunca chegava aqui. O próprio purgatorio.js
+    // tem o gate dele (podeRolar), que barra quem não tem permissão com
+    // "exclusivo do chefe" — então mover aqui não abre nada, só deixa a
+    // rolagem chegar nos liberados.
+    try {
+      const { interpretarPurgatorio } = require("../purgatorio");
+      if (await interpretarPurgatorio(message)) {
+        processando.delete(message.id);
+        return;
+      }
+    } catch (err) {
+      log("WARN", "[PURGATORIO] erro", { erro: err.message });
+    }
+
     const { bloquear } = require("../perm");
     if (bloquear(message)) return;
     if (await verificarChaveMestra(message)) return;
@@ -882,19 +899,6 @@ module.exports = {
     if (await interpretarParcerias(message)) {
       processando.delete(message.id);
       return;
-    }
-
-    // Purgatório — rolagem de quirk com pool ajustável (só owner/autorizado).
-    // Roda ANTES do rate limit e das skills (modo_rpg rouba "rola X"), pra
-    // "neon, rola purgatorio" responder sempre, para os autorizados.
-    try {
-      const { interpretarPurgatorio } = require("../purgatorio");
-      if (await interpretarPurgatorio(message)) {
-        processando.delete(message.id);
-        return;
-      }
-    } catch (err) {
-      log("WARN", "[PURGATORIO] erro", { erro: err.message });
     }
 
     // Pings: avisa o dono (em voz/DM) quando alguém o menciona em servidores.
