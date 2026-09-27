@@ -944,12 +944,92 @@ function permitido(userId) {
   return isOwner(userId);
 }
 
+// ---------- moderacao por fala natural ----------
+// CONFLITO RESOLVIDO AQUI: "silencia/silenciar/muta" ja era do PC (mutava o
+// volume, ver encontrarVolume). "neon, silencia o @fulano" caia nessa regra e
+// mutava o audio do dono em vez de silenciar a pessoa. Agora a desambiguacao e
+// por alvo: se a frase aponta alguem (mencao do Discord ou @nome) e moderacao;
+// se fala de audio/som/volume/pc, continua sendo volume do PC.
+const ALVO_MENTION = /<@!?(\d+)>/;
+const ALVO_ARROBA = /@([\w.\-]{2,32})/;
+// fragmento de duracao para remover do motivo ("10 min", "1h30", "2 dias")
+const RE_FRAGMENTO_DURACAO = /\b\d+(?:[.,]\d+)?\s*(?:ms|seg(?:undos?)?|min(?:utos?)?|horas?|dias?|h|m|s|d)\b|\b\d+h\d+\b/gi;
+
+function temAlvoPessoa(texto) {
+  return ALVO_MENTION.test(texto) || ALVO_ARROBA.test(texto);
+}
+
+function ehVolumeDoPc(texto) {
+  return /\b(?:o\s+)?(?:a[uú]udio|som|volume|pc|computador|notebook|fone|microfone)\b/i.test(texto);
+}
+
+// Pega o alvo e o motivo de "silencia o @x por 10 min" / "warna o @x por xyz".
+function parsearModeracao(texto) {
+  const t = String(texto || "");
+  const mention = ALVO_MENTION.exec(t);
+  const arroba = mention ? null : ALVO_ARROBA.exec(t);
+  const alvo = mention ? { tipo: "id", id: mention[1] } : arroba ? { tipo: "nome", nome: arroba[1] } : null;
+
+  // motivo: tudo depois de "por <algo>"
+  let motivo = "";
+  const por = /\bpor\b\s+(.+)$/i.exec(t);
+  if (por) {
+    // "por 10 min" e DURACAO, nao motivo. Sem tirar isso aqui, o motivo
+    // virava literalmente "10 min" e a punicao saia com texto sem sentido.
+    // A ordem importa: os espacos sobrando da duracao removida precisam
+    // ser colapsados ANTES do corte da preposicao, senao o "em" de
+    // "flood em 10 min" sobrava e o motivo virava "flood em".
+    motivo = por[1]
+      .replace(RE_FRAGMENTO_DURACAO, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim()
+      .replace(/\s+(?:em|no|na|de|do|da|por|pro|pra|para)$/i, "")
+      .trim();
+  }
+  return { alvo, motivo };
+}
+
+function encontrarSilenciarUsuario(texto) {
+  const t = String(texto || "");
+  if (!/^\s*(?:por favor\s+|pf\s+)?(?:silencia|silenciar|calla|callar|muta|mutar)\b/i.test(t)) return null;
+  if (ehVolumeDoPc(t)) return null;        // "silencia o som" continua volume do PC
+  if (!temAlvoPessoa(t)) return null;      // sem alvo nao adivinha quem punir
+  return parsearModeracao(t);
+}
+
+function encontrarWarnarUsuario(texto) {
+  const t = String(texto || "");
+  if (!/^\s*(?:por favor\s+|pf\s+)?(?:warn|warna|dar\s+warn|d[aá]\s+um\s+warn|adverte|advertir)\b/i.test(t)) return null;
+  if (!temAlvoPessoa(t)) return null;
+  return parsearModeracao(t);
+}
+
+// Resolve o alvo em member do guild, aceitando <@id>, @id, @nome ou id solto.
+async function resolverAlvoModeracao(guild, alvo, texto) {
+  if (!alvo) return null;
+  if (alvo.tipo === "id") return guild.members.fetch(alvo.id).catch(() => null);
+  // nome: tenta id numerico dentro de @, depois busca por username
+  if (/^\d+$/.test(alvo.nome)) return guild.members.fetch(alvo.nome).catch(() => null);
+  const cache = guild.members.cache.find(
+    (m) => !m.user.bot && m.user.username.toLowerCase() === alvo.nome.toLowerCase()
+  );
+  if (cache) return cache;
+  try {
+    const achados = await guild.members.fetch({ query: alvo.nome, limit: 5 });
+    return achados.find((m) => !m.user.bot) || null;
+  } catch { return null; }
+}
+
 function detectarCategoria(texto) {
   // Voice toggle
   const voiceToggle = encontrarVoiceToggle(texto);
   if (voiceToggle) return "voiceToggle";
   // Custom commands (usuário define) — maior prioridade
   if (encontrarCustomCommand(texto)) return "customCommand";
+  // Moderacao por fala ANTES de app/pcCommand/volume: "silencia o @fulano" e
+  // moderacao, mas "silencia o som" e volume do PC (trata em encontrar* acima).
+  if (encontrarSilenciarUsuario(texto)) return "silenciar_usuario";
+  if (encontrarWarnarUsuario(texto)) return "warnar_usuario";
   if (encontrarModoUltron(texto)) return "modo_ultron";
   if (encontrarModoJarvis(texto)) return "modo_jarvis";
   if (encontrarModoLawfeyson(texto)) return "modo_lawfeyson";
@@ -1398,6 +1478,63 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   const categoriaExigeDono = ["exec", "arquivo", "codar_app"].includes(categoria);
   if (categoria && (!podePC || (categoriaExigeDono && !isOwner(userId)))) {
     return "❌ Acesso negado. Você não é o dono do PC.";
+  }
+
+  // ---------- moderacao por fala natural ----------
+  // "neon, silencia o @fulano por 10 min" e "neon, warna o @fulano por x".
+  if (categoria === "silenciar_usuario" || categoria === "warnar_usuario") {
+    const automod = require("./automod");
+    const guild = message?.guild;
+    if (!guild) return "Esse comando só funciona dentro de um servidor.";
+
+    const autor = await guild.members.fetch(userId).catch(() => null);
+    if (!automod.ehStaff(guild, autor)) {
+      return "🔒 Só staff pode usar esse comando.";
+    }
+
+    const dados = parsearModeracao(texto);
+    // mencao do Discord e mais confiavel que regex no texto
+    const membro =
+      (await resolverAlvoModeracao(guild, dados.alvo, texto)) ||
+      message.mentions?.members?.first() ||
+      null;
+    if (!membro) return "Não encontrei esse usuário. Mencione com @.";
+    if (membro.id === userId) return "Você não pode se punir.";
+
+    if (categoria === "silenciar_usuario") {
+      if (!automod.podeSerPunido(guild, membro)) {
+        return `🔒 ${membro.user.username} não pode ser silenciado (staff, admin ou dono).`;
+      }
+      const dur = interpretarDuracao(texto);
+      const minutos = dur && dur.delayMs > 0 ? Math.max(1, Math.round(dur.delayMs / 60000)) : 10;
+      const motivo = dados.motivo || `silenciado por ${minutos} min`;
+      const r = await automod
+        .aplicarPunicao(guild, membro, { acao: "timeout", minutos }, motivo)
+        .catch((e) => ({ ok: false, erro: e.message }));
+      if (!r?.ok) return `❌ Não consegui silenciar: ${r?.erro || "erro desconhecido"}`;
+      return `🔇 ${membro.user.username} silenciado por ${humanizarDuracao(minutos * 60000)}.\nMotivo: ${motivo}`;
+    }
+
+    // warnar
+    if (!automod.podeSerPunido(guild, membro)) {
+      return `🔒 ${membro.user.username} não pode ser punido (staff, admin ou dono).`;
+    }
+    const motivo = dados.motivo || "aviso do staff";
+    const r = await automod
+      .darWarn(guild, membro.user, motivo, autor?.user || membro.user, {
+        member: membro,
+        automatico: false,
+        tipo: "warnManual",
+      })
+      .catch((e) => ({ warn: 0, total: 0, erro: e.message }));
+    if (r?.erro) return `❌ Não consegui warnar: ${r.erro}`;
+    if (r?.owner) return `👑 O dono não entra na contagem de warns.`;
+    // usa a punicao que o proprio darWarn ja resolveu (r.punicao). Antes isso
+    // recalculava com resolverEscala(guild.id, ...), mas essa funcao espera a
+    // LISTA de regras, nao o id do servidor: com o id ela devolvia null e a
+    // previa de punicao saia sempre como "Sem punicao automatica neste nivel".
+    const punicao = automod.punicaoTexto(r.punicao, r.total);
+    return `⚠️ Warn aplicado em ${membro.user.username} (${r.warn}/${r.total}).\nMotivo: ${motivo}\n${punicao}`;
   }
 
   // Abrir app via codar (opencode) — resolve qualquer app sem lista fixa
@@ -2909,4 +3046,4 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   return null;
 }
 
-module.exports = { executarAcao, steamGames, continuar, enviarMultiPartes, interpretarDuracao, humanizarDuracao };
+module.exports = { executarAcao, steamGames, continuar, enviarMultiPartes, interpretarDuracao, humanizarDuracao, detectarCategoria, parsearModeracao };
