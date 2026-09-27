@@ -74,11 +74,39 @@ Set-Content -LiteralPath $pidFile "$PID"
 Add-Content -LiteralPath $logFile ("[{0}] vigilante iniciado PID $PID (limite {1} MB, check {2}s)" -f (Get-Date -Format "yyyy-MM-dd HH:mm:ss"), $MinMB, $CheckSec)
 Write-Output ("[vigilante] Observando RAM livre (limite $MinMB MB, check $CheckSec s). Chave: " + $(if ($chave) { "ok" } else { "FALTANDO" }))
 
+# Le a RAM disponivel. O Get-Counter depende do servico de contadores de
+# desempenho e neste PC ele falha, devolvendo $null. Antes o codigo fazia
+# "if (-not $ctr) { continue }" e o loop passava reto, em silencio: o log nunca
+# ganhava uma linha "livre=" e a protecao de RAM ficava INERTE, sem nunca
+# avisar nem desligar. Agora ha um plano B sem Get-Counter e sem Get-CimInstance
+# (que esta proibido neste PC), e a falha vira log em vez de sumir.
+Add-Type -AssemblyName Microsoft.VisualBasic -ErrorAction SilentlyContinue
+
+function Get-RamLivreMB {
+  $ctr = Get-Counter '\Memory\Available MBytes' -ErrorAction SilentlyContinue
+  if ($ctr -and $ctr.CounterSamples.Count -gt 0) {
+    return [math]::Round($ctr.CounterSamples[0].CookedValue)
+  }
+  # plano B: .NET, sem contadores de desempenho e sem WMI
+  try {
+    $info = New-Object Microsoft.VisualBasic.Devices.ComputerInfo
+    return [math]::Round($info.AvailablePhysicalMemory / 1MB)
+  } catch { return $null }
+}
+
+$falhasLeitura = 0
 while ($true) {
   Start-Sleep -Seconds $CheckSec
-  $ctr = Get-Counter '\Memory\Available MBytes' -ErrorAction SilentlyContinue
-  if (-not $ctr) { continue }
-  $freeMB = [math]::Round($ctr.CounterSamples[0].CookedValue)
+  $freeMB = Get-RamLivreMB
+  if ($null -eq $freeMB) {
+    $falhasLeitura++
+    Add-Content -LiteralPath $logFile ("[{0}] NAO CONSEGUIU LER A RAM (tentativa {1})" -f (Get-Date -Format "HH:mm:ss"), $falhasLeitura)
+    continue
+  }
+  if ($falhasLeitura -gt 0) {
+    Add-Content -LiteralPath $logFile ("[{0}] leitura de RAM normalizada: {1} MB" -f (Get-Date -Format "HH:mm:ss"), $freeMB)
+    $falhasLeitura = 0
+  }
   Add-Content -LiteralPath $logFile ("[{0}] livre={1} MB" -f (Get-Date -Format "HH:mm:ss"), $freeMB)
 
   if ($freeMB -lt $MinMB) {
