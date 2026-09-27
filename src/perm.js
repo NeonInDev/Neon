@@ -5,7 +5,8 @@ const ALLOWED_USERS = [
   OWNER,
   "820967650812362772",
   "1200205111390130190",
-  "1221320772224553071",
+  // 1221320772224553071 removido por pedido do dono: perdeu o acesso total
+  // a Neon (permitido() = ALLOWED_USERS ou guest, e guests.json esta vazio).
 ];
 const GUESTS_FILE = path.join(__dirname, "..", "data", "guests.json");
 
