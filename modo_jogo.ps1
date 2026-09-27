@@ -97,8 +97,13 @@ public class EsconderConsole
 '@
 
 $emJogo = $false
+$vagas = 0
 while ($true) {
-  Start-Sleep -Seconds 1
+  # Durante o jogo a varredura e de 150ms, nao 1s. Um console que aparece e
+  # some em 300ms e perceptivel mesmo com varredura de 1s, porque o olho pega
+  # o flash antes do proximo tick. 150ms reduz a janela a ponto de o jogador
+  # nao ver. Fora do jogo, 1s basta e nao gasta CPU.
+  if ($emJogo) { Start-Sleep -Milliseconds 150 } else { Start-Sleep -Seconds 1 }
 
   if (-not $emJogo) {
     $ps = Get-Process -ErrorAction SilentlyContinue
@@ -108,11 +113,11 @@ while ($true) {
     if ($emJogo) {
       Add-Content -LiteralPath $logFile ("[{0}] JOGO DETECTADO - modo protecao de tela ligado" -f (Get-Date -Format "HH:mm:ss"))
       # prova de que a engrenagem esta montada: sem o tipo, Esconder() lancaria
-      # excecao a cada segundo e o watchdog seria silenciosamente inerte, que
+      # excecao a cada chamada e o watchdog seria silenciosamente inerte, que
       # foi exatamente o que aconteceu com o Get-Counter e com o toast de RAM.
       $temTipo = [System.Management.Automation.PSTypeName]"EsconderConsole"
       if ($temTipo.Type) {
-        Add-Content -LiteralPath $logFile ("[{0}]   engrenagem OK: EsconderConsole carregado, WS_EX/SW_HIDE ativo" -f (Get-Date -Format "HH:mm:ss"))
+        Add-Content -LiteralPath $logFile ("[{0}]   engrenagem OK: EsconderConsole carregado, SW_HIDE ativo, varredura 150ms" -f (Get-Date -Format "HH:mm:ss"))
       } else {
         Add-Content -LiteralPath $logFile ("[{0}]   FALHA: EsconderConsole NAO carregou, protecao INATIVA" -f (Get-Date -Format "HH:mm:ss"))
       }
@@ -125,7 +130,10 @@ while ($true) {
     Add-Content -LiteralPath $logFile ("[{0}] escondi {1} console(s) de powershell durante o jogo" -f (Get-Date -Format "HH:mm:ss"), $n)
   }
 
-  # se o jogo fechar, volta a dormir
+  # se o jogo fechar, volta a dormir (a cada ~7s, nao a cada 150ms)
+  $vagas++
+  if ($vagas -lt 45) { continue }
+  $vagas = 0
   $aindaJogo = $false
   $ps = Get-Process -ErrorAction SilentlyContinue
   foreach ($j in $JOGOS) {
