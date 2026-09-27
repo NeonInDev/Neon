@@ -50,7 +50,11 @@ Add-Type -AssemblyName System.Drawing
 \$t.Start()
 [void]\$f.ShowDialog()
 "@
-  & powershell -NoProfile -ExecutionPolicy Bypass -Command $script
+  # -WindowStyle Hidden e obrigatorio aqui: sem ele o Windows abre um console
+  # powershell.exe VISIVEL toda vez que a RAM cai no limite, e o popup aparece
+  # no meio do jogo. O -WindowStyle so esconde o console; o form WinForms da
+  # notificacao continua aparecendo normal, que e o que a gente quer.
+  & powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -Command $script
 }
 
 $chave = Ler-Chave
