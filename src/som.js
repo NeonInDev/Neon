@@ -25,7 +25,7 @@ function tocar(nome) {
         "-Command",
         `Add-Type -AssemblyName presentationCore; $p=New-Object System.Windows.Media.MediaPlayer; $p.Open([Uri]::new('${arquivo.replace(/'/g, "''")}')); Start-Sleep -Milliseconds 300; $p.Play(); Start-Sleep -Seconds 3; $p.Close()`,
       ],
-      { detached: true, stdio: "ignore" }
+        { detached: true, stdio: "ignore", windowsHide: true }
     );
     ps.unref();
     log("DEBUG", "[SOM] tocando", { som: nome });
