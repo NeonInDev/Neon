@@ -2,6 +2,7 @@ const { execSync } = require("child_process")
 const fs = require("fs")
 const path = require("path")
 const os = require("os")
+const focoGuard = require("./foco-guard")
 
 const CS_PATH = path.join(os.tmpdir(), "neon_keys.cs")
 const CS_CODE = `
@@ -37,6 +38,13 @@ function volume(level) {
 }
 
 function focusJanela(titulo) {
+  // TRAVA DE FOCO: no Windows nao existe digitar tecla em janela sem ativa-la
+  // antes. Se o dono esta jogando, ativar a janela = tirar ele do jogo.
+  // Este era o caminho mais facil deibo o foco mudar sozinho.
+  if (focoGuard.emJogo()) {
+    focoGuard.bloquearSeEmJogo(`focusJanela("${titulo}")`);
+    return false;
+  }
   try {
     execSync(`powershell -NoProfile -Command "$wshell=New-Object -ComObject WScript.Shell; $wshell.AppActivate('${titulo}')"`, { timeout: 5000, windowsHide: true })
     return true
@@ -44,6 +52,10 @@ function focusJanela(titulo) {
 }
 
 function sendKey(char, janela = "Opera") {
+  if (focoGuard.emJogo()) {
+    focoGuard.bloquearSeEmJogo(`sendKey("${char}" -> ${janela})`);
+    return false;
+  }
   try {
     focusJanela(janela)
     execSync(`powershell -NoProfile -Command "$wshell=New-Object -ComObject WScript.Shell; Start-Sleep -Milliseconds 300; $wshell.SendKeys('${char}')"`, { timeout: 5000, windowsHide: true })

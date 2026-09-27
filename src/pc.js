@@ -3,6 +3,7 @@ const { promisify } = require("util");
 const fs = require("fs");
 const path = require("path");
 const execAsync = promisify(exec);
+const focoGuard = require("./foco-guard");
 
 const POINTER_DIR = path.join(process.env.TEMP || "C:\\Temp", "neon_pointer");
 const POINTER_CS = path.join(POINTER_DIR, "NeonPointer.cs");
@@ -299,6 +300,12 @@ Write-Output "ok"`;
 // ===================== COMPUTER USE: JANELAS =====================
 
 async function acharJanela(titulo) {
+  // TRAVA DE FOCO: acharJanela nao so localiza a janela, ele RESTAURA e
+  // COLOCA EM PRIMEIRO PLANO (ShowWindow 9 + SetForegroundWindow). E
+  // exatamente o que tira o jogador do jogo. Recusado se houver jogo rodando.
+  const bloqueio = focoGuard.bloquearSeEmJogo(`acharJanela("${titulo}")`);
+  if (bloqueio) return bloqueio;
+
   const t = psEsc(titulo);
   const script = `
 $w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1
@@ -346,6 +353,10 @@ if ($w) {
 }
 
 async function maximizarJanela(titulo) {
+  // TRAVA DE FOCO: ShowWindow com 3 (SW_MAXIMIZE) maximiza e traz pra frente.
+  const bloqueio = focoGuard.bloquearSeEmJogo(`maximizarJanela("${titulo}")`);
+  if (bloqueio) return bloqueio;
+
   const t = psEsc(titulo);
   const script = `
 $w = Get-Process | Where-Object { $_.MainWindowTitle -match '${t}' } | Select-Object -First 1

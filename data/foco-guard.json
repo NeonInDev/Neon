@@ -1,0 +1,32 @@
+{
+  "ativo": true,
+  "_comentario": [
+    "Trava de foco do Neon. Enquanto qualquer processo desta lista estiver",
+    "rodando, o bot se recusa a ativar/mostrar qualquer janela, porque no",
+    "Windows nao existe digitar tecla ou focar janela sem ativa-la, e ativar",
+    "janela tira o dono do jogo.",
+    "",
+    "acao bloqueada vai para logs/foco-guard.log",
+    "para desativar a trava inteira: ativo = false",
+    "para adicionar um jogo: acrescente o nome do EXECUTAVEL (tasklist /FO CSV /NH)"
+  ],
+  "jogos": [
+    "VALORANT-Win64-Shipping.exe",
+    "cs2.exe",
+    "csgo.exe",
+    "GTA5.exe",
+    "FiveM.exe",
+    "javaw.exe",
+    "Java(TM) Platform SE binary.exe",
+    "osu!.exe",
+    "League of Legends.exe",
+    "StarRail.exe",
+    "EscapeFromTarkov.exe",
+    "hl2.exe",
+    "hl.exe",
+    "doom.exe",
+    "Cyberpunk2077.exe",
+    "RDR2.exe",
+    "Elden Ring.exe"
+  ]
+}

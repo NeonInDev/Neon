@@ -4,6 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { log } = require("./logger");
 const opencode = require("../plugins/opencode");
+const focoGuard = require("./foco-guard");
 const { executarRoteiro, tocarSpotify, tocarVideoYouTube } = require("./browser");
 const { cotacaoMoeda, cotacaoCrypto, clima, buscarCEP, definicao, meuIP, gerarImagem, buscarImagem, imagemAleatoria, searchWeb, wikipedia, noticias, piada, conselho, trivia, letraMusica, qrCode, cotacaoAcao } = require("./api");
 const pc = require("./pc");
@@ -1868,7 +1869,12 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
     if (jogo.id === undefined || jogo.id === null) return null;
     const r1 = await tentar(`start steam://rungameid/${jogo.id}`);
     if (!r1.ok) return `❌ Não consegui abrir ${jogo.nome}.`;
-    await tentar(`powershell -Command "Start-Sleep 2; try { $wshell = New-Object -ComObject wscript.shell; $wshell.AppActivate('Steam'); Start-Sleep 500; [System.Windows.Forms.SendKeys]::SendWait('%{Space}n') } catch {}"`);
+    // TRAVA DE FOCO: AppActivate('Steam') + SendKeys joga o dono pra fora do
+    // jogo que ele ja estava jogando. So faz isso se NINGUM jogo estiver
+    // rodando; se estiver, a Steam abre porem o foco nao e roubado.
+    if (!focoGuard.emJogo()) {
+      await tentar(`powershell -Command "Start-Sleep 2; try { $wshell = New-Object -ComObject wscript.shell; $wshell.AppActivate('Steam'); Start-Sleep 500; [System.Windows.Forms.SendKeys]::SendWait('%{Space}n') } catch {}"`);
+    }
     return `🎮 Iniciando ${jogo.nome} pela Steam.`;
   }
 
@@ -2407,6 +2413,12 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   if (categoria === "statusDiscord") {
     const info = encontrarStatusDiscord(texto);
     if (!info) return `❌ Não entendi qual status você quer. Tente: online, ausente, ocupado, invisível.`;
+    // TRAVA DE FOCO: mudar status via SendKeys exige AppActivate('Discord'),
+    // que traz o Discord pra frente. Durante jogo isso e proibido.
+    if (focoGuard.emJogo()) {
+      return focoGuard.bloquearSeEmJogo("statusDiscord") ||
+        "⛔ travado: você está jogando, não vou mudar o status agora.";
+    }
     if (info.acao === "status") {
       const keyMap = { online: "{Up}", idle: "{Up 2}", dnd: "{Up 3}", invisible: "{Up 4}" };
       const ps = `powershell -Command "$w = New-Object -ComObject wscript.shell; if ($w.AppActivate('Discord')) { Start-Sleep 1; $w.SendKeys('^+s'); Start-Sleep 0.8; $w.SendKeys('${keyMap[info.valor]}{Enter}') }"`;
