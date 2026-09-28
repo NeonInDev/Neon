@@ -1,6 +1,42 @@
 // Moldes oficiais de formatação do servidor NEW GENESIS
 // Molde "Quirk File" para cards de quirk e molde "Staff Chat" para mensagens da Neon.
 
+const fs = require("fs");
+const path = require("path");
+
+const ARQUIVO_MOLDE = path.join(__dirname, "..", "data", "moldes.json");
+
+// Interruptor global das funcoes de molde. Enquanto data/moldes.json estiver
+// com "ativo": false, todas respondem em texto plano, sem molduras nem
+// efeitos unicode. Alterar o arquivo vale no proximo boot.
+function moldesAtivos() {
+  try {
+    const dados = JSON.parse(fs.readFileSync(ARQUIVO_MOLDE, "utf8"));
+    return dados.ativo !== false;
+  } catch {
+    return true;
+  }
+}
+
+// divide um texto em pedacos de ate 2000 chars (usado quando o molde esta off)
+function enquadrarPlanoMolde(texto) {
+  const conteudo = String(texto || "").trim();
+  if (!conteudo) return [];
+  const MAX = 2000;
+  if (conteudo.length <= MAX) return [conteudo];
+  const partes = [];
+  let restante = conteudo;
+  while (restante.length > MAX) {
+    let corte = restante.lastIndexOf("\n", MAX);
+    if (corte <= 0) corte = restante.lastIndexOf(" ", MAX);
+    if (corte <= 0) corte = MAX;
+    partes.push(restante.slice(0, corte));
+    restante = restante.slice(corte).replace(/^\s+/, "");
+  }
+  if (restante) partes.push(restante);
+  return partes;
+}
+
 const TIPO_EMOJI = { Emissora: "⚡", Mutação: "🧬", Transformação: "🌀", Acumulação: "🔋" };
 
 // título em negrito unicode (estilo matemático) — ex.: ZERO GRAVITY -> 𝐙𝐄𝐑𝐎 𝐆𝐑𝐀𝐕𝐈𝐓𝐘
@@ -41,6 +77,12 @@ const LINHA_MEIO = "╰─────────────── ⋆⋅☆�
 const LINHA_FIM_QUIRK = "╰────────────────────────────────────╯";
 
 function moldeQuirkFile(dados) {
+  if (!moldesAtivos()) {
+    const linhas = [`**${dados.titulo || ""}**`, "", limparMulti(dados.descricao)];
+    if (dados.desvantagens) linhas.push("", `**Desvantagem:** ${limparMulti(dados.desvantagens)}`);
+    if (dados.tipo) linhas.push("", `**Tipo:** ${dados.tipo}`);
+    return limparFinal(linhas.join("\n"));
+  }
   const emoji = TIPO_EMOJI[dados.tipo] || TIPO_EMOJI[TIPO_EMOJI_KEY(dados.tipo)] || "🔋";
   const linhas = [LINHA_TOP, LINHA_HEADER, LINHA_MEIO, "", `          ◈ ${negritoUnicode(dados.titulo)} ◈`, ""];
   linhas.push(`> \`\`${emoji}\`\` ➮ __${limparMulti(dados.descricao)}__`);
@@ -67,6 +109,7 @@ function TIPO_EMOJI_KEY(tipo) {
 const LINHA_FIM = "╰────────────────────────────────────╯ ⌜ ⌟・chat-staff・⌞ ✦ ⌝";
 
 function moldeChatStaff(dados) {
+  if (!moldesAtivos()) return limparFinal(String(dados.conteudo || "").trim());
   const icon = dados.icone || "⚡";
   const linhas = [
     LINHA_TOP,
@@ -93,6 +136,7 @@ function limparFinal(s) {
 function enquadrarResposta(texto, titulo, icone) {
   const conteudo = String(texto || "").trim();
   if (!conteudo) return [];
+  if (!moldesAtivos()) return enquadrarPlanoMolde(conteudo);
   const cab = `╭─────────────── ⋆⋅☆⋅⋆ ───────────────╮
           𓆩 ${icone || "⚡"} ${negritoUnicode(titulo || "NEON")} ${icone || "⚡"} 𓆪
 ╰─────────────── ⋆⋅☆⋅⋆ ───────────────╯
