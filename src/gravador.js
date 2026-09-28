@@ -364,13 +364,19 @@ async function sincronizar(guild) {
       channelId: alvo.channel.id,
       guildId,
       adapterCreator: guild.voiceAdapterCreator,
-      selfDeaf: true,
-    selfMute: true,
-    // ATENCAO: o src/voz.js tem que entrar com o MESMO group. Se os dois
-    // usarem groups diferentes, o Discord ve duas sessoes de voz do mesmo bot
-    // no mesmo guild e aborta uma delas ("The operation was aborted"), o que
-    // quebra o /entrar e ainda derruba o gravador num loop de reconexao.
-    group: "gravador",
+      // A conexao e compartilhada com o src/voz.js (mesmo group abaixo), entao
+      // ela tem que ficar SEM selfDeaf e SEM selfMute:
+      //  - selfDeaf false = a Neon recebe o audio da call. Sem isso ela aparece
+      //    surda para todo mundo e o dono achava que estava "muta de fone".
+      //  - selfMute false = o TTS do /falar sai audivel de verdade.
+      // Antes era true/true e ela ficava muda e surda na call.
+      selfDeaf: false,
+      selfMute: false,
+      // ATENCAO: o src/voz.js tem que entrar com o MESMO group. Se os dois
+      // usarem groups diferentes, o Discord ve duas sessoes de voz do mesmo bot
+      // no mesmo guild e aborta uma delas ("The operation was aborted"), o que
+      // quebra o /entrar e ainda derruba o gravador num loop de reconexao.
+      group: "gravador",
     });
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
   } catch (err) {

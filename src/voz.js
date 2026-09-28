@@ -28,11 +28,11 @@ async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
     // "The operation was aborted" (o "audio desativado" que o dono viu) e ainda
     // derrubava o gravador num loop de reconexao.
     //
-    // Consequencia: quem entra aqui e a conexao do gravador, que e selfMute e
-    // selfDeaf.entao o TTS nao sai audible enquanto o gravador estiver ligado -
-    // a Neon grava e transcreve, mas fica em silencio. Para ela voltar a falar
-    // de verdade, os dois precisam da mesma conexao com selfMute/selfDeaf em
-    // false, e nao apenas o mesmo group.
+    // Como o group e o mesmo, joinVoiceChannel devolve a conexao que o gravador
+    // ja abriu. E o selfDeaf/selfMute abaixo sao ignorados nesse caso: quem vale
+    // e o da conexao compartilhada, que o gravador agora abre com false/false
+    // para a Neon ouvir e falar. Os dois modulos precisam continuar com o mesmo
+    // group, se divergirem volta o conflito de sessao.
     group: "gravador",
   });
 
