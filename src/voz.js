@@ -23,6 +23,17 @@ async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
   const connection = joinVoiceChannel({
     channelId, guildId, adapterCreator: adapter,
     selfDeaf: false, selfMute: false,
+    // Mesmo group do gravador de proposito. O Discord so aceita uma sessao de
+    // voz por bot por guild; com groups diferentes o /entrar era abortado com
+    // "The operation was aborted" (o "audio desativado" que o dono viu) e ainda
+    // derrubava o gravador num loop de reconexao.
+    //
+    // Consequencia: quem entra aqui e a conexao do gravador, que e selfMute e
+    // selfDeaf.entao o TTS nao sai audible enquanto o gravador estiver ligado -
+    // a Neon grava e transcreve, mas fica em silencio. Para ela voltar a falar
+    // de verdade, os dois precisam da mesma conexao com selfMute/selfDeaf em
+    // false, e nao apenas o mesmo group.
+    group: "gravador",
   });
 
   connection.on(VoiceConnectionStatus.Disconnected, async () => {

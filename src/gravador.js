@@ -341,6 +341,11 @@ async function sincronizar(guild) {
 
   if (!cfg.ativo) return;
 
+  // Depois de uma falha, nao fica martelando o Discord. Sem isso o proprio
+  // voiceStateUpdate do bot realimentava o ciclo e ele tentava entrar na call
+  // a cada ~2,5s para sempre, derrubando a conexao que tinha acabado de abrir.
+  if (t.cooldownAte && Date.now() < t.cooldownAte) return;
+
   const alvo = escolherCanal(guild, cfg);
 
   // sai do staff ou de um canal vazio
@@ -360,17 +365,26 @@ async function sincronizar(guild) {
       guildId,
       adapterCreator: guild.voiceAdapterCreator,
       selfDeaf: true,
-      selfMute: true,
-      group: "gravador",
+    selfMute: true,
+    // ATENCAO: o src/voz.js tem que entrar com o MESMO group. Se os dois
+    // usarem groups diferentes, o Discord ve duas sessoes de voz do mesmo bot
+    // no mesmo guild e aborta uma delas ("The operation was aborted"), o que
+    // quebra o /entrar e ainda derruba o gravador num loop de reconexao.
+    group: "gravador",
     });
     await entersState(connection, VoiceConnectionStatus.Ready, 20000);
   } catch (err) {
     log("WARN", "[GRAVADOR] nao entrou no canal", { guild: guild.name, canal: alvo.channel.name, erro: err.message });
     try { connection?.destroy(); } catch {}
+    t.falhas = (t.falhas || 0) + 1;
+    // 5s, 10s, 20s, 40s... ate 2 min. Sucesso zera.
+    t.cooldownAte = Date.now() + Math.min(120000, 5000 * Math.pow(2, t.falhas - 1));
     return;
   }
 
   t.conexao = connection;
+  t.falhas = 0;
+  t.cooldownAte = 0;
   sessoes.set(guildId, { channelId: alvo.channel.id, iniciadaEm: Date.now(), itens: [] });
   log("INFO", "[GRAVADOR] gravando", { guild: guild.name, canal: alvo.channel.name, pessoas: alvo.presentes.length });
 
@@ -391,6 +405,11 @@ function vigiarMovimento() {
     const g = novoS.guild || oldS.guild;
     if (!g) return;
     if (!timers.has(g.id)) return;
+    // Ignora as proprias mudancas de voz do bot. Sem isso, cada tentativa de
+    // entrar/dispar da call gerava um voiceStateUpdate que agendava outra
+    // sincronizar, e o gravador entrava em loop de reconexao.
+    const botId = clientRef?.user?.id;
+    if (botId && (oldS.id === botId || novoS.id === botId)) return;
     if (CFG.canalStaffId && [oldS.channelId, novoS.channelId].includes(CFG.canalStaffId)) return;
     clearTimeout(timers.get(g.id).moveDebounce);
     timers.get(g.id).moveDebounce = setTimeout(() => {
