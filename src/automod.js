@@ -16,6 +16,10 @@ const fs = require("fs");
 const path = require("path");
 const { PermissionFlagsBits, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require("discord.js");
 const { log } = require("./logger");
+// o owner da Neon, definido em perm.js. importado aqui para que ehStaff()
+// libere os comandos de mod do dono mesmo em servidor onde ele nao tem cargo
+// nenhum. perm.js so depende de fs/path, entao nao cria ciclo com o automod.
+const { isOwner } = require("./perm");
 
 const ARQUIVO = path.join(__dirname, "..", "data", "automod.json");
 const NOMES_CANAL_LOG = ["mod-log", "modlogs", "moderação", "moderacao", "logs-mod", "staff", "staff-log"];
@@ -283,6 +287,11 @@ function setCanalLog(guildId, channelId) {
 function ehStaff(guild, member) {
   if (!member) return true;
   if (member.id === guild.ownerId) return true;
+  // dono da Neon: passa sempre, com ou sem cargo de mod. antes ele dependia
+  // de ter Administrator/ModerateMembers/etc no servidor, e em servidor onde
+  // ele nao tem cargo nenhum o "neon, silencia o @fulano" voltava com
+  // "so staff pode usar esse comando".
+  if (isOwner(member.id)) return true;
   const P = PermissionFlagsBits;
   return (
     member.permissions?.has(P.Administrator) ||
