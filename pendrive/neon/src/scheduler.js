@@ -14,7 +14,7 @@ function iniciar(discordClient) {
   if (!db.data[SCHEDULE_KEY]) db.data[SCHEDULE_KEY] = [];
   const temRotina = (db.data[SCHEDULE_KEY] || []).find(t => t.tipo === "rotina" && t.ativo !== false);
   if (!temRotina) {
-    agendar("rotina", { userId: OWNER, proximo: Date.now(), recorrencia: "1d", texto: "rotina diaria" });
+    agendar("rotina", { userId: OWNER, proximo: Date.now(), recorrencia: "1d", diasUteis: true, texto: "rotina diaria" });
     log("INFO", "[SCHEDULER] Rotina diaria agendada para o dono");
   }
   log("INFO", "[SCHEDULER] Iniciado");
@@ -65,6 +65,11 @@ function calcularProximo(recorrencia) {
 
 async function executarTarefa(tarefa) {
   log("INFO", "[SCHEDULER] Executando tarefa", { tipo: tarefa.tipo, alvo: tarefa.alvo });
+  const diaDaSemana = new Date().getDay();
+  if (tarefa.diasUteis && (diaDaSemana === 0 || diaDaSemana === 6)) {
+    log("INFO", "[SCHEDULER] Pulada (fim de semana)", { tipo: tarefa.tipo });
+    return;
+  }
   try {
     switch (tarefa.tipo) {
       case "mensagem": {
@@ -95,7 +100,7 @@ async function executarTarefa(tarefa) {
         if (client?.isReady() && tarefa.userId) {
           const nomes = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
           const focos = [
-            "Descanso + review da semana (planejar a próxima)",
+            "Livro/estudo leve + planejar a próxima semana",
             "C / Arduino - montar 1 circuito no Wokwi",
             "Python - mini-projeto do dia (calculadora, senha, script)",
             "C / Arduino - circuito real/esboço (LED, botão, servo)",
@@ -106,14 +111,31 @@ async function executarTarefa(tarefa) {
           const wd = new Date().getDay();
           const user = await client.users.fetch(tarefa.userId);
           await user.send(
-            `📅 **Rotina de ${nomes[wd]}**\n\n` +
-            `13:30 - Lição de casa / reforço\n` +
-            `15:00 - Treino\n` +
-            `16:30 - Robótica / projeto\n` +
-            `19:00 - Programação: **${focos[wd]}**\n\n` +
-            `Missão do dia: fechar antes de abrir jogo.`
+            `📅 **Sua rotina de ${nomes[wd]}**\n\n` +
+            `☀️ 08:30 - Acordar, café e estudar\n` +
+            `🎮 10:00 - Jogar\n` +
+            `🍚 11:00 - Arrumar + almoçar\n` +
+            `💻 12:00 - Programação: **${focos[wd]}**\n` +
+            `🏫 13:30 - Escola\n` +
+            `🥪 17:20 - Café + se arrumar\n` +
+            `💪 18:00 - Treinar/malhar\n` +
+            `🧹 19:30 - Arrumar a casa\n` +
+            `🕹️ 20:30 - Livre (jogar/estudar/tarefas)\n` +
+            `📖 21:45 - Ler a Bíblia antes de dormir\n\n` +
+            (wd === 0 || wd === 6
+              ? `Fim de semana é descanso, mas mantém o foco! 🛡️`
+              : `Missão do dia: seguir o cronograma de ponta a ponta. Você consegue! 💪`)
           );
           log("INFO", "[SCHEDULER] Rotina diária enviada");
+        }
+        break;
+      }
+      case "arquivo": {
+        if (client?.isReady() && tarefa.userId && tarefa.alvo) {
+          const nome = tarefa.texto || String(tarefa.alvo).split(/[\\/]/).pop() || "Arquivo da Neon";
+          const user = await client.users.fetch(tarefa.userId);
+          await user.send({ content: `📄 **${nome}**`, files: [tarefa.alvo] });
+          log("INFO", "[SCHEDULER] Arquivo enviado", { arquivo: tarefa.alvo });
         }
         break;
       }
