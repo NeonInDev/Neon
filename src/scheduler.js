@@ -3,6 +3,7 @@ const { db } = require("./db");
 const { exec } = require("child_process");
 const { promisify } = require("util");
 const execAsync = promisify(exec);
+const { OWNER } = require("./perm");
 
 const SCHEDULE_KEY = "scheduled_tasks";
 let checkInterval = null;
@@ -11,6 +12,11 @@ let client = null;
 function iniciar(discordClient) {
   client = discordClient;
   if (!db.data[SCHEDULE_KEY]) db.data[SCHEDULE_KEY] = [];
+  const temRotina = (db.data[SCHEDULE_KEY] || []).find(t => t.tipo === "rotina" && t.ativo !== false);
+  if (!temRotina) {
+    agendar("rotina", { userId: OWNER, proximo: Date.now(), recorrencia: "1d", texto: "rotina diaria" });
+    log("INFO", "[SCHEDULER] Rotina diaria agendada para o dono");
+  }
   log("INFO", "[SCHEDULER] Iniciado");
   checkInterval = setInterval(verificarTarefas, 30 * 1000);
 }
@@ -83,6 +89,32 @@ async function executarTarefa(tarefa) {
       case "notificar": {
         const user = await client.users.fetch(tarefa.userId);
         await user.send(`🔔 **Notificação automática:** ${tarefa.texto}`);
+        break;
+      }
+      case "rotina": {
+        if (client?.isReady() && tarefa.userId) {
+          const nomes = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+          const focos = [
+            "Descanso + review da semana (planejar a próxima)",
+            "C / Arduino - montar 1 circuito no Wokwi",
+            "Python - mini-projeto do dia (calculadora, senha, script)",
+            "C / Arduino - circuito real/esboço (LED, botão, servo)",
+            "Python - resolver 1 bug/desafio",
+            "JavaScript - 1 página simples (HTML/CSS/JS)",
+            "Projeto aberto / robótica grande + anotar progresso"
+          ];
+          const wd = new Date().getDay();
+          const user = await client.users.fetch(tarefa.userId);
+          await user.send(
+            `📅 **Rotina de ${nomes[wd]}**\n\n` +
+            `13:30 - Lição de casa / reforço\n` +
+            `15:00 - Treino\n` +
+            `16:30 - Robótica / projeto\n` +
+            `19:00 - Programação: **${focos[wd]}**\n\n` +
+            `Missão do dia: fechar antes de abrir jogo.`
+          );
+          log("INFO", "[SCHEDULER] Rotina diária enviada");
+        }
         break;
       }
       default:
