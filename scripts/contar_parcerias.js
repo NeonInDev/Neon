@@ -1,10 +1,15 @@
-// Conta mensagens com link de servidor que NAO foram repetidas dentro de 7 dias.
+// Conta mensagens com link de servidor que NAO foram repetidas dentro de N dias.
 //
-// Regra: uma mensagem conta se o mesmo link nao apareceu nos 7 dias anteriores.
+// Regra: uma mensagem conta se o mesmo link nao apareceu nos N dias anteriores.
 // Se o link voltou dentro da janela, e repeticao e nao entra na contagem. O que
-// sobra e o numero de "parceriasposting de verdade" no canal.
+// sobra e o numero de postagens de parceria de verdade no canal.
 //
-//   node scripts/contar_parcerias.js [canalId]
+//   node scripts/contar_parcerias.js [canalId] [dias]
+//
+// A janela e argumento (ou a env JANELA_DIAS) porque o prazo que faz sentido
+// depende do dia: 7 dias separa uma divulgacao de um reenvio, 3 dias separa
+// um reenvio rapido de divulgacao. Com 1 dia quase nada conta, porque quem
+// posta todo dia aparece como repeticao.
 //
 // So leitura: nao escreve nada, nao pune ninguem.
 
@@ -12,7 +17,7 @@ require("dotenv").config();
 
 const TOKEN = process.env.TOKEN;
 const CANAL_PADRAO = process.env.PARCERIAS_CANAL_ID;
-const DIAS_JANELA = 7;
+const DIAS_JANELA = Number(process.argv[3] || process.env.JANELA_DIAS || 7) || 7;
 const LIMITE = 100;
 
 // codigo do invite: discord.gg/abc, discord.com/invite/abc, ptb/canary tambem.
