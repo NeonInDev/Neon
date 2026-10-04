@@ -49,6 +49,10 @@ function erro(id, mensagem) {
 
 async function buscarComFallback(consulta) {
   try {
+    // OPERA GX primeiro: navegador de verdade, evita os bloqueios do fetch puro
+    return await browser.pesquisarOperaGX(consulta);
+  } catch {}
+  try {
     return await browser.pesquisarDuckDuckGo(consulta);
   } catch {}
   try {

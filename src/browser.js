@@ -213,6 +213,57 @@ async function extrairComFallback(url) {
   return res.find(r => r.tipo === "texto")?.dados || "(vazio)";
 }
 
+// Pesquisa na web usando o Opera GX (Playwright + executablePath). Roda as
+// engines em ordem (Google -> DDG -> Brave) até uma retornar resultados, já
+// que o fetch puro (axios/cheerio) costuma ser bloqueado (429/anomaly).
+async function pesquisarOperaGX(consulta) {
+  const { chromium } = require("playwright");
+  const opera = process.env.LOCALAPPDATA + "\\Programs\\Opera GX\\opera.exe";
+  const b = await chromium.launch({ headless: true, executablePath: opera, args: ["--no-sandbox"] });
+  const ctx = await b.newContext({
+    locale: "pt-BR",
+    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36",
+  });
+  const page = await ctx.newPage();
+  const urls = [
+    `https://www.google.com/search?q=${encodeURIComponent(consulta)}&hl=pt-BR&num=10`,
+    `https://duckduckgo.com/?q=${encodeURIComponent(consulta)}&ia=web`,
+    `https://search.brave.com/search?q=${encodeURIComponent(consulta)}&hl=pt-BR`,
+  ];
+  try {
+    for (const url of urls) {
+      try {
+        await page.goto(url, { waitUntil: "domcontentloaded", timeout: 20000 });
+        await page.waitForTimeout(1800);
+        const brutos = await page.evaluate(() => {
+          const vistos = new Set();
+          const out = [];
+          for (const a of document.querySelectorAll("a[href]")) {
+            const href = a.href || "";
+            const t = (a.innerText || "").replace(/\s+/g, " ").trim();
+            if (/^https?:/i.test(href) && t.length > 15 && !vistos.has(href)) {
+              vistos.add(href);
+              out.push({ titulo: t.slice(0, 100), url: href.split("?")[0] });
+            }
+            if (out.length >= 12) break;
+          }
+          return out;
+        });
+        const limpos = brutos.filter(
+          (r) =>
+            !/google\.|gstatic|accounts\.google|consent\.google|duckduckgo\.com\/?(assets|donate)|brave\.com|hackerone\.com/i.test(r.url) &&
+            !r.url.includes(r.titulo)
+        );
+        if (limpos.length >= 3) return limpos.slice(0, 8);
+      } catch {}
+    }
+  } finally {
+    try { await ctx.close(); } catch {}
+    try { await b.close(); } catch {}
+  }
+  throw new Error("busca via Opera GX falhou em todas as engines");
+}
+
 // ===================== PUPPETEER (LEGADO, MANTIDO) =====================
 
 async function findBrowserPath() {
@@ -607,5 +658,6 @@ module.exports = {
   tocarSpotify, tocarVideoYouTube, abrirUrlNoOpera, iniciar, liberar,
   fetchPage, scrapeTexto, scrapeLinks, scrapeEstrutura, pesquisarDuckDuckGo,
   buscarYouTube, navegarPlaywright, tirarScreenshotPlaywright, extrairComFallback,
+  pesquisarOperaGX,
   getPlaywright, liberarPlaywright,
 };
