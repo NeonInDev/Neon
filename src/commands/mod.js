@@ -191,6 +191,16 @@ module.exports = {
     )
     .addSubcommand((sc) =>
       sc
+        .setName("varredura")
+        .setDescription("Apaga mensagens de um usuário num canal (quantidade ou todas)")
+        .addUserOption((o) => o.setName("usuario").setDescription("Quem varrer").setRequired(true))
+        .addChannelOption((o) => o.setName("canal").setDescription("Canal (padrão: este)"))
+        .addIntegerOption((o) =>
+          o.setName("quantidade").setDescription("Limite de mensagens (sem valor = todas)").setMinValue(1).setMaxValue(5000)
+        )
+    )
+    .addSubcommand((sc) =>
+      sc
         .setName("warn")
         .setDescription("Aplica um warn (com punição automática conforme a escala)")
         .addUserOption((o) => o.setName("usuario").setDescription("Quem avisar").setRequired(true))
@@ -596,6 +606,37 @@ module.exports = {
         await interaction.editReply(`🧹 Apaguei **${apagadas.size}** mensagens.`);
       } catch (err) {
         await interaction.editReply(`❌ Apagar: ${err.message}`);
+      }
+      return;
+    }
+
+    if (sub === "varredura") {
+      const precisa = PermissionFlagsBits.ManageMessages;
+      const ehDono = isOwner(interaction.user.id) || interaction.guild?.ownerId === interaction.user.id;
+      if (!ehDono && !interaction.member.permissions.has(precisa)) {
+        return await interaction.reply({ content: "🔒 Você precisa de Gerenciar Mensagens.", ephemeral: true });
+      }
+      const canal = interaction.options.getChannel("canal") || interaction.channel;
+      if (!canal.isTextBased()) {
+        return await interaction.reply({ content: "❌ Esse canal não é de texto.", ephemeral: true });
+      }
+      if (!canal.permissionsFor(interaction.guild.members.me)?.has([precisa, PermissionFlagsBits.ViewChannel])) {
+        return await interaction.reply({ content: "❌ Não tenho permissão nesse canal.", ephemeral: true });
+      }
+      const alvo = interaction.options.getUser("usuario", true);
+      const quantidade = interaction.options.getInteger("quantidade") || null;
+      await interaction.deferReply({ ephemeral: true });
+      const { varrer } = require("../varredura");
+      try {
+        const r = await varrer(canal, [alvo.id], quantidade);
+        const resumo = quantidade ? ` (limite ${quantidade})` : " (todas)";
+        await interaction.editReply(
+          r.apagadas > 0
+            ? `🧹 Varredura em <#${canal.id}>: **${r.apagadas}** mensagens de **${alvo.tag}** apagadas${resumo}.`
+            : `✅ Nenhuma mensagem de **${alvo.tag}** em <#${canal.id}> pra apagar.`
+        );
+      } catch (err) {
+        await interaction.editReply(`❌ Varredura: ${err.message}`);
       }
       return;
     }

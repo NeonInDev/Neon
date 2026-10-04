@@ -35,6 +35,7 @@
     "system": { "type": "local", "command": ["npx", "-y", "@modelcontextprotocol/server-system"], "enabled": false },
     "voice": { "type": "local", "command": ["node", "src/mcp-voz.js"], "enabled": false },
     "neon": { "type": "local", "command": ["node", "src/mcp-neon.js"], "enabled": true },
+    "web": { "type": "local", "command": ["node", "src/mcp-web.js"], "enabled": true },
     "fetch": { "type": "local", "command": ["npx", "-y", "@modelcontextprotocol/server-fetch"], "enabled": false },
     "git": { "type": "local", "command": ["npx", "-y", "@modelcontextprotocol/server-git", "."], "enabled": false },
     "github": { "type": "local", "command": ["npx", "-y", "@modelcontextprotocol/server-github"], "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" }, "enabled": false }

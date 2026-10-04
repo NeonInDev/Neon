@@ -555,6 +555,59 @@ async function interpretarLockdown(message) {
   return true;
 }
 
+// "Neon, varredura #canal @user1 @user2" ou "Neon, varre 30 #canal @user"
+// apaga uma quantidade (ou todas) das mensagens dos mencionados no canal mencionado.
+async function interpretarVarredura(message) {
+  const texto = message.content || "";
+  if (!/^\s*(?:neon[\s,!.\-:;]+)?varre(?:dura)?\b/i.test(texto)) return false;
+  if (message.channel.type === ChannelType.DM) {
+    message.reply("❌ Isso só funciona em servidores.").catch(() => {});
+    return true;
+  }
+
+  const temPerm =
+    isOwner(message.author.id) ||
+    message.guild.ownerId === message.author.id ||
+    message.member?.permissions?.has(PermissionFlagsBits.ManageMessages);
+  if (!temPerm) {
+    message.reply("🔒 Você precisa de Gerenciar Mensagens pra usar a varredura.").catch(() => {});
+    return true;
+  }
+
+  const canalMen = message.mentions.channels?.first?.();
+  let alvoCanal = canalMen;
+  if (!alvoCanal) {
+    const id = texto.match(/(\d{17,20})/)?.[1];
+    if (id) alvoCanal = await message.guild.channels.fetch(id).catch(() => null);
+  }
+  if (!alvoCanal) alvoCanal = message.channel;
+  if (!alvoCanal?.isTextBased()) {
+    message.reply("❌ Canal de texto não encontrado. Ex.: `Neon, varredura #canal @fulano`.").catch(() => {});
+    return true;
+  }
+
+  const alvos = [...(message.mentions.users?.values() || [])].filter((u) => u.id !== message.client.user?.id);
+  if (!alvos.length) {
+    message.reply("❌ Marque quem varrer. Ex.: `Neon, varredura #canal @fulano`.").catch(() => {});
+    return true;
+  }
+
+  const qtd = (texto.match(/\b(\d{1,4})\b/) || [])[1] ? Number(texto.match(/\b(\d{1,4})\b/)[1]) : null;
+
+  const { varrer } = require("../varredura");
+  const r = await varrer(alvoCanal, alvos.map((u) => u.id), qtd);
+  const nomes = alvos.map((u) => u.username).join(", ");
+  const resumo = qtd ? ` (limite ${qtd})` : " (todas)";
+  await message
+    .reply(
+      r.apagadas > 0
+        ? `🧹 Varredura em <#${alvoCanal.id}>: **${r.apagadas}** mensagens de **${nomes}** apagadas${resumo}.`
+        : `✅ Nenhuma mensagem de **${nomes}** em <#${alvoCanal.id}> pra apagar.`
+    )
+    .catch(() => {});
+  return true;
+}
+
 // "Neon, expulse o (ID) do server" — dispara a skill `kick_member` pelo prefixo
 async function interpretarSkillPrefixo(message) {
   try {
@@ -925,6 +978,11 @@ module.exports = {
       return;
     }
     if (await interpretarLockdown(message)) {
+      processando.delete(message.id);
+      return;
+    }
+
+    if (await interpretarVarredura(message)) {
       processando.delete(message.id);
       return;
     }
