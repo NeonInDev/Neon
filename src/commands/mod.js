@@ -10,6 +10,8 @@ const {
 
 const POR_PAGINA = 8;
 
+const { isOwner } = require("../perm");
+
 // Avisa a quantos warns a próxima punição da escala dispara, para dar
 // contexto de quem está perto de estourar.
 function proximoNivel(escala, ativo) {
@@ -114,6 +116,7 @@ const PERM_SUB = {
 };
 
 function ehMod(interaction, sub) {
+  if (isOwner(interaction.user.id) || interaction.guild?.ownerId === interaction.user.id) return true;
   return interaction.member.permissions.has(PERM_SUB[sub] || PermissionFlagsBits.ModerateMembers);
 }
 
@@ -124,7 +127,8 @@ function checarAlvo(interaction, alvo, membro) {
   if (!membro) return null;
   if (
     interaction.member.roles.highest.comparePositionTo(membro.roles.highest) <= 0 &&
-    interaction.guild.ownerId !== interaction.user.id
+    interaction.guild.ownerId !== interaction.user.id &&
+    !isOwner(interaction.user.id)
   ) {
     return "O cargo dele é igual ou maior que o seu.";
   }
@@ -344,7 +348,8 @@ module.exports = {
     // ---- subcomandos do automod ----
     if (["warn", "histórico", "limparwarns", "antiraid", "automod", "canal_log", "escalar"].includes(sub)) {
       const precisa = PermissionFlagsBits.ModerateMembers;
-      if (!interaction.memberPermissions?.has(precisa)) {
+      const ehDono = isOwner(interaction.user.id) || interaction.guild?.ownerId === interaction.user.id;
+      if (!ehDono && !interaction.memberPermissions?.has(precisa)) {
         return await interaction.reply({ content: "🔒 Você precisa de Gerenciar Mensagens / Silenciar Membros.", ephemeral: true });
       }
       if (!interaction.guild.members.me?.permissions?.has(precisa)) {
@@ -574,7 +579,8 @@ module.exports = {
     if (sub === "apagar") {
       const qtd = interaction.options.getInteger("quantidade");
       const precisa = PermissionFlagsBits.ManageMessages;
-      if (!interaction.member.permissions.has(precisa)) {
+      const ehDono = isOwner(interaction.user.id) || interaction.guild?.ownerId === interaction.user.id;
+      if (!ehDono && !interaction.member.permissions.has(precisa)) {
         return await interaction.reply({ content: "🔒 Você precisa de Gerenciar Mensagens.", ephemeral: true });
       }
       if (
