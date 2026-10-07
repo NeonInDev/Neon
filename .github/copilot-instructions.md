@@ -16,6 +16,8 @@
 - Slash commands live in `src/commands/` and are discovered when `src/commands/index.js` loads. A command module exports `data` and `execute`; optional autocomplete, modal, and component handlers are routed by `interactionCreate.js`. Register command changes with `node deploy-commands.js`.
 - `plugins/gerenciador.js` discovers plugin modules and manages their lifecycle. Plugins can expose tools and actions as well as `iniciar`/`parar` hooks.
 - `src/api_publica.js` and related API modules serve the HTTP API and web HUD; `public/hud/` is the website, while `hud-app/` is the desktop HUD and `pendrive/` contains its distribution. Keep their behavior aligned when changing HUD features.
+- The integration layer spans `src/google/` (Calendar, Tasks, Gmail, Drive), browser/app control, device and PC modules, plus integrations under `plugins/`. Speech-related modules provide Discord voice and local STT/TTS; scheduled work, health checks, and system monitoring are separate long-running modules started by the bootstrap.
+- `opencode.json` defines OpenCode's MCP servers and permissions. The `src/mcp-*.js` modules implement Neon-specific local MCP servers; keep any tool or permission changes consistent with that configuration and its user confirmation safeguards.
 - Persistent user/conversation data is stored locally through LowDB in root `memory.json`; other integrations may keep their own local state under `data/` or dedicated directories.
 
 ## Repository-specific conventions
