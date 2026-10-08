@@ -1,10 +1,10 @@
-const { log } = require("./logger")
+﻿const { log } = require("./logger")
 const { askNeon } = require("./ai")
 const { executarAcao } = require("./actions")
 
 let polling = false
 let offset = 0
-const OWNER_ID = "1442928336329379925"
+const OWNER_ID = "1454628188717191209"
 
 function getToken() {
   const t = process.env.TELEGRAM_TOKEN
@@ -82,3 +82,4 @@ async function parar() {
 }
 
 module.exports = { iniciar, parar }
+

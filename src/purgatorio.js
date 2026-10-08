@@ -1,4 +1,4 @@
-// Purgatório — rolagem de quirk (1dN) com pool ajustável.
+﻿// Purgatório — rolagem de quirk (1dN) com pool ajustável.
 // Só owner + usuário autorizado. Extras (adicionar/tirar quirk) persistem
 // com motivo + requisitos obrigatórios (log auditável).
 const fs = require("fs");
@@ -7,7 +7,7 @@ const { log } = require("./logger");
 
 const ARQ = path.join(__dirname, "..", "data", "purgatorio.json");
 // Acesso total: rola E mexe na tabela (adicionar/tirar quirk).
-const PERMITIDOS = ["1442928336329379925", "1221320772224553071"];
+const PERMITIDOS = ["1454628188717191209", "1221320772224553071"];
 // Só rolar. Ficam em data/purgatorio.json (campo "liberados") pra dar e tirar
 // a permissão sem precisar editar código e reiniciar a Neon.
 const ROLA_SO = [];

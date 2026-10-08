@@ -1,6 +1,6 @@
-const fs = require("fs");
+﻿const fs = require("fs");
 const path = require("path");
-const OWNER = "1442928336329379925";
+const OWNER = "1454628188717191209";
 const ALLOWED_USERS = [
   OWNER,
   "820967650812362772",
@@ -59,7 +59,7 @@ function permitido(userId) {
 function bloquear(message) {
   if (!permitido(message.author.id)) {
     if (message.channel.type === 1) {
-      message.author.send("❌ Acesso negado. Você não tem permissão para usar a Neon.").catch(() => {});
+      message.author.send("âŒ Acesso negado. VocÃª nÃ£o tem permissÃ£o para usar a Neon.").catch(() => {});
     }
     return true;
   }

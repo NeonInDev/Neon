@@ -1,4 +1,4 @@
-const { log } = require("./logger")
+﻿const { log } = require("./logger")
 const { askNeon } = require("./ai")
 const { executarAcao } = require("./actions")
 const path = require("path")
@@ -64,12 +64,12 @@ async function verificar() {
       salvar(tarefas)
       try {
         if (t.acao === "comando") {
-          const reply = await executarAcao(t.comando, true, t.userId || "1442928336329379925")
+          const reply = await executarAcao(t.comando, true, t.userId || "1454628188717191209")
           if (t.notificar && reply) {
             log("INFO", `[AGENDADO] Resultado de "${t.nome}": ${reply}`)
           }
         } else if (t.acao === "pergunta") {
-          const reply = await askNeon(t.userId || "1442928336329379925", "sistema", t.pergunta)
+          const reply = await askNeon(t.userId || "1454628188717191209", "sistema", t.pergunta)
           log("INFO", `[AGENDADO] Resposta de "${t.nome}": ${reply}`)
         }
       } catch (err) {
@@ -92,3 +92,4 @@ function parar() {
 }
 
 module.exports = { verificarCadaMinuto, parar }
+
