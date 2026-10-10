@@ -33,15 +33,27 @@ async function resolverUsuario(alvo) {
   return null;
 }
 
-async function enviarDM(usuario, mensagem) {
+async function enviarDM(usuario, mensagem, arquivos = []) {
   if (!mensagem) return { ok: false, erro: "mensagem é obrigatória" };
   if (!client.isReady()) return { ok: false, erro: "Discord ainda não conectou" };
   const user = await resolverUsuario(usuario);
   if (!user) return { ok: false, erro: `Não encontrei ninguém chamado "${usuario}" nos seus servidores` };
   try {
-    await user.send(String(mensagem));
-    log("INFO", "[DISCORD_MSG] DM enviada", { usuario: user.username });
-    return { ok: true, usuario: user.username, id: user.id };
+    const { AttachmentBuilder } = require("discord.js");
+    const files = arquivos
+      .map((a) => {
+        try {
+          if (a.startsWith("LOCAL:")) return new AttachmentBuilder(a.slice(6));
+          if (require("fs").existsSync(a)) return new AttachmentBuilder(a);
+        } catch {}
+        return null;
+      })
+      .filter(Boolean);
+    const opts = { content: String(mensagem) };
+    if (files.length) opts.files = files;
+    await user.send(opts);
+    log("INFO", "[DISCORD_MSG] DM enviada", { usuario: user.username, arquivos: files.length });
+    return { ok: true, usuario: user.username, id: user.id, arquivos: files.length };
   } catch (err) {
     return { ok: false, erro: `Falhou enviar DM para ${user.username}: ${err.message}` };
   }

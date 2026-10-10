@@ -1075,7 +1075,8 @@ function iniciar(port = 3000) {
         const discordMsg = require("./discord_msg");
         const r = await discordMsg.enviarDM(
           corpo && corpo.usuario ? String(corpo.usuario) : "",
-          corpo && corpo.mensagem != null ? String(corpo.mensagem) : ""
+          corpo && corpo.mensagem != null ? String(corpo.mensagem) : "",
+          Array.isArray(corpo && corpo.arquivos) ? corpo.arquivos : []
         );
         responder(res, r.ok ? 200 : 400, r);
       } catch (err) { responder(res, 400, { erro: err.message }); }
