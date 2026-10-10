@@ -18,11 +18,6 @@ module.exports = {
 
     await interaction.deferReply();
 
-    const ok = await voz.entrarVoz(guildId, channelId, adapter);
-    if (ok) {
-      await interaction.editReply("✅ Conectada ao canal de voz! Diga **Neon** para falar comigo.");
-    } else {
-      await interaction.editReply("❌ Não consegui entrar no canal de voz.");
-    }
+    await interaction.editReply("A função de entrar em calls foi desativada.");
   },
 };

@@ -24,17 +24,8 @@ module.exports = {
     const modo = interaction.options.getString("modo");
 
     if (modo === "iniciar") {
-      const guildId = interaction.guildId;
-      const channelId = member.voice.channelId;
-      const adapter = interaction.guild.voiceAdapterCreator;
-
-      await voz.entrarVoz(guildId, channelId, adapter);
-      const ok = await voz.iniciarConversa(guildId, interaction.user.id, interaction.user.username);
-      if (ok) {
-        await interaction.reply("🎤 Conversa contínua ativada! Fala comigo.");
-      } else {
-        await interaction.reply("❌ Não consegui iniciar a conversa.");
-      }
+      await interaction.reply("A função de entrar em calls foi desativada.");
+      return;
     } else {
       voz.pararConversa(interaction.guildId);
       await interaction.reply("⏹️ Conversa contínua parada.");

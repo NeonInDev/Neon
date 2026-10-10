@@ -18,63 +18,8 @@ let receivers = new Map();
 let conversasAtivas = new Map();
 
 async function entrarVoz(guildId, channelId, adapter, autoConversa = true) {
-  if (connections.has(guildId)) return true;
-
-  const connection = joinVoiceChannel({
-    channelId, guildId, adapterCreator: adapter,
-    selfDeaf: false, selfMute: false,
-    // Mesmo group do gravador de proposito. O Discord so aceita uma sessao de
-    // voz por bot por guild; com groups diferentes o /entrar era abortado com
-    // "The operation was aborted" (o "audio desativado" que o dono viu) e ainda
-    // derrubava o gravador num loop de reconexao.
-    //
-    // Como o group e o mesmo, joinVoiceChannel devolve a conexao que o gravador
-    // ja abriu. E o selfDeaf/selfMute abaixo sao ignorados nesse caso: quem vale
-    // e o da conexao compartilhada, que o gravador agora abre com false/false
-    // para a Neon ouvir e falar. Os dois modulos precisam continuar com o mesmo
-    // group, se divergirem volta o conflito de sessao.
-    group: "gravador",
-  });
-
-  connection.on(VoiceConnectionStatus.Disconnected, async () => {
-    try {
-      await Promise.race([
-        entersState(connection, VoiceConnectionStatus.Signing, 5_000),
-        entersState(connection, VoiceConnectionStatus.Connecting, 5_000),
-      ]);
-    } catch {
-      connection.destroy();
-      limpar(guildId);
-    }
-  });
-
-  connection.on(VoiceConnectionStatus.Destroyed, () => limpar(guildId));
-
-  try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 20_000);
-    connections.set(guildId, connection);
-
-    const player = createAudioPlayer();
-    connection.subscribe(player);
-    players.set(guildId, player);
-    player.on("error", (err) => log("WARN", "[VOZ] Erro no player", { erro: err.message }));
-
-    const receiver = connection.receiver;
-    receivers.set(guildId, receiver);
-
-    log("INFO", "[VOZ] Conectado", { guildId });
-
-    if (autoConversa) {
-      iniciarEscuta(guildId, connection);
-    }
-
-    return true;
-  } catch (err) {
-    log("WARN", "[VOZ] Falha ao conectar", { erro: err.message });
-    connection.destroy();
-    limpar(guildId);
-    return false;
-  }
+  log("INFO", "[VOZ] entrarVoz foi desativado (função removida por solicitação)");
+  return false;
 }
 
 function limpar(guildId) {

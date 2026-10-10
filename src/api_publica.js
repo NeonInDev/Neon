@@ -514,34 +514,7 @@ function iniciar(port = 3000) {
       return;
     }
 
-    // ── OUVIDO SELETIVO: entra na call desmutado (fone+áudio) só para ouvir ──
-    if (req.url === "/api/voz/ouvir" && req.method === "POST") {
-      if (!exigeChave(req, res)) return;
-      try {
-        const { guildId } = await lerBody(req);
-        const voz = require("./voz");
-        const { client } = require("./client");
-        const { OWNER } = require("./perm");
-        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda não conectou" }); return; }
-        let guild = null;
-        let channel = null;
-        if (guildId) {
-          guild = client.guilds.cache.get(guildId) || null;
-        }
-        for (const g of guild ? [guild] : client.guilds.cache.values()) {
-          let dono = g.members.cache.get(OWNER);
-          if (!guild) dono = dono || (await g.members.fetch(OWNER).catch(() => null));
-          if (dono?.voice?.channelId) {
-            const ch = g.channels.cache.get(dono.voice.channelId);
-            if (ch?.isVoiceBased()) { guild = g; channel = ch; break; }
-          }
-        }
-        if (!guild || !channel) { responder(res, 404, { erro: "dono não está em nenhuma call" }); return; }
-        const ok = await voz.entrarVoz(guild.id, channel.id, guild.voiceAdapterCreator, false);
-        responder(res, ok ? 200 : 409, { ok, guildId: guild.id, canal: channel.name, modo: "ouvindo_sem_responder", selfDeaf: false, selfMute: false });
-      } catch (err) { responder(res, 400, { erro: err.message }); }
-      return;
-    }
+
 
     if (req.url === "/api/voz/audio" && req.method === "POST") {
       if (!exigeChave(req, res)) return;
