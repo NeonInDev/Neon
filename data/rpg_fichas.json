@@ -1,0 +1,929 @@
+{
+  "ativa": "wong-waywire",
+  "fichas": {
+    "wong-waywire": {
+      "nome": "Wong Waywire",
+      "jogador": "???",
+      "classe": "Ocultista",
+      "origem": "Cultista Arrependido",
+      "nex": "40%",
+      "patente": "Recruta",
+      "proficiencias": "Armas simples",
+      "descricao": {
+        "fisico": "Loiro, equipado para esconder cerca de 95% de seu corpo; mesmo sem a máscara de assassino, cobre metade do rosto.",
+        "pessoal": "Reservado e contemplativo, raramente demonstra tudo o que sabe. Curiosidade quase insaciável pelo desconhecido; observa antes de agir. É reservado e deixa intenções em aberto.",
+        "objetivo": "Vá até o ponto de encontro onde acordou e encontre os outros agentes da Ordem.",
+        "historia": "Dedicou-se a assuntos que poucos teriam coragem de estudar. Reuniu conhecimentos sobre coisas que deveriam permanecer esquecidas e passou a enxergar padrões onde outros viam coincidências. Sua aparência sempre foi peculiar."
+      },
+      "fonte": "https://crisordemparanormal.com/agente/3KeXwv1pvZDDS9azOH8M",
+      "sheetId": "3KeXwv1pvZDDS9azOH8M",
+      "atributos": {
+        "FOR": 1,
+        "AGI": 1,
+        "VIG": 2,
+        "INT": 3,
+        "PRE": 3
+      },
+      "stats": {
+        "pv": {
+          "atual": 42,
+          "max": 42
+        },
+        "pe": {
+          "atual": 56,
+          "max": 56,
+          "porTurno": 8
+        },
+        "sanidade": {
+          "atual": 55,
+          "max": 55
+        },
+        "determinacao": {
+          "atual": 55,
+          "max": 69
+        },
+        "defesa": 16,
+        "evasao": 16,
+        "deslocamento": 9,
+        "carga": {
+          "atual": 5,
+          "max": 5
+        },
+        "dtRituais": 21,
+        "modos": {
+          "nexAtivo": false,
+          "pdAtivo": true,
+          "loucuraAtiva": false,
+          "sobrevivendoAoHorror": false,
+          "modoMorte": false
+        },
+        "marcas": {
+          "morte": [
+            false,
+            false,
+            false
+          ],
+          "loucura": [
+            false,
+            false,
+            false
+          ]
+        }
+      },
+      "pericias": {
+        "todos": {
+          "Acrobacia": {
+            "atributo": "AGI",
+            "bonus": 5,
+            "treinada": true,
+            "grau": "Treinado"
+          },
+          "Adestramento": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Artes": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Atletismo": {
+            "atributo": "FOR",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Atualidades": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Ciências": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Crime": {
+            "atributo": "AGI",
+            "bonus": 10,
+            "treinada": true,
+            "grau": "Veterano"
+          },
+          "Diplomacia": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Enganação": {
+            "atributo": "PRE",
+            "bonus": 5,
+            "treinada": true,
+            "grau": "Treinado"
+          },
+          "Fortitude": {
+            "atributo": "VIG",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Furtividade": {
+            "atributo": "AGI",
+            "bonus": 5,
+            "treinada": true,
+            "grau": "Treinado"
+          },
+          "Iniciativa": {
+            "atributo": "AGI",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Intimidação": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Intuição": {
+            "atributo": "PRE",
+            "bonus": 5,
+            "treinada": true,
+            "grau": "Treinado"
+          },
+          "Investigação": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Luta": {
+            "atributo": "FOR",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Medicina": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Ocultismo": {
+            "atributo": "INT",
+            "bonus": 10,
+            "treinada": true,
+            "grau": "Veterano"
+          },
+          "Percepção": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Pilotagem": {
+            "atributo": "AGI",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Pontaria": {
+            "atributo": "AGI",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Profissão": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Reflexos": {
+            "atributo": "AGI",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Religião": {
+            "atributo": "PRE",
+            "bonus": 10,
+            "treinada": true,
+            "grau": "Veterano"
+          },
+          "Sobrevivência": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Tática": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Tecnologia": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Vontade": {
+            "atributo": "PRE",
+            "bonus": 5,
+            "treinada": true,
+            "grau": "Treinado"
+          }
+        },
+        "treinadas": [
+          {
+            "nome": "Ocultismo",
+            "atributo": "INT",
+            "grau": "Veterano",
+            "bonus": 10,
+            "penalidadeCarga": false
+          },
+          {
+            "nome": "Religião",
+            "atributo": "PRE",
+            "grau": "Veterano",
+            "bonus": 10,
+            "penalidadeCarga": false
+          },
+          {
+            "nome": "Crime",
+            "atributo": "AGI",
+            "grau": "Veterano",
+            "bonus": 10,
+            "penalidadeCarga": true
+          },
+          {
+            "nome": "Acrobacia",
+            "atributo": "AGI",
+            "grau": "Treinado",
+            "bonus": 5,
+            "penalidadeCarga": true
+          },
+          {
+            "nome": "Enganação",
+            "atributo": "PRE",
+            "grau": "Treinado",
+            "bonus": 5,
+            "penalidadeCarga": false
+          },
+          {
+            "nome": "Furtividade",
+            "atributo": "AGI",
+            "grau": "Treinado",
+            "bonus": 5,
+            "penalidadeCarga": true
+          },
+          {
+            "nome": "Intuição",
+            "atributo": "PRE",
+            "grau": "Treinado",
+            "bonus": 5,
+            "penalidadeCarga": false
+          },
+          {
+            "nome": "Vontade",
+            "atributo": "PRE",
+            "grau": "Treinado",
+            "bonus": 5,
+            "penalidadeCarga": false
+          }
+        ]
+      },
+      "elementos": [
+        "Conhecimento",
+        "Energia",
+        "Sangue"
+      ],
+      "rituais": [
+        {
+          "nome": "Detecção de Ameaças",
+          "elemento": "Conhecimento",
+          "circulo": 2,
+          "execucao": "padrão",
+          "alcance": "pessoal",
+          "area": "esfera de 18m de raio",
+          "alvo": "você",
+          "duracao": "cena",
+          "resistencia": null,
+          "dados": {},
+          "custoPE": {
+            "normal": null,
+            "discente": 3,
+            "verdadeiro": 5
+          },
+          "funcoes": [
+            "utilidade",
+            "investigacao",
+            "defesa"
+          ],
+          "resumo": "Detecta perigos e armadilhas na área. Teste de Percepção DT 20 para saber direção e distância.",
+          "descricao": "Você recebe uma percepção aguçada sobre perigos à sua volta. Quando um ser hostil ou armadilha entra na área do efeito, você tem uma sensação de perigo e pode gastar uma ação de movimento para fazer um teste de Percepção (DT 20). Se passar, sabe a direção e distância do perigo. Discente (+3 PE): além do normal, você não fica desprevenido contra perigos detectados e recebe +5 em testes de resistência contra armadilhas. Requer 3º círculo. Verdadeiro (+5 PE): muda a duração para 1 dia e concede os mesmos benefícios de discente. Requer 4º círculo."
+        },
+        {
+          "nome": "Localização",
+          "elemento": "Conhecimento",
+          "circulo": 2,
+          "execucao": "padrão",
+          "alcance": "pessoal",
+          "area": "círculo com 90m de raio",
+          "alvo": "pessoa ou objeto",
+          "duracao": "cena",
+          "resistencia": null,
+          "dados": {},
+          "custoPE": {
+            "normal": null,
+            "discente": 3,
+            "verdadeiro": 7
+          },
+          "funcoes": [
+            "investigacao",
+            "utilidade"
+          ],
+          "resumo": "Encontra uma pessoa ou objeto, indicando direção e distância do mais próximo. Bloqueado por fina camada de chumbo.",
+          "descricao": "Esta ritual pode encontrar uma pessoa ou objeto a sua escolha. Você pode pensar em termos gerais (um policial, algo de metal) ou específicos (a delegada Joana, uma pistola). O ritual indica a direção e distância da pessoa ou objeto mais próximo desse tipo, caso esteja ao alcance. Você pode movimentar-se para continuar procurando. Procurar algo muito específico exige que você tenha em mente uma imagem precisa do objeto; caso a imagem não seja parecida com a verdade, o ritual falha, mas você gasta os PE mesmo assim. Este ritual pode ser bloqueado por uma fina camada de chumbo. Discente (+3 PE): muda o alcance para toque, o alvo para 1 pessoa e a duração para 1 hora. Em vez do normal, a pessoa tocada descobre o caminho mais direto para entrar ou sair de um lugar. Verdadeiro (+7 PE): aumenta a área para círculo de 1km de raio. Requer 4º círculo."
+        },
+        {
+          "nome": "Invadir Mente",
+          "elemento": "Conhecimento",
+          "circulo": 2,
+          "execucao": "padrão",
+          "alcance": "médio ou toque",
+          "area": null,
+          "alvo": "1 ser ou 2 pessoas voluntárias",
+          "duracao": "instantânea ou 1 dia",
+          "resistencia": "Vontade parcial ou nenhuma",
+          "dados": {
+            "normal": "6d6",
+            "discente": "10d6",
+            "verdadeiro": "10d6"
+          },
+          "custoPE": {
+            "normal": null,
+            "discente": 3,
+            "verdadeiro": 7
+          },
+          "funcoes": [
+            "combate",
+            "investigacao",
+            "comunicacao"
+          ],
+          "modos": [
+            "rajada mental",
+            "ligação telepática"
+          ],
+          "resumo": "Rajada Mental: 6d6 dano de Conhecimento + atordoado 1 rodada (Vontade parcial). Ligação Telepática: elo mental entre 2 pessoas por 1 dia.",
+          "descricao": "Quando conjura este ritual, você gera um dos efeitos a seguir, a sua escolha: rajada mental (usa os primeiros parâmetros) ou ligação telepática (usa os segundos parâmetros). Rajada Mental: você infecta a mente do alvo com o Conhecimento proibido do Outro Lado, dilacerando o cérebro dele. O alvo sofre 6d6 pontos de dano de Conhecimento e fica atordoado por uma rodada. Se passar no teste de Vontade, sofre metade do dano e não fica atordoado. Um mesmo alvo só pode ficar atordoado por este ritual uma vez por cena. Ligação Telepática: você cria um elo mental entre duas pessoas (você pode ser uma delas), que podem se comunicar independente da distância pela duração do ritual (1 dia). Discente (+3 PE): rajada mental passa a 10d6; ligação telepática permite ver e ouvir pelos sentidos do alvo (ação de movimento para concentrar; alvo involuntário pode suprimir por 1 hora com Vontade). Requer 3º círculo. Verdadeiro (+7 PE): rajada mental 10d6 em todos os seres escolhidos; ligação telepática entre até 5 pessoas. Requer 4º círculo."
+        },
+        {
+          "nome": "Compreensão Paranormal",
+          "elemento": "Conhecimento",
+          "circulo": 1,
+          "execucao": "padrão",
+          "alcance": "toque",
+          "area": null,
+          "alvo": "1 ser ou objeto",
+          "duracao": "cena",
+          "resistencia": "Vontade anula",
+          "dados": {},
+          "custoPE": {
+            "normal": null,
+            "discente": 2,
+            "verdadeiro": 5
+          },
+          "funcoes": [
+            "utilidade",
+            "investigacao",
+            "social"
+          ],
+          "resumo": "Entende/comunica qualquer idioma humano por toque. Também percebe sentimentos básicos de animais.",
+          "descricao": "O ritual confere a você compreensão sobrenatural da linguagem. Se tocar um objeto contendo informação (livro, dispositivo com gravação...), você entende as palavras mesmo que não conheça seu idioma, contanto que se trate de um idioma humano (não funciona com símbolos ou sigilos paranormais). Se tocar uma pessoa, pode se comunicar com ela como se falassem um idioma em comum. Se tocar um ser não inteligente, como um animal, pode perceber seus sentimentos básicos, como medo ou felicidade. Um alvo involuntário tem direito a um teste de Vontade. Discente (+2 PE): muda o alcance para curto e o alvo para alvos escolhidos. Requer 2º círculo. Verdadeiro (+5 PE): muda o alcance para pessoal e o alvo para você; você pode falar, entender e escrever qualquer idioma humano. Requer 3º círculo."
+        },
+        {
+          "nome": "Amaldiçoar Tecnologia",
+          "elemento": "Energia",
+          "circulo": 1,
+          "execucao": "padrão",
+          "alcance": "toque",
+          "area": null,
+          "alvo": "1 acessório ou arma de fogo",
+          "duracao": "cena",
+          "resistencia": null,
+          "dados": {},
+          "custoPE": {
+            "normal": null,
+            "discente": 2,
+            "verdadeiro": 5
+          },
+          "funcoes": [
+            "utilidade",
+            "suporte"
+          ],
+          "resumo": "Imbui um item com Energia, concedendo 1 modificação à escolha (2 no discente, 3 no verdadeiro).",
+          "descricao": "Você imbui o alvo com Energia, fazendo-o funcionar acima de sua capacidade. O item recebe uma modificação a sua escolha. Discente (+2 PE): muda para duas modificações. Requer 2º círculo. Verdadeiro (+5 PE): muda para três modificações. Requer 3º círculo e afinidade."
+        },
+        {
+          "nome": "Eletrocussão",
+          "elemento": "Energia",
+          "circulo": 1,
+          "execucao": "padrão",
+          "alcance": "curto",
+          "area": null,
+          "alvo": "1 ser ou objeto",
+          "duracao": "instantânea",
+          "resistencia": "Fortitude parcial",
+          "dados": {
+            "normal": "3d6",
+            "discente": "6d6",
+            "verdadeiro": "8d6"
+          },
+          "custoPE": {
+            "normal": null,
+            "discente": 2,
+            "verdadeiro": 5
+          },
+          "funcoes": [
+            "combate"
+          ],
+          "resumo": "3d6 dano de eletricidade + vulnerável 1 rodada. Dobro de dano e ignora resistência contra eletrônicos.",
+          "descricao": "Você manifesta e dispara uma corrente elétrica contra o alvo, que sofre 3d6 pontos de dano de eletricidade e fica vulnerável por uma rodada. Se passar no teste de resistência, sofre apenas metade do dano e evita a condição. Se usado contra objetos eletrônicos, este ritual causa o dobro de dano e ignora resistência. Discente (+2 PE): alvo vira área (linha de 30m), 6d6 dano de Energia. Requer 2º círculo. Verdadeiro (+5 PE): alvos escolhidos; um relâmpago por alvo, 8d6 dano de Energia cada. Requer 3º círculo."
+        },
+        {
+          "nome": "Ódio Incontrolável",
+          "elemento": "Sangue",
+          "circulo": 1,
+          "execucao": "padrão",
+          "alcance": "toque",
+          "area": null,
+          "alvo": "1 pessoa",
+          "duracao": "cena",
+          "resistencia": null,
+          "dados": {},
+          "custoPE": {
+            "normal": null,
+            "discente": 2,
+            "verdadeiro": 5
+          },
+          "funcoes": [
+            "combate",
+            "suporte",
+            "defesa"
+          ],
+          "resumo": "Frenesi: +2 ataque e dano corpo a corpo e resistência 5 (balístico/corte/impacto/perfuração). Não pode concentrar-se; deve atacar todo turno.",
+          "descricao": "O alvo entra em um frenesi, aumentando sua agressividade e capacidade de luta. Ele recebe +2 em testes de ataque e rolagens de dano corpo a corpo e resistência a balístico, corte, impacto e perfuração 5. Enquanto o efeito durar, o alvo não pode fazer nenhuma ação que exige calma e concentração (como usar Furtividade ou conjurar rituais), e deve sempre atacar um alvo em sua rodada, mesmo que seja um aliado se ele for o único a seu alcance. Discente (+2 PE): ao usar a ação agredir, pode fazer um ataque corpo a corpo adicional contra o mesmo alvo. Verdadeiro (+5 PE): bônus de ataque e dano vira +5 e o alvo sofre apenas metade do dano dos tipos balístico, corte, impacto e perfuração. Requer 3º círculo e afinidade."
+        }
+      ],
+      "habilidades": [
+        {
+          "nome": "Escolhido pelo Outro Lado",
+          "tipo": "classe/paranormal",
+          "elemento": "Outro Lado",
+          "funcoes": [
+            "paranormal",
+            "progressao"
+          ],
+          "resumo": "Concede a capacidade de lançar rituais (1º círculo; círculos maiores por NEX). Ganha 3 rituais de 1º círculo e 1 ritual por aumento de NEX, fora do limite de rituais.",
+          "descricao": "Você teve uma experiência paranormal e foi marcado pelo Outro Lado, absorvendo o conhecimento e poder necessários para realizar rituais. Você pode lançar rituais de 1º círculo. À medida que aumenta seu NEX, pode lançar rituais de círculos maiores (2º círculo em NEX 25%, 3º círculo em NEX 55% e 4º círculo em NEX 85%). Você começa com três rituais de 1º círculo. Sempre que avança de NEX, aprende um ritual de qualquer círculo que possa lançar. Esses rituais não contam no seu limite de rituais conhecidos."
+        },
+        {
+          "nome": "Criar Selo",
+          "tipo": "classe",
+          "elemento": null,
+          "funcoes": [
+            "utilidade",
+            "suporte"
+          ],
+          "resumo": "Fabrica selos paranormais de rituais conhecidos (ação de interlúdio + PE). Máximo de selos = Presença.",
+          "descricao": "Você sabe fabricar selos paranormais de rituais que conheça. Fabricar um selo gasta uma ação de interlúdio e um número de PE iguais ao custo de conjurar o ritual. Você pode ter um número máximo de selos criados a qualquer momento igual à sua Presença."
+        },
+        {
+          "nome": "Envolto em Mistério",
+          "tipo": "classe",
+          "elemento": null,
+          "funcoes": [
+            "social"
+          ],
+          "resumo": "+5 em Enganação e Intimidação contra pessoas não treinadas em Ocultismo.",
+          "descricao": "Sua aparência e postura assombrosas o permitem manipular e assustar pessoas ignorantes ou supersticiosas. O mestre define o que exatamente você pode fazer e quem se encaixa nessa descrição. Como regra geral, você recebe +5 em Enganação e Intimidação contra pessoas não treinadas em Ocultismo."
+        },
+        {
+          "nome": "NEX 10% - Canalização Caótica",
+          "tipo": "nex",
+          "elemento": null,
+          "funcoes": [
+            "paranormal",
+            "utilidade"
+          ],
+          "resumo": "Ao lançar ritual, d6 (1-2) dispara efeito aleatório (1d12). Em Forma Avançada/Condição Ruim, dispara com 1-3. No início de cada cena, -1 PE no custo de um ritual escolhido.",
+          "descricao": "Sempre que você lançar um ritual, role um d6, em um resultado 1-2, um efeito aleatório acontece, role 1d12 e consulte a tabela de Canalização Caótica. Sempre que você lançar um ritual de Forma Avançada ou com Condição Ruim ou Pior, role um efeito aleatório caso o resultado do d6 seja 1-3. Adicionalmente, todo início de Cena, escolha um Ritual; o custo em PE deste ritual é reduzido em 1 até o fim da cena. Esta redução não é acumulativa com outras reduções."
+        },
+        {
+          "nome": "NEX 40% - Cicatriz do Amaldiçoado",
+          "tipo": "nex",
+          "elemento": null,
+          "funcoes": [
+            "combate",
+            "controle",
+            "maldicao"
+          ],
+          "resumo": "Ao lançar ritual que afeta um ser, gastar +3 PE marca o alvo (-5 em testes de FOR, AGI ou VIG escolhido). Fortitude DT PRE anula; vítima repete o teste todo turno. Dura 1 cena.",
+          "descricao": "NEX 40% - Cicatriz do Amaldiçoado. Sempre que lançar um ritual que afete um ser, você pode gastar +3 PE para marcá-lo com uma Cicatriz Amaldiçoada; o alvo recebe -5 em todos testes baseados em um Atributo a sua escolha entre Força, Agilidade ou Vigor (Fortitude DT PRE; Anula Efeito). A Cicatriz tem a duração de uma cena, porém todo início de turno a vítima pode repetir o teste de Fortitude."
+        }
+      ],
+      "itens": [
+        {
+          "nome": "Proteção Leve",
+          "tipo": "proteção",
+          "elemento": null,
+          "categoria": "I",
+          "defesa": 5,
+          "slots": 2,
+          "equipado": true,
+          "funcoes": [
+            "defesa"
+          ],
+          "resumo": "Jaqueta de couro pesada ou colete de kevlar. +5 Defesa.",
+          "descricao": "Jaqueta de couro pesada ou um colete de kevlar. Essa proteção é tipicamente usada por seguranças e policiais."
+        },
+        {
+          "nome": "Granada de Lodo",
+          "tipo": "item amaldiçoado",
+          "elemento": "Morte",
+          "categoria": "II",
+          "slots": 1,
+          "equipado": false,
+          "funcoes": [
+            "combate",
+            "area"
+          ],
+          "resumo": "Arremesso (ação padrão, alvo em 15m): 5d8 dano de Morte em alcance curto (Reflexos DT Agi reduz metade); área fica terreno difícil pela cena.",
+          "descricao": "Este item é uma parcela do lodo da Morte armazenada em um recipiente especial para dispersar este lodo no solo. Enquanto estiver com este item sacado, você pode gastar uma ação padrão e este item para arremessá-lo em um ponto em 15m. Ao fazer isso, a granada explode, liberando lodo em alcance curto; seres na área sofrem 5d8 pontos de dano de Morte (Reflexos DT Agi reduz metade) e a área se torna terreno difícil pela cena."
+        },
+        {
+          "nome": "Anéis do Elo Mental",
+          "tipo": "item amaldiçoado",
+          "elemento": "Conhecimento",
+          "categoria": "II",
+          "slots": 1,
+          "equipado": false,
+          "funcoes": [
+            "utilidade",
+            "comunicacao",
+            "suporte"
+          ],
+          "resumo": "Par de anéis (usar 24h para ativar) que conecta duas pessoas via Invadir Mente (ligação telepática). Testes de Vontade usam os melhores dados/bônus entre os dois; dano mental e condições mentais são compartilhados.",
+          "descricao": "Um par de anéis dourados, cada um contendo um dos símbolos do ritual Ligação Telepática. Os anéis devem ser usados por duas pessoas por 24h para serem ativados. Após esse período, os dois são conectados por um ritual de Invadir Mente (ligação telepática) que dura enquanto estiverem usando os anéis. Enquanto a ligação estiver ativa, as duas pessoas fazem testes de Vontade usando a melhor quantidade de dados e bônus entre as duas. Porém, qualquer dano mental sofrido por uma delas será sofrido pela outra e qualquer condição mental ou de medo que afetar uma delas automaticamente afetará a outra."
+        },
+        {
+          "nome": "Máscara do Desmembrador Noturno",
+          "tipo": "item amaldiçoado",
+          "elemento": "Conhecimento",
+          "categoria": "II",
+          "slots": 1,
+          "equipado": false,
+          "funcoes": [
+            "utilidade",
+            "combate",
+            "cura",
+            "controle",
+            "investigacao"
+          ],
+          "resumo": "Passiva: +12 PV e +10 PD temporários; gasta 2 PD por turno.",
+          "descricao": "Desmembrar, Desacoplar, Desmontar. +12 de P.V e +10 de P.D temporário; a máscara gasta 2 de P.D por turno.",
+          "subHabilidades": [
+            {
+              "nome": "Invasão do Inepto",
+              "custo": "4 PD",
+              "funcao": "investigacao",
+              "resumo": "Invade os pensamentos de uma pessoa para prever a próxima ação. O mestre declara a próxima ação do alvo antes do seu turno (pode mudar com algo impactante, a critério do mestre).",
+              "descricao": "Invadindo os pensamentos de uma pessoa, você pode prever sua próxima ação. Ao utilizar essa habilidade em seu alvo, o mestre tem que declarar qual vai ser a próxima ação dele antes de seu turno, essa ação pode mudar caso ocorra algo impactante, a critério do mestre, antes de seu turno."
+            },
+            {
+              "nome": "Reestruturação",
+              "custo": "sem gasto fixo (custa 1d4+4 de Determinação)",
+              "funcao": "cura",
+              "resumo": "Cria 2 agulhas douradas; tocar 1 ser o cura em 4d8+3, mas você perde 1d4+4 de Determinação. Um mesmo ser não pode ser curado por mais de uma agulha na mesma cena.",
+              "descricao": "Você cria 2 agulhas douradas com sigilos paranormais, e ao tocar com sua ponta em 1 ser, o cura em 4d8+3, porém os sigilos fazem com que você perca 1d4+4 de Determinação. Suas agulhas sobrescrevem as feridas do alvo como se nunca tivessem existido. Um mesmo ser não pode ser curado por mais de uma agulha na mesma cena."
+            },
+            {
+              "nome": "Memento Mori",
+              "custo": "sem gasto fixo (exige Concentração)",
+              "funcao": "controle",
+              "resumo": "Domo de cinzas prende o alvo em transe espaço-temporal (intangível de fora; só efeitos paranormais o atingem). Ao fim, teste de resistência: falha = Confuso até o fim da cena + 1d8 Sanidade por rodada no domo; sucesso = 1d4 dano mental por rodada.",
+              "descricao": "Você espalha cinzas ao redor de um alvo para formar um círculo completo. O círculo se fecha em um domo e prende o alvo em um transe espaço-temporal. Ele não conseguirá ver ou ouvir nada além de sombras e vozes incompreensíveis de todos os lugares e épocas. De fora, o alvo e o domo são intangíveis, como uma projeção astral. Com esse ritual, só efeitos paranormais conseguem atingir o alvo. Enquanto sustentar esse ritual, você deve manter sua Concentração, sendo necessário realizar testes. Ao fim do ritual, o domo se desfaz, o alvo volta ao normal e deve fazer um teste de resistência. Caso falhe, fica Confuso até o fim da cena e perde 1d8 de Sanidade para cada rodada que passou no domo. Se passar, o dano Mental por rodada é 1d4."
+            }
+          ]
+        }
+      ],
+      "ataques": [],
+      "resumoPorFuncao": {
+        "combate": [
+          "Invadir Mente",
+          "Eletrocussão",
+          "Ódio Incontrolável",
+          "Cicatriz do Amaldiçoado",
+          "Granada de Lodo",
+          "Máscara do Desmembrador Noturno"
+        ],
+        "defesa": [
+          "Detecção de Ameaças",
+          "Ódio Incontrolável",
+          "Proteção Leve"
+        ],
+        "utilidade": [
+          "Detecção de Ameaças",
+          "Localização",
+          "Compreensão Paranormal",
+          "Amaldiçoar Tecnologia",
+          "Criar Selo",
+          "Canalização Caótica",
+          "Anéis do Elo Mental",
+          "Máscara do Desmembrador Noturno"
+        ],
+        "investigacao": [
+          "Detecção de Ameaças",
+          "Localização",
+          "Invadir Mente",
+          "Compreensão Paranormal",
+          "Máscara do Desmembrador Noturno"
+        ],
+        "comunicacao": [
+          "Invadir Mente",
+          "Anéis do Elo Mental"
+        ],
+        "social": [
+          "Compreensão Paranormal",
+          "Envolto em Mistério"
+        ],
+        "suporte": [
+          "Amaldiçoar Tecnologia",
+          "Ódio Incontrolável",
+          "Criar Selo",
+          "Anéis do Elo Mental"
+        ],
+        "cura": [
+          "Máscara do Desmembrador Noturno"
+        ],
+        "controle": [
+          "Cicatriz do Amaldiçoado",
+          "Máscara do Desmembrador Noturno"
+        ],
+        "maldicao": [
+          "Cicatriz do Amaldiçoado"
+        ],
+        "paranormal": [
+          "Escolhido pelo Outro Lado",
+          "Canalização Caótica"
+        ],
+        "progressao": [
+          "Escolhido pelo Outro Lado"
+        ]
+      },
+      "resumoPorElemento": {
+        "Conhecimento": [
+          "Detecção de Ameaças",
+          "Localização",
+          "Invadir Mente",
+          "Compreensão Paranormal",
+          "Anéis do Elo Mental",
+          "Máscara do Desmembrador Noturno"
+        ],
+        "Energia": [
+          "Amaldiçoar Tecnologia",
+          "Eletrocussão"
+        ],
+        "Sangue": [
+          "Ódio Incontrolável"
+        ],
+        "Morte": [
+          "Granada de Lodo"
+        ],
+        "Medo": []
+      },
+      "resumoPorCirculo": {
+        "1": [
+          "Compreensão Paranormal",
+          "Amaldiçoar Tecnologia",
+          "Eletrocussão",
+          "Ódio Incontrolável"
+        ],
+        "2": [
+          "Detecção de Ameaças",
+          "Localização",
+          "Invadir Mente"
+        ],
+        "3": [],
+        "4": []
+      }
+    },
+    "zacarias-zocardias": {
+      "nome": "Zacarias Zocardias",
+      "jogador": "Neon",
+      "classe": "Especialista",
+      "origem": "Revoltado",
+      "nex": "40%",
+      "patente": null,
+      "proficiencias": "Armas simples e proteções leves",
+      "descricao": {},
+      "fonte": "https://crisordemparanormal.com/agente/iS2IPlVIxHgNrL8QgiuY",
+      "sheetId": "iS2IPlVIxHgNrL8QgiuY",
+      "atributos": {
+        "FOR": 1,
+        "AGI": 3,
+        "VIG": 1,
+        "INT": 3,
+        "PRE": 2
+      },
+      "stats": {
+        "pv": {
+          "atual": 35,
+          "max": 35
+        },
+        "pe": {
+          "atual": 52,
+          "max": 52,
+          "porTurno": 8
+        },
+        "determinacao": {
+          "atual": 35,
+          "max": 35
+        },
+        "defesa": 13,
+        "evasao": 23,
+        "deslocamento": 6,
+        "dtRituais": null
+      },
+      "pericias": {
+        "todos": {
+          "Acrobacia": {
+            "atributo": "AGI",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Adestramento": {
+            "atributo": "PRE",
+            "bonus": 5,
+            "treinada": true
+          },
+          "Artes": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Atletismo": {
+            "atributo": "FOR",
+            "bonus": 5,
+            "treinada": false
+          },
+          "Atualidades": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Ciências": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Crime": {
+            "atributo": "AGI",
+            "bonus": 5,
+            "treinada": false
+          },
+          "Diplomacia": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Enganação": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Fortitude": {
+            "atributo": "VIG",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Furtividade": {
+            "atributo": "AGI",
+            "bonus": 10,
+            "treinada": false
+          },
+          "Iniciativa": {
+            "atributo": "AGI",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Intimidação": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Intuição": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Investigação": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Luta": {
+            "atributo": "FOR",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Medicina": {
+            "atributo": "INT",
+            "bonus": 10,
+            "treinada": false
+          },
+          "Ocultismo": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Percepção": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Pilotagem": {
+            "atributo": "AGI",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Pontaria": {
+            "atributo": "AGI",
+            "bonus": 15,
+            "treinada": false
+          },
+          "Profissão": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Reflexos": {
+            "atributo": "AGI",
+            "bonus": 10,
+            "treinada": false
+          },
+          "Religião": {
+            "atributo": "PRE",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Sobrevivência": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Tática": {
+            "atributo": "INT",
+            "bonus": 5,
+            "treinada": false
+          },
+          "Tecnologia": {
+            "atributo": "INT",
+            "bonus": 0,
+            "treinada": false
+          },
+          "Vontade": {
+            "atributo": "PRE",
+            "bonus": 5,
+            "treinada": false
+          }
+        },
+        "treinadas": [
+          {
+            "nome": "Adestramento",
+            "atributo": "PRE",
+            "bonus": 5
+          }
+        ]
+      },
+      "elementos": [],
+      "rituais": [],
+      "habilidades": [],
+      "itens": [],
+      "ataques": [
+        {
+          "nome": "Fuzil de Precisão",
+          "dano": "3d12",
+          "critico": "19/x3"
+        },
+        {
+          "nome": "Faca da festa",
+          "dano": "1d8+1d6",
+          "critico": "19"
+        },
+        {
+          "nome": "Sniper (mirando)",
+          "dano": "3d12",
+          "critico": "14/x3"
+        }
+      ],
+      "resumoPorFuncao": {},
+      "resumoPorElemento": {},
+      "resumoPorCirculo": {}
+    }
+  },
+  "links": {
+    "zacarias": "https://crisordemparanormal.com/agente/iS2IPlVIxHgNrL8QgiuY",
+    "campanha": "https://crisordemparanormal.com/campanha/xb06EJqPpAE4AJM4sQQN",
+    "escudo": "https://crisordemparanormal.com/escudo-do-mestre/xb06EJqPpAE4AJM4sQQN",
+    "mapa": "https://www.owlbear.rodeo/room/JmP0yO8-XS3W/The%20Elite%20Take"
+  }
+}
