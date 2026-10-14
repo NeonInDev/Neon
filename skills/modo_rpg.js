@@ -25,6 +25,7 @@ const fs = require("fs");
 const path = require("path");
 const { exec } = require("child_process");
 const pc = require("../src/pc.js");
+const rpg = require("../src/rpg.js");
 
 const DEBUG_PORT = 9222;
 
@@ -257,6 +258,18 @@ function executarRoll(info) {
 }
 
 function carregarAgente() {
+  // Fonte principal: ficha ATIVA em data/rpg_fichas.json (via src/rpg.js).
+  try {
+    const f = rpg.getFicha(null);
+    if (f) {
+      const pericias = {};
+      for (const [nome, p] of Object.entries(f.pericias?.todos || {})) {
+        pericias[nome] = { atributo: p.atributo, bonus: p.bonus };
+      }
+      return { agente: f.nome, classe: f.classe, origem: f.origem, nex: f.nex, atributos: f.atributos || {}, pericias, ataques: f.ataques || [] };
+    }
+  } catch {}
+  // Fallback: arquivo legado
   try {
     if (!fs.existsSync(ARQUIVO_AGENTE)) return null;
     return JSON.parse(fs.readFileSync(ARQUIVO_AGENTE, "utf8"));
@@ -290,8 +303,13 @@ function normalizarNomePericia(txt) {
 function formatarBuffs() {
   const agente = carregarAgente();
   if (!agente) return "❌ Nenhuma ficha de agente salva ainda.";
+  const atribs = agente.atributos || {};
   const linhas = Object.entries(agente.pericias)
-    .map(([nome, p]) => `• **${nome}** (${p.atributo}) → **+${p.bonus}**`)
+    .map(([nome, p]) => {
+      const av = atribs[p.atributo] || 0;
+      const total = av + (p.bonus || 0);
+      return `• **${nome}** (${p.atributo}${av} + ${p.bonus || 0}) → **+${total}**`;
+    })
     .join("\n");
   return [`📋 **Ficha: ${agente.agente}** (${agente.classe} · ${agente.origem} · NEX ${agente.nex})`, "", linhas].join("\n");
 }
@@ -301,12 +319,10 @@ function definirBuff(alvo) {
   if (!m) return "❌ Uso: `buff <perícia> <bônus>` (ex: `buff Pontaria 12`).";
   const nome = normalizarNomePericia(m[1]);
   const valor = parseInt(m[2], 10);
-  const agente = carregarAgente();
-  if (!agente) return "❌ Nenhuma ficha para editar buff.";
-  if (!nome || !agente.pericias[nome]) return `❌ Perícia "${m[1].trim()}" não encontrada.`;
-  agente.pericias[nome].bonus = valor;
-  salvarAgente(agente);
-  return `⚡ **${nome}** agora com **+${valor}**.`;
+  if (!nome) return `❌ Perícia "${m[1].trim()}" não encontrada.`;
+  const r = rpg.definirBonusPericia(nome, valor);
+  if (!r.ok) return `❌ ${r.erro}`;
+  return `⚡ **${r.nome}** agora com **+${valor}** (ficha ${r.ficha}).`;
 }
 
 async function rolarPericia(pedido) {
@@ -319,12 +335,14 @@ async function rolarPericia(pedido) {
   const agente = carregarAgente();
   if (!nome || !agente || !agente.pericias[nome]) return null;
 
-  const bonus = (agente.pericias[nome].bonus || 0) + extra;
+  const info = agente.pericias[nome];
+  const valorAtrib = (agente.atributos || {})[info.atributo] || 0;
+  const bonusTotal = valorAtrib + (info.bonus || 0) + extra;
   const fmt = (m) => (m > 0 ? `+${m}` : m < 0 ? `-${Math.abs(m)}` : "");
   const nat = rolar(20, 1)[0];
-  const total = nat + bonus;
+  const total = nat + bonusTotal;
   const cr = nat === 20 ? " 🎉 CRÍTICO!" : nat === 1 ? " 💀 FALHA CRÍTICA!" : "";
-  return `🎲 **${nome}** (${agente.pericias[nome].atributo}${fmt(bonus)}): d20 → **${nat}** + ${bonus} = **${total}**${cr}`;
+  return `🎲 **${nome}** (${info.atributo}${valorAtrib} ${fmt(info.bonus || 0)}${extra ? ` ${fmt(extra)}` : ""}): d20 → **${nat}** ${fmt(bonusTotal)} = **${total}**${cr}`;
 }
 
 async function abrirSite(alvo) {
@@ -343,6 +361,175 @@ async function abrirSite(alvo) {
   return r.ok ? `🔗 Abri **${site.nome}** (${site.url}).` : `❌ Não consegui abrir.`;
 }
 
+// ===== Conteúdo da ficha (rituais, habilidades, itens) =====================
+// Le data/rpg_fichas.json via src/rpg.js. Separa por FUNÇÃO, ELEMENTO e itens.
+
+function fmtResumoFicha(f) {
+  const a = f.atributos || {};
+  const s = f.stats || {};
+  const L = [];
+  L.push(`📜 **${f.nome}** — ${f.classe || "?"} · ${f.origem || "?"} · NEX ${f.nex || "?"}${f.patente ? ` · ${f.patente}` : ""}`);
+  L.push(`🎯 Atributos: FOR ${a.FOR ?? 0} · AGI ${a.AGI ?? 0} · VIG ${a.VIG ?? 0} · INT ${a.INT ?? 0} · PRE ${a.PRE ?? 0}`);
+  const c = [];
+  if (s.pv) c.push(`PV ${s.pv.atual}/${s.pv.max}`);
+  if (s.pe) c.push(`PE ${s.pe.atual}/${s.pe.max}${s.pe.porTurno ? ` (${s.pe.porTurno}/turno)` : ""}`);
+  if (s.sanidade) c.push(`SAN ${s.sanidade.atual}/${s.sanidade.max}`);
+  if (s.determinacao) c.push(`PD ${s.determinacao.atual}/${s.determinacao.max}`);
+  if (s.defesa != null) c.push(`Def ${s.defesa}`);
+  if (s.evasao != null) c.push(`Evasão ${s.evasao}`);
+  if (s.deslocamento != null) c.push(`Desloc ${s.deslocamento}m`);
+  if (s.dtRituais != null) c.push(`DT Rituais ${s.dtRituais}`);
+  if (c.length) L.push(`⚔️ ${c.join(" · ")}`);
+  const treinadas = f.pericias?.treinadas || [];
+  if (treinadas.length) L.push(`🎓 Perícias: ${treinadas.map((p) => `${p.nome} +${p.bonus}`).join(", ")}`);
+  if (f.elementos?.length) L.push(`🔮 Elementos: ${f.elementos.join(", ")}`);
+  if (f.ataques?.length) L.push(`🗡️ Ataques: ${f.ataques.map((x) => `${x.nome} ${x.dano}`).join(" · ")}`);
+  L.push(`📦 ${(f.rituais || []).length} rituais · ${(f.habilidades || []).length} habilidades · ${(f.itens || []).length} itens`);
+  L.push(`_Comandos: rituais · ritual <nome> · habilidades · itens · funcao <x> · pericias_`);
+  return L.join("\n");
+}
+
+function fmtLista(itens, limite = 1400) {
+  const linhas = itens.map((x) => {
+    const tags = [];
+    if (x.circulo) tags.push(`${x.circulo}º círculo`);
+    if (x.elemento) tags.push(x.elemento);
+    if (x.categoria) tags.push(`cat ${x.categoria}`);
+    if (x.equipado) tags.push("equipado");
+    return `• **${x.nome}**${tags.length ? ` (${tags.join(", ")})` : ""}: ${x.resumo || x.descricao || "—"}`;
+  });
+  let txt = linhas.join("\n");
+  if (txt.length > limite) txt = txt.slice(0, limite - 1) + "…";
+  return txt;
+}
+
+function fmtDetalheRitual(r) {
+  const L = [`📖 **${r.nome}**${r.circulo ? ` (${r.circulo}º círculo)` : ""}${r.elemento ? ` · ${r.elemento}` : ""}`];
+  const info = [];
+  if (r.execucao) info.push(`Exec: ${r.execucao}`);
+  if (r.alcance) info.push(`Alcance: ${r.alcance}`);
+  if (r.alvo) info.push(`Alvo: ${r.alvo}`);
+  if (r.area) info.push(`Área: ${r.area}`);
+  if (r.duracao) info.push(`Duração: ${r.duracao}`);
+  if (r.resistencia) info.push(`Resistência: ${r.resistencia}`);
+  if (r.dados && Object.keys(r.dados).length) info.push(`Dano: ${Object.entries(r.dados).map(([k, v]) => `${k} ${v}`).join(" / ")}`);
+  if (r.funcoes?.length) info.push(`Funções: ${r.funcoes.join(", ")}`);
+  if (info.length) L.push(`⚙️ ${info.join(" · ")}`);
+  L.push("");
+  L.push(r.descricao || r.resumo || "—");
+  return L.join("\n").slice(0, 1900);
+}
+
+function fmtDetalheGenerico(x) {
+  const L = [`✨ **${x.nome}**`];
+  const info = [];
+  if (x.tipo) info.push(`Tipo: ${x.tipo}`);
+  if (x.elemento) info.push(`Elemento: ${x.elemento}`);
+  if (x.categoria) info.push(`Categoria: ${x.categoria}`);
+  if (x.slots != null) info.push(`Slots: ${x.slots}`);
+  if (x.defesa != null) info.push(`Defesa: +${x.defesa}`);
+  if (x.funcoes?.length) info.push(`Funções: ${x.funcoes.join(", ")}`);
+  if (info.length) L.push(`⚙️ ${info.join(" · ")}`);
+  L.push("");
+  L.push(x.descricao || x.resumo || "—");
+  if (x.subHabilidades?.length) {
+    L.push("");
+    L.push("**Sub-habilidades:**");
+    for (const h of x.subHabilidades) L.push(`• **${h.nome}**${h.custo ? ` (${h.custo})` : ""}: ${h.resumo || ""}`);
+  }
+  return L.join("\n").slice(0, 1900);
+}
+
+function parseFiltro(resto, ficha) {
+  const tokens = String(resto || "").trim().split(/\s+/).filter(Boolean);
+  const funcoes = new Set((rpg.todasFuncoes(ficha) || []).map((x) => rpg.normalizar(x)));
+  const elementos = new Set(
+    [...(ficha.elementos || []), "conhecimento", "energia", "sangue", "morte", "medo", "outro lado"].map((x) => rpg.normalizar(x))
+  );
+  let funcao = null;
+  let elemento = null;
+  const busca = [];
+  for (const tk of tokens) {
+    const n = rpg.normalizar(tk);
+    if (!funcao && funcoes.has(n)) { funcao = tk; continue; }
+    if (!elemento && elementos.has(n)) { elemento = tk; continue; }
+    busca.push(tk);
+  }
+  return { funcao, elemento, busca: busca.join(" ") || null };
+}
+
+function cmdConteudo(pedido, ficha) {
+  const lower = pedido.toLowerCase();
+
+  if (lower === "agente" || lower.startsWith("agente ")) {
+    const alvo = pedido.replace(/^agente\s*/i, "").trim();
+    if (!alvo) return `Ficha ativa: **${ficha.nome}**. Disponíveis: ${rpg.listarFichas().map((x) => x.nome).join(", ")}.`;
+    const f = rpg.definirAtiva(alvo);
+    return f ? `✅ Ficha ativa agora: **${f.nome}**.` : `❌ Não achei a ficha "${alvo}".`;
+  }
+
+  if (lower === "ficha" || lower === "resumo") return fmtResumoFicha(ficha);
+
+  if (lower === "pericias") {
+    const tr = ficha.pericias?.treinadas || [];
+    if (!tr.length) return "Nenhuma perícia treinada registrada.";
+    return [`🎓 **Perícias treinadas — ${ficha.nome}**`, ...tr.map((p) => `• **${p.nome}** (${p.atributo}) +${p.bonus}`)].join("\n");
+  }
+
+  if (lower.startsWith("rituais")) {
+    const filtro = parseFiltro(pedido.replace(/^rituais\s*/i, ""), ficha);
+    const lista = rpg.filtrar(ficha, "rituais", filtro);
+    if (!lista.length) return "Nenhum ritual com esse filtro.";
+    const head = `📖 **Rituais (${lista.length})**${filtro.funcao ? ` · função ${filtro.funcao}` : ""}${filtro.elemento ? ` · ${filtro.elemento}` : ""}${filtro.busca ? ` · "${filtro.busca}"` : ""}:`;
+    return [head, fmtLista(lista), "_Detalhe: ritual <nome>_"].join("\n").slice(0, 1950);
+  }
+
+  if (lower.startsWith("ritual ")) {
+    const r = rpg.buscarRitual(ficha, pedido.replace(/^ritual\s*/i, "").trim());
+    return r ? fmtDetalheRitual(r) : "❌ Ritual não encontrado.";
+  }
+
+  if (lower === "habilidades" || lower.startsWith("habilidades ")) {
+    const filtro = parseFiltro(pedido.replace(/^habilidades\s*/i, ""), ficha);
+    const lista = rpg.filtrar(ficha, "habilidades", filtro);
+    if (!lista.length) return "Nenhuma habilidade com esse filtro.";
+    const head = `✨ **Habilidades (${lista.length})**${filtro.funcao ? ` · função ${filtro.funcao}` : ""}${filtro.busca ? ` · "${filtro.busca}"` : ""}:`;
+    return [head, fmtLista(lista), "_Detalhe: habilidade <nome>_"].join("\n").slice(0, 1950);
+  }
+
+  if (lower.startsWith("habilidade ")) {
+    const h = rpg.buscarHabilidade(ficha, pedido.replace(/^habilidade\s*/i, "").trim());
+    return h ? fmtDetalheGenerico(h) : "❌ Habilidade não encontrada.";
+  }
+
+  if (lower === "itens" || lower.startsWith("itens ")) {
+    const filtro = parseFiltro(pedido.replace(/^itens\s*/i, ""), ficha);
+    const lista = rpg.filtrar(ficha, "itens", filtro);
+    if (!lista.length) return "Nenhum item com esse filtro.";
+    const head = `📦 **Itens (${lista.length})**${filtro.funcao ? ` · função ${filtro.funcao}` : ""}${filtro.elemento ? ` · ${filtro.elemento}` : ""}:`;
+    return [head, fmtLista(lista), "_Detalhe: item <nome>_"].join("\n").slice(0, 1950);
+  }
+
+  if (lower.startsWith("item ")) {
+    const it = rpg.buscarItem(ficha, pedido.replace(/^item\s*/i, "").trim());
+    return it ? fmtDetalheGenerico(it) : "❌ Item não encontrado.";
+  }
+
+  if (lower.startsWith("funcao ")) {
+    const funcao = pedido.replace(/^funcao\s*/i, "").trim();
+    const res = rpg.filtrarTudo(ficha, { funcao });
+    const total = res.rituais.length + res.habilidades.length + res.itens.length;
+    if (!total) return `Nada com a função "${funcao}".`;
+    const L = [`🎯 **Função: ${funcao}** (${total} em ${ficha.nome})`];
+    if (res.rituais.length) L.push(`**Rituais:** ${res.rituais.map((x) => x.nome).join(", ")}`);
+    if (res.habilidades.length) L.push(`**Habilidades:** ${res.habilidades.map((x) => x.nome).join(", ")}`);
+    if (res.itens.length) L.push(`**Itens:** ${res.itens.map((x) => x.nome).join(", ")}`);
+    return L.join("\n").slice(0, 1950);
+  }
+
+  return null;
+}
+
 async function executar(args) {
   let pedido;
   if (typeof args === "string") {
@@ -357,6 +544,10 @@ async function executar(args) {
   if (!pedido) {
     return [
       "🎲 **Modo RPG** (por texto — Neon fora da call)",
+      "",
+      "**Ficha:** `ficha` (resumo) · `rituais [função/elemento]` · `ritual <nome>`",
+      "  `habilidades [função]` · `habilidade <nome>` · `itens` · `item <nome>`",
+      "  `funcao combate` · `pericias` · `agente <nome>` (troca a ficha ativa)",
       "",
       "**Links rápidos:** `zacarias` · `campanha` · `escudo` · `mapa` · `links`",
       "  *Manda `mapa <link>` pra atualizar o link do mapa.*",
@@ -373,7 +564,14 @@ async function executar(args) {
 
   if (lower === "links") return formatarLinks();
 
-  if (lower === "buffs" || lower === "ficha") return formatarBuffs();
+  // Conteúdo da ficha (rituais/habilidades/itens por função, elemento etc.)
+  const fichaAtiva = rpg.getFicha(null);
+  if (fichaAtiva) {
+    const respConteudo = cmdConteudo(pedido, fichaAtiva);
+    if (respConteudo) return respConteudo;
+  }
+
+  if (lower === "buffs") return formatarBuffs();
   if (lower.startsWith("buff ")) return definirBuff(pedido.replace(/^buff\s+/i, "").trim());
 
   if (lower === "zacarias") return abrirLink("zacarias");
@@ -399,11 +597,11 @@ async function executar(args) {
     return executarRoll(info);
   }
 
-  return "❌ Não entendi. Tenta: `rola Pontaria`, `1d20+3`, `2d6`, `d20 vantagem`, `buffs`, `buff Pontaria 12`, `zacarias`, `campanha`, `escudo`, `mapa <link>`, `links`, `abre dnd5e`.";
+  return "❌ Não entendi. Tenta: `ficha`, `rituais combate`, `ritual <nome>`, `habilidades`, `itens`, `funcao cura`, `rola Pontaria`, `1d20+3`, `2d6`, `buffs`, `zacarias`, `campanha`, `mapa <link>`, `links`, `abre dnd5e`.";
 }
 
 module.exports = {
   nome: "modo_rpg",
-  descricao: `Assistente de RPG de mesa (Ordem Paranormal) por texto. Abre/foca abas: "zacarias", "campanha", "escudo", "mapa <link>", "links". ROLA dados e PERÍCIAS usando a ficha salva: "rola Pontaria" (usa o bônus), "1d20+3", "2d6", "d20 vantagem/desvantagem". "buffs" lista bônus; "buff <perícia> <b>" ajusta. "abre <site>". Uso: skill_modo_rpg | [comando]`,
+  descricao: `Assistente de RPG de mesa (Ordem Paranormal) por texto. FICHA (data/rpg_fichas.json): "ficha" (resumo), "rituais [função/elemento]", "ritual <nome>", "habilidades [função]", "habilidade <nome>", "itens", "item <nome>", "funcao <x>" (rituais+habilidades+itens), "pericias", "agente <nome>" (troca a ficha ativa). Abre/foca abas: "zacarias", "campanha", "escudo", "mapa <link>", "links". ROLA dados e PERÍCIAS: "rola Pontaria", "1d20+3", "2d6", "d20 vantagem/desvantagem". "buffs" lista bônus; "buff <perícia> <b>" ajusta. "abre <site>". Uso: skill_modo_rpg | [comando]`,
   executar,
 };

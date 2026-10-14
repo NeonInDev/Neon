@@ -94,6 +94,29 @@ function definirAtiva(ref) {
   return f;
 }
 
+// ajusta o bonus de uma pericia na ficha ativa (usado pelo skill modo_rpg)
+function definirBonusPericia(nome, valor) {
+  const f = getFicha(null);
+  if (!f) return { ok: false, erro: "nenhuma ficha ativa" };
+  const d = carregar();
+  const alvo = d.fichas[f.id];
+  if (!alvo) return { ok: false, erro: "ficha nao encontrada" };
+  if (!alvo.pericias) alvo.pericias = { todos: {}, treinadas: [] };
+  if (!alvo.pericias.todos) alvo.pericias.todos = {};
+  const t = normalizar(nome);
+  const todos = alvo.pericias.todos;
+  const chave =
+    Object.keys(todos).find((k) => normalizar(k) === t) ||
+    Object.keys(todos).find((k) => normalizar(k).includes(t));
+  if (!chave) return { ok: false, erro: `pericia "${nome}" nao encontrada` };
+  todos[chave].bonus = valor;
+  const tr = alvo.pericias.treinadas || [];
+  const item = tr.find((p) => normalizar(p.nome) === normalizar(chave));
+  if (item) item.bonus = valor;
+  persistir();
+  return { ok: true, nome: chave, ficha: f.nome };
+}
+
 // ------- rituais / habilidades / itens -------
 
 function todasFuncoes(ficha) {
@@ -230,6 +253,7 @@ module.exports = {
   getFicha,
   salvarFicha,
   definirAtiva,
+  definirBonusPericia,
   todasFuncoes,
   filtrar,
   filtrarTudo,

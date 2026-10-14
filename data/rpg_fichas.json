@@ -180,7 +180,7 @@
           },
           "Pontaria": {
             "atributo": "AGI",
-            "bonus": 0,
+            "bonus": 8,
             "treinada": false
           },
           "Profissão": {
