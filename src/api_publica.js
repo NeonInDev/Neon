@@ -1482,6 +1482,46 @@ function iniciar(port = 3000) {
       return;
     }
 
+    // ── CLONAGEM DE SERVIDOR (estrutura + conteudo + threads/foruns) ──
+    if (req.url.split("?")[0] === "/api/discord/clone" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const clone = require("./clone_servidor");
+        const r = clone.iniciar({
+          origem: corpo && corpo.origem ? String(corpo.origem) : "1498162375251988624",
+          destino: corpo && corpo.destino ? String(corpo.destino) : "1560455951482364024",
+          reiniciar: !!(corpo && corpo.reiniciar),
+          copiarConteudo: !(corpo && corpo.copiarConteudo === false),
+          copiarThreads: !(corpo && corpo.copiarThreads === false),
+          copiarCargos: !(corpo && corpo.copiarCargos === false),
+          copiarOverwrites: !(corpo && corpo.copiarOverwrites === false),
+          limitePorCanal: corpo && corpo.limitePorCanal,
+          apenasConteudo: corpo && Array.isArray(corpo.apenasConteudo) ? corpo.apenasConteudo : undefined,
+        });
+        responder(res, r.ok ? 200 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/discord/clone" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const clone = require("./clone_servidor");
+        responder(res, 200, { ok: true, ...clone.status() });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/discord/clone/parar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const clone = require("./clone_servidor");
+        responder(res, 200, { ok: true, ...clone.parar() });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/whatsapp/documento" && req.method === "POST") {
       if (!exigeChave(req, res)) return;
       try {
