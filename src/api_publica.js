@@ -1328,6 +1328,153 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/discord/base-cargos" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const { client } = require("./client");
+        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda nao conectou" }); return; }
+        const servidor = String((corpo && corpo.servidor) || "1498162375251988624");
+        const jornId = String((corpo && corpo.jornalista) || "1498213439372529694");
+        const baseUserId = String((corpo && corpo.baseUser) || "653587088658137088");
+        const dryRun = !(corpo && corpo.aplicar === true);
+        const apenas = Array.isArray(corpo && corpo.usuarios) ? corpo.usuarios.map(String) : null;
+        const busca = corpo && corpo.busca ? new RegExp(String(corpo.busca), "i") : null;
+        const listar = !!(corpo && corpo.listar);
+        const guild = client.guilds.cache.get(servidor) || (await client.guilds.fetch(servidor));
+        const roles = await guild.roles.fetch();
+        const jorn = roles.get(jornId);
+        if (!jorn) { responder(res, 400, { erro: "cargo jornalista nao encontrado" }); return; }
+        const baseMember = await guild.members.fetch(baseUserId).catch(() => null);
+        if (!baseMember) { responder(res, 400, { erro: "usuario base nao encontrado" }); return; }
+        const baseRoles = baseMember.roles.cache.filter((r) => r.id !== guild.id).map((r) => r.id);
+        const baseRolesInfo = baseMember.roles.cache
+          .filter((r) => r.id !== guild.id)
+          .map((r) => ({ id: r.id, nome: r.name, pos: r.position }))
+          .sort((a, b) => b.pos - a.pos);
+        const botTop = guild.members.me.roles.highest;
+        await guild.members.fetch().catch(() => {});
+        const membros = [...guild.members.cache.values()].filter((m) => !m.user.bot);
+        const elegiveis = [];
+        let staffIgnorado = 0;
+        for (const m of membros) {
+          if (m.id === client.user.id) continue;
+          if (m.id === baseUserId) continue;
+          const hasStaff = m.roles.cache.some((r) => r.position > jorn.position);
+          if (hasStaff) { staffIgnorado++; continue; }
+          elegiveis.push(m);
+        }
+        const alvo = apenas ? elegiveis.filter((m) => apenas.includes(m.id)) : elegiveis;
+        const resumo = {
+          ok: true, dryRun,
+          jornalista: { id: jorn.id, nome: jorn.name, pos: jorn.position },
+          botTop: { nome: botTop.name, pos: botTop.position },
+          baseRoles: baseRolesInfo,
+          totalMembros: membros.length,
+          staffIgnorado,
+          elegiveis: elegiveis.length,
+          alvo: alvo.length,
+        };
+        const info = (m) => ({
+          id: m.id,
+          usuario: m.user.username,
+          nick: m.nick || null,
+          cargos: m.roles.cache.filter((r) => r.id !== guild.id).map((r) => r.name),
+        });
+        if (dryRun) {
+          if (busca) {
+            resumo.encontrados = elegiveis
+              .filter((m) => busca.test(m.user.username + " " + (m.nick || "") + " " + (m.user.globalName || "")))
+              .map((m) => ({ id: m.id, usuario: m.user.username, nick: m.nick || null }));
+          } else if (listar) {
+            resumo.lista = elegiveis.slice(0, 500).map((m) => ({ id: m.id, usuario: m.user.username, nick: m.nick || null }));
+          } else {
+            resumo.amostra = alvo.slice(0, 60).map(info);
+          }
+          responder(res, 200, resumo);
+          return;
+        }
+        let aplicado = 0, falhou = 0; const erros = [];
+        for (const m of alvo) {
+          try {
+            await m.roles.set(baseRoles, "cargos base Neon");
+            aplicado++;
+          } catch (e) {
+            falhou++;
+            if (erros.length < 15) erros.push(m.user.username + ": " + e.message);
+          }
+          await new Promise((r) => setTimeout(r, 400));
+        }
+        resumo.aplicado = aplicado; resumo.falhou = falhou; resumo.erros = erros;
+        responder(res, 200, resumo);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    // ── LIMPAR: backup + apagar canais (e opcionalmente a categoria) ──
+    if (req.url.split("?")[0] === "/api/discord/categoria/limpar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const { client } = require("./client");
+        if (!client.isReady()) { responder(res, 400, { erro: "Discord ainda nao conectou" }); return; }
+        const servidor = String((corpo && corpo.servidor) || "1498162375251988624");
+        const categorias = Array.isArray(corpo && corpo.categorias) ? corpo.categorias.map(String) : [];
+        if (!categorias.length) { responder(res, 400, { erro: "informe categorias[]" }); return; }
+        const apagarCategoria = !(corpo && corpo.apagarCategoria === false);
+        const executar = !!(corpo && corpo.executar === true);
+        const guild = client.guilds.cache.get(servidor) || (await client.guilds.fetch(servidor));
+        const overwrites = (ch) => ch.permissionOverwrites.cache.map((o) => ({
+          id: o.id, tipo: o.type,
+          allow: o.allow.bitfield.toString(), deny: o.deny.bitfield.toString(),
+        }));
+        const backups = []; const plano = [];
+        for (const catId of categorias) {
+          const cat = guild.channels.cache.get(catId) || (await guild.channels.fetch(catId).catch(() => null));
+          if (!cat) { plano.push({ categoria: catId, erro: "nao encontrada" }); continue; }
+          const filhos = [...guild.channels.cache.values()]
+            .filter((c) => c.parentId === catId)
+            .sort((a, b) => a.position - b.position);
+          backups.push({
+            geradoEm: new Date().toISOString(),
+            categoria: { id: cat.id, nome: cat.name, tipo: cat.type, posicao: cat.position, overwrites: overwrites(cat) },
+            canais: filhos.map((c) => ({
+              id: c.id, nome: c.name, tipo: c.type, posicao: c.position,
+              topico: c.topic || null, nsfw: c.nsfw || false, slowmode: c.rateLimitPerUser || 0,
+              overwrites: overwrites(c),
+            })),
+          });
+          plano.push({
+            categoria: cat.name, id: cat.id,
+            canais: filhos.map((c) => ({ id: c.id, nome: c.name, tipo: c.type })),
+          });
+        }
+        const fs = require("fs"); const path = require("path");
+        const pasta = path.join(__dirname, "..", "data", "backups");
+        if (!fs.existsSync(pasta)) fs.mkdirSync(pasta, { recursive: true });
+        const arquivo = path.join(pasta, "limpar_" + Date.now() + ".json");
+        fs.writeFileSync(arquivo, JSON.stringify({ servidor, geradoEm: new Date().toISOString(), categorias: backups }, null, 2));
+        if (!executar) { responder(res, 200, { ok: true, dryRun: true, backup: arquivo, plano }); return; }
+        let canaisApagados = 0, categoriasApagadas = 0; const erros = [];
+        for (const catId of categorias) {
+          const filhos = [...guild.channels.cache.values()]
+            .filter((c) => c.parentId === catId)
+            .sort((a, b) => a.position - b.position);
+          for (const c of filhos) {
+            try { await c.delete("limpeza de categoria Neon"); canaisApagados++; }
+            catch (e) { erros.push(c.name + ": " + e.message); }
+            await new Promise((r) => setTimeout(r, 300));
+          }
+          if (apagarCategoria) {
+            const cat = guild.channels.cache.get(catId);
+            if (cat) { try { await cat.delete("limpeza de categoria Neon"); categoriasApagadas++; } catch (e) { erros.push(cat.name + ": " + e.message); } }
+          }
+        }
+        responder(res, 200, { ok: true, dryRun: false, backup: arquivo, canaisApagados, categoriasApagadas, erros });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/discord/canal/mensagens" && req.method === "GET") {
       if (!exigeChave(req, res)) return;
       try {
