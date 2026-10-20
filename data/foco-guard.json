@@ -1,5 +1,5 @@
 {
-  "ativo": true,
+  "ativo": false,
   "_comentario": [
     "Trava de foco do Neon. Enquanto qualquer processo desta lista estiver",
     "rodando, o bot se recusa a ativar/mostrar qualquer janela, porque no",
