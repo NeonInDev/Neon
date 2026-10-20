@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "mcp": "opencode serve",
-    "tui": "node tui.js"
+    "tui": "node tui.js",
+    "test": "node --test \"test/*.test.js\""
   },
   "author": "Neon",
   "license": "ISC",
