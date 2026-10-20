@@ -21,6 +21,7 @@ const { removerFundo } = require("./imagens");
 const projetosArquivos = require("./projetos_arquivos");
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const { calcularExpressao } = require("./calculadora");
+const { acaoAtiva } = require("./feature-policy");
 
 function limparFiller(t) {
   return t.replace(/\s+(?:por\s+favor|pfv|please|pls)\s*$/i, "").replace(/^\s*(?:por\s+favor|pfv|please|pls)\s+/i, "").trim();
@@ -1130,6 +1131,8 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
   // Remove prefixo "Neon," "Neon." "Neon " (vindo de DM sem strip)
   texto = texto.replace(/^[Nn][Ee][Oo][Nn][,\s\.]\s*/, "");
   const lower = texto.toLowerCase().trim();
+  const categoriaSolicitada = detectarCategoria(texto);
+  if (!acaoAtiva(categoriaSolicitada, lower)) return null;
 
   // ─── Ação pendente (Boa Noite) ───
   if (userId) {

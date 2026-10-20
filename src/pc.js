@@ -920,6 +920,22 @@ async function instalarJogoSteam(appid) {
   return { ok: true, mensagem: `Iniciando a instalação do jogo na Steam (AppID ${id}).`, appid: id };
 }
 
+async function desinstalarJogoSteam(appid) {
+  const id = String(appid || "").trim();
+  if (!/^\d+$/.test(id)) return { ok: false, erro: "AppID da Steam inválido" };
+  const uri = `steam://uninstall/${id}`;
+  await execAsync(
+    `powershell -NoProfile -Command "Start-Process -FilePath '${uri}'"`,
+    { timeout: 10000, windowsHide: true }
+  );
+  return {
+    ok: true,
+    mensagem: `A Steam abriu a confirmação para desinstalar o jogo (AppID ${id}); confirme ou cancele na janela da Steam.`,
+    appid: id,
+    confirmacaoSteam: true,
+  };
+}
+
 async function fecharAppsExceto() {
   const script = `
 $preservar = @('medal', 'steam', 'code', 'node', 'opencode', 'explorer', 'powershell', 'conhost', 'cmd', 'dwm')
@@ -1153,7 +1169,8 @@ module.exports = {
   screenshot, screenshotBase64, pcInfo, pcInfoJson, volume, clipboard, tts,
   listarProcessos, matarProcesso, infoRede, bateria, bateriaJson, notificar, notificarToast, enviarEmail,
   dormir, bloquear, desligar, cancelarDesligar, abrirAppPorNome, criarArquivo, resumoCommits, abrirWhatsApp, abrirUrl,
-  iniciarJogoSteam, buscarJogoSteam, instalarJogoSteam, fecharAppsExceto, spotifyBuscarTocar, spotifyTocarPorId, spotifyControle,
+  iniciarJogoSteam, buscarJogoSteam, instalarJogoSteam, desinstalarJogoSteam, fecharAppsExceto,
+  spotifyBuscarTocar, spotifyTocarPorId, spotifyControle,
   spotifyListarDispositivos, spotifyTocarEm, spotifyBuscarTocarCross, spotifyResolverDispositivo,
   moverMouse, clicarMouse, duploClique, arrastar, arrastarMeio, soltarMeio, segurarBotao, soltarBotao, digitarTexto, tecla,
   acharJanela, listarJanelas, minimizarJanela, maximizarJanela, fecharJanela,

@@ -1,6 +1,17 @@
 const readline = require("readline");
 const pc = require("./pc");
-const medal = require("../plugins/medal");
+
+const FERRAMENTAS_ATIVAS = new Set([
+  "pc_iniciar_jogo_steam",
+  "pc_buscar_jogo_steam",
+  "pc_instalar_jogo_steam",
+  "pc_desinstalar_jogo_steam",
+  "pc_spotify_buscar_tocar",
+  "pc_spotify_tocar_id",
+  "pc_spotify_controle",
+  "pc_spotify_dispositivos",
+  "pc_spotify_tocar_em",
+]);
 
 const FERRAMENTAS = [
   {
@@ -149,11 +160,26 @@ const FERRAMENTAS = [
   },
   {
     name: "pc_instalar_jogo_steam",
-    description: "Instala um jogo na Steam pelo AppID via steam://install.",
+    description: "Abre a confirmação de instalação de um jogo na Steam. Só chamar depois de pedido explícito do usuário.",
     inputSchema: {
       type: "object",
-      properties: { appid: { type: "string", description: "AppID numérico da Steam" } },
-      required: ["appid"],
+      properties: {
+        appid: { type: "string", description: "AppID numérico da Steam" },
+        confirmar: { type: "boolean", description: "true somente após o usuário confirmar a instalação" },
+      },
+      required: ["appid", "confirmar"],
+    },
+  },
+  {
+    name: "pc_desinstalar_jogo_steam",
+    description: "Abre a confirmação da Steam para desinstalar um jogo. Pergunte e aguarde confirmação explícita do usuário antes de chamar.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        appid: { type: "string", description: "AppID numérico da Steam" },
+        confirmar: { type: "boolean", description: "true somente após o usuário confirmar a desinstalação" },
+      },
+      required: ["appid", "confirmar"],
     },
   },
   {
@@ -234,6 +260,7 @@ function erro(id, mensagem) {
 }
 
 async function chamarFerramenta(nome, args) {
+  if (!FERRAMENTAS_ATIVAS.has(nome)) throw new Error(`ferramenta desativada: ${nome}`);
   let texto;
   switch (nome) {
     case "pc_info":
@@ -291,7 +318,14 @@ async function chamarFerramenta(nome, args) {
       texto = JSON.stringify(await pc.buscarJogoSteam(args.nome));
       break;
     case "pc_instalar_jogo_steam":
-      texto = JSON.stringify(await pc.instalarJogoSteam(args.appid));
+      texto = JSON.stringify(args.confirmar === true
+        ? await pc.instalarJogoSteam(args.appid)
+        : { ok: false, erro: "confirmação explícita necessária" });
+      break;
+    case "pc_desinstalar_jogo_steam":
+      texto = JSON.stringify(args.confirmar === true
+        ? await pc.desinstalarJogoSteam(args.appid)
+        : { ok: false, erro: "confirmação explícita necessária" });
       break;
     case "pc_fechar_apps":
       texto = JSON.stringify(await pc.fecharAppsExceto());
@@ -352,7 +386,7 @@ rl.on("line", async (linha) => {
   if (msg.method === "notifications/initialized") return;
 
   if (msg.method === "tools/list") {
-    responder(msg.id, { tools: FERRAMENTAS });
+    responder(msg.id, { tools: FERRAMENTAS.filter((f) => FERRAMENTAS_ATIVAS.has(f.name)) });
     return;
   }
 

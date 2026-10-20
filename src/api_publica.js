@@ -7,6 +7,7 @@ const { log } = require("./logger");
 const { askNeon } = require("./ai");
 const { MASTER_KEY } = require("./config");
 const { db } = require("./db");
+const { isRotaAtiva } = require("./api-policy");
 
 const SSL_DIR = path.join(__dirname, "..", "ssl");
 const SSL_PFX = path.join(SSL_DIR, "neon.pfx");
@@ -32,6 +33,14 @@ const MIME = {
   ".stl": "model/stl",
   ".blend": "application/octet-stream",
 };
+const ROTAS_ESTATICAS_DESATIVADAS = new Set([
+  "/gesture",
+  "/gesture.html",
+  "/whatsapp",
+  "/whatsapp.html",
+  "/public/gesture.html",
+  "/public/whatsapp.html",
+]);
 
 let server = null;
 
@@ -219,7 +228,16 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.method === "GET" && ROTAS_ESTATICAS_DESATIVADAS.has(new URL(req.url, "http://x").pathname.toLowerCase())) {
+      responder(res, 404, { erro: "recurso desativado nesta versão da Neon" });
+      return;
+    }
     if (req.method === "GET" && servirArquivo(req.url, res)) return;
+
+    if (req.url.startsWith("/api/") && !isRotaAtiva(req.method, req.url)) {
+      responder(res, 404, { erro: "rota desativada nesta versão da API" });
+      return;
+    }
 
     if (req.url === "/health" && req.method === "GET") {
       responder(res, 200, { healthy: true, version: "2.0.0" });
@@ -251,8 +269,13 @@ function iniciar(port = 3000) {
     if (req.url === "/doc" && req.method === "GET") {
       const spec = {
         openapi: "3.1.0",
-        info: { title: "Neon Server", version: "2.0.0" },
+        info: { title: "Neon API principal", version: "2.1.0" },
         servers: [{ url: "/" }],
+        components: {
+          securitySchemes: {
+            HudKey: { type: "apiKey", in: "header", name: "X-Hud-Key" },
+          },
+        },
         paths: {
           "/health": { get: { responses: { "200": { description: "ok" } } } },
           "/session/{id}/message": {
@@ -264,8 +287,115 @@ function iniciar(port = 3000) {
           },
           "/api/chat": {
             post: {
+              security: [{ HudKey: [] }],
               requestBody: { content: { "application/json": { schema: { type: "object" } } } },
               responses: { "200": { description: "resposta da Neon" } },
+            },
+          },
+          "/api/status": { get: { responses: { "200": { description: "estado básico da Neon" } } } },
+          "/api/saude": { get: { responses: { "200": { description: "estado dos provedores de IA" } } } },
+          "/api/visao": {
+            post: {
+              security: [{ HudKey: [] }],
+              requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["imagem"], properties: { imagem: { type: "string", description: "Imagem em base64 ou data URL" } } } } } },
+              responses: { "200": { description: "análise visual" } },
+            },
+          },
+          "/api/modo": {
+            get: { responses: { "200": { description: "modo de voz atual" } } },
+            post: {
+              security: [{ HudKey: [] }],
+              requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["modo"], properties: { modo: { type: "string" } } } } } },
+              responses: { "200": { description: "modo atualizado" } },
+            },
+          },
+          "/api/pc": {
+            get: {
+              security: [{ HudKey: [] }],
+              responses: { "200": { description: "estado básico do PC" } },
+            },
+          },
+          "/api/pc/volume": {
+            post: {
+              security: [{ HudKey: [] }],
+              requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["nivel"], properties: { nivel: { type: "number", minimum: 0, maximum: 100 } } } } } },
+              responses: { "200": { description: "volume ajustado" } },
+            },
+          },
+          "/api/pc/screenshot": {
+            post: {
+              security: [{ HudKey: [] }],
+              responses: { "200": { description: "captura em data URL" } },
+            },
+          },
+          "/api/voz/falar": {
+            post: {
+              security: [{ HudKey: [] }],
+              requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["texto"], properties: { texto: { type: "string" }, guildId: { type: "string" } } } } } },
+              responses: { "200": { description: "texto enviado ao canal de voz ativo" } },
+            },
+          },
+          "/api/voz/audio": {
+            post: {
+              security: [{ HudKey: [] }],
+              requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["texto"], properties: { texto: { type: "string" }, voz: { type: "string" } } } } } },
+              responses: { "200": { description: "áudio sintetizado", content: { "audio/mpeg": {} } } },
+            },
+          },
+          "/api/voz/stt": {
+            post: {
+              security: [{ HudKey: [] }],
+              requestBody: { required: true, content: { "audio/webm": { schema: { type: "string", format: "binary" } }, "audio/wav": { schema: { type: "string", format: "binary" } } } },
+              responses: { "200": { description: "transcrição do áudio" } },
+            },
+          },
+          "/api/jogos/steam/buscar": {
+            get: {
+              security: [{ HudKey: [] }],
+              parameters: [{ name: "q", in: "query", required: true, schema: { type: "string" } }],
+              responses: { "200": { description: "jogo encontrado na Steam" } },
+            },
+          },
+          "/api/jogos/steam/instalar": {
+            post: {
+              security: [{ HudKey: [] }],
+              requestBody: {
+                required: true,
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      required: ["appid", "confirmar"],
+                      properties: {
+                        appid: { type: "string", pattern: "^[0-9]+$" },
+                        confirmar: { type: "boolean", const: true },
+                      },
+                    },
+                  },
+                },
+              },
+              responses: { "200": { description: "Steam abriu a instalação" }, "409": { description: "confirmação necessária" } },
+            },
+          },
+          "/api/jogos/steam/desinstalar": {
+            post: {
+              security: [{ HudKey: [] }],
+              requestBody: {
+                required: true,
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      required: ["appid", "confirmar"],
+                      properties: {
+                        appid: { type: "string", pattern: "^[0-9]+$" },
+                        confirmar: { type: "boolean", const: true },
+                      },
+                    },
+                  },
+                },
+              },
+              responses: { "200": { description: "Steam abriu confirmação de desinstalação" }, "409": { description: "confirmação necessária" } },
             },
           },
         },
@@ -557,6 +687,48 @@ function iniciar(port = 3000) {
         try { fs.unlinkSync(wav); } catch {}
         if (!texto) { responder(res, 422, { erro: "não consegui entender o áudio" }); return; }
         responder(res, 200, { ok: true, texto });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/jogos/steam/buscar" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      const nome = new URL(req.url, "http://x").searchParams.get("q")?.trim();
+      if (!nome) { responder(res, 400, { erro: "parâmetro q é obrigatório" }); return; }
+      try {
+        const pc = require("./pc");
+        const resultado = await pc.buscarJogoSteam(nome);
+        responder(res, resultado.ok ? 200 : 404, resultado);
+      } catch (err) { responder(res, 502, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/jogos/steam/instalar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { appid, confirmar } = await lerBody(req);
+        if (confirmar !== true) {
+          responder(res, 409, { erro: "confirmação explícita necessária", confirmar: true });
+          return;
+        }
+        const pc = require("./pc");
+        const resultado = await pc.instalarJogoSteam(appid);
+        responder(res, resultado.ok ? 200 : 400, resultado);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url === "/api/jogos/steam/desinstalar" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const { appid, confirmar } = await lerBody(req);
+        if (confirmar !== true) {
+          responder(res, 409, { erro: "confirmação explícita necessária", confirmar: true });
+          return;
+        }
+        const pc = require("./pc");
+        const resultado = await pc.desinstalarJogoSteam(appid);
+        responder(res, resultado.ok ? 200 : 400, resultado);
       } catch (err) { responder(res, 400, { erro: err.message }); }
       return;
     }

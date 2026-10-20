@@ -35,7 +35,10 @@ async function chamarFerramenta(nome, args) {
   if (nome === "falar") {
     const resp = await fetch(`${BASE}/api/voz/falar`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Hud-Key": process.env.NEON_VOICE_KEY || "",
+      },
       body: JSON.stringify({ texto: String(args.texto || ""), guildId: args.guildId }),
     });
     const data = await resp.json().catch(() => ({}));

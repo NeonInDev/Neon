@@ -2,13 +2,12 @@ const { db } = require("./db");
 const { getOrCreateUser } = require("./user");
 const { log } = require("./logger");
 const opencode = require("../plugins/opencode");
-const toolsMod = require("./tools");
+const toolsMod = require("./tools-core");
 const axios = require("axios");
 const { DEEPSEEK_API_KEY, DEEPSEEK_MODEL, OPENROUTER_API_KEY, OPENROUTER_MODEL, GROQ_API_KEY, GROQ_MODEL, GROQ_CLASSIFIER_MODEL, OMNIROUTE_API_KEY, OMNIROUTE_BASE_URL, OMNIROUTE_MODEL } = require("./config");
 const { personaDoModo } = require("./modo");
 const { isOwner, isGuest } = require("./perm"); // @chefe
 const visao = require("./visao");
-const skills = require("./skills");
 const memoria = require("./memoria");
 const projetosArquivos = require("./projetos_arquivos");
 
@@ -233,7 +232,7 @@ REAÇÕES:
 - Em assuntos importantes, seja cuidadosa e direta.
 - Se não entender o pedido ou faltar informação, faça uma pergunta curta em vez de inventar uma resposta.
 - Só diga que uma ação foi concluída quando houver resultado confirmando isso.
-${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
+${tratamentoChefe}${perfilTxt}`;
 
   const memoriasTxt = memoria.buscarRelevantes(promptTruncado, guildId);
 
@@ -286,26 +285,6 @@ ${tratamentoChefe}${perfilTxt}${skills.contexto()}`;
 
     if (typeof onProgress === "function") onProgress("Pensando...", "💭");
     let resposta = await chamarLLM(sistema, userMsg, !convidado, { signal });
-
-    if (isOwner(userId) && skills.respostaIndicaFalta && skills.respostaIndicaFalta(resposta)) {
-      if (typeof onProgress === "function") onProgress("Vivendo e Aprendendo...", "🧠");
-      const skill = await skills.aprenderExecutavel(promptTruncado, resposta);
-      if (skill) {
-        require("./resolucao").marcar(userId, "skill nova");
-        const mod = skills.carregarModuloSkill(skill.id);
-        if (mod && typeof mod.executar === "function") {
-          try {
-            const resultado = await mod.executar(promptTruncado);
-            resposta = String(resultado || "").slice(0, 4000);
-          } catch (err) {
-            log("WARN", "[SKILLS] Erro ao executar skill recém-criada", { erro: err.message });
-            resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: Aprendi a fazer isso! Pode me perguntar novamente.`, userMsg, true, { signal });
-          }
-        } else {
-          resposta = await chamarLLM(`${sistema}\n\nSKILL RECÉM-ATIVADA:\n- ${skill.nome}: ${skill.descricao}`, userMsg, true, { signal });
-        }
-      }
-    }
 
     for (let iter = 0; !convidado && iter < MAX_ITERACOES_FERRAMENTAS; iter++) {
       const ferramentas = toolsMod.extrairFerramentas(resposta || "");

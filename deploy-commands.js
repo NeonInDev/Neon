@@ -2,10 +2,11 @@ require("dotenv").config();
 const { REST, Routes } = require("discord.js");
 const { readdirSync } = require("fs");
 const { join } = require("path");
+const { comandoAtivo } = require("./src/feature-policy");
 
 const commands = [];
 const commandFiles = readdirSync(join(__dirname, "src", "commands")).filter(
-  (f) => f.endsWith(".js") && f !== "index.js"
+  (f) => f.endsWith(".js") && f !== "index.js" && comandoAtivo(f.slice(0, -3))
 );
 
 for (const file of commandFiles) {

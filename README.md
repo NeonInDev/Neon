@@ -1,206 +1,84 @@
-# Neon — IA Assistente Pessoal
+# Neon
 
-Neon é a assistente pessoal do dono: uma IA com personalidade própria, memória de longo prazo, controle total do PC/celular, integração com Discord, WhatsApp, Google, Spotify e muito mais — tudo conversando por linguagem natural.
+Assistente pessoal em Node.js para Discord, com conversa por IA e um conjunto enxuto de recursos de voz, mídia, visão e jogos. Funcionalidades legadas e seus dados locais foram preservados, mas superfícies fora do escopo atual estão desativadas.
 
-## Stack
+## Recursos ativos
 
-| Camada | Tecnologia |
-|---|---|
-| Runtime | Node.js 25+ |
-| Discord API | discord.js v14 + @discordjs/voice |
-| IA | OpenRouter (multi-provedor), Groq, OmniRoute, DeepSeek (fallback) |
-| Banco | LowDB (JSON local) |
-| Browser | Playwright (Opera GX) |
-| WhatsApp | whatsapp-web.js (headful) |
-| Google | googleapis (Calendar, Tasks, Gmail, Drive) |
-| Voz | Edge TTS, Whisper local (@xenova/transformers), scrcpy/ADB |
+- Conversa com a Neon por `/neon` e mensagens direcionadas.
+- Busca e controle de músicas no Spotify; busca de vídeos no YouTube.
+- TTS e STT por voz e API HTTP.
+- Análise de imagens anexadas e pelo endpoint de visão.
+- MCPs de web, navegador, sistema de arquivos (limitado ao repositório Neon), voz e ferramentas Steam/Spotify.
+- Busca, início, instalação e desinstalação de jogos pela Steam. Instalação e desinstalação exigem confirmação explícita; a Steam mantém sua própria confirmação de desinstalação.
+
+Hydra e outros launchers não estão integrados. Só serão considerados com um fluxo oficial documentado para jogos que o usuário possui.
 
 ## Início rápido
 
 ```bash
 npm install
-# preencha o .env (veja src/config.js)
-npm start          # sobe o bot + API/HUD
-node deploy-commands.js   # registra os slash commands
+# Configure as credenciais no .env; não as compartilhe nem as versione.
+npm start
+npm test
+node deploy-commands.js
 ```
 
-## Comandos por linguagem natural
+`npm start` inicia o bot Discord, a API HTTP/HUD, o servidor OpenCode e a verificação dos provedores de IA. Não inicia gravação automática de chamadas, módulos proativos, lembretes, plugins externos ou skills executáveis.
 
-A Neon entende frases diretas no Discord (prefixo `neon`, `@Neon`, reply à mensagem dela ou DM). As principais categorias:
+## Comandos Discord ativos
 
-### Rotina
-- `bom dia` — liga Spotify/Steam/Medal, clima e dica do dia
-- `boa noite` — previsão de amanhã + confirma desligar o PC
-- `daddy is home` — rotina de chegada em casa
+`/neon`, `/saude`, `/spotify`, `/youtube`, `/letra`, `/ping` e `/sair`.
 
-### Controle do PC
-- `desligar` / `reiniciar` / `suspender` / `bloquear`
-- `status do pc` — CPU, RAM, disco, temperatura, bateria
-- `volume 20%` / `muta` / `print` / `clipboard`
-- `processos` (listar/matar), `rede`, `bateria`
-- `executa <comando>` (terminal), `digita <texto>`
+Os comandos antigos continuam no repositório para recuperação, mas não são carregados nem registrados pelo deploy atual. O roteador de ações de voz também aceita apenas mídia, jogos Steam, TTS e controles de microfone.
 
-### Apps, jogos e navegador
-- `abrir spotify/steam/youtube/opera/whatsapp/...` (30+ apps)
-- `jogar cs2/gta/elden ring/...` (20+ jogos Steam)
-- `vai pra <url>` / `entra em <site>`
+## API principal
 
-### Spotify / YouTube
-- `toca <música>`, `pular`, `voltar`, `pausar`, `continuar`, `letra de <música>`
-- `coloca <vídeo> no youtube`, `tela cheia`, `PiP`
+Rotas `/api/*` não listadas abaixo retornam `404`. Rotas que exigem autenticação usam `X-Hud-Key` com a chave mestra local. `/doc`, `/global/health`, `/global/event` e `/session/{id}/message` permanecem como endpoints de documentação, eventos e compatibilidade OpenCode.
 
-### Comunicação
-- `manda msg pra <alvo>: <texto>` (Discord DM)
-- `manda zap pra <contato>: <texto>` (WhatsApp)
-- `liga pra <alvo>` (chamada de voz Discord)
-- `muda status do discord` (online/idle/dnd/invisível/personalizado)
+| Método | Rota | Uso |
+|---|---|---|
+| `GET` | `/health`, `/api/status`, `/api/saude` | Estado do serviço e provedores de IA |
+| `POST` | `/api/chat` | Conversa autenticada |
+| `POST` | `/api/visao` | Analisa uma imagem em base64 |
+| `GET/POST` | `/api/modo` | Consulta e configura o modo de voz |
+| `GET` | `/api/pc` | Estado básico do PC |
+| `POST` | `/api/pc/volume`, `/api/pc/screenshot` | Volume e captura para visão |
+| `POST` | `/api/voz/falar`, `/api/voz/audio`, `/api/voz/stt` | Voz, síntese e transcrição |
+| `GET` | `/api/jogos/steam/buscar?q=...` | Pesquisa na loja Steam |
+| `POST` | `/api/jogos/steam/instalar` | Abre instalação após confirmação explícita |
+| `POST` | `/api/jogos/steam/desinstalar` | Abre confirmação de desinstalação da Steam |
 
-### Celular (ADB/scrcpy)
-- `conecta o celular`, `espelha o celular`, `abre <app> no celular`
-- `print do celular`, `toca em X,Y`, `desliza`, `digita no celular`
+Para instalação/desinstalação via API, envie `{"appid":"...", "confirmar":true}` somente depois da confirmação do usuário. O site `/hud` continua disponível; endpoints de recursos desativados não podem ser usados por ele.
 
-### IA / Informação
-- `pesquisa <query>`, `o que é <termo> no wikipedia`
-- `quanto é <expressão>` (calculadora), `cotação <moeda/crypto/ação>`
-- `clima em <cidade>`, `vai chover?`, `cep <n>`, `qual meu ip`
-- `notícias`, `cinema <cidade>`, `define <palavra>`
+## MCPs ativos
 
-### Entretenimento
-- `piada`, `conselho`, `trivia`, `gera imagem de <prompt>`
-- `mostra foto de <assunto>`, `gera qr code de <texto>`, `gera senha`
+- `web`: pesquisa e leitura de páginas.
+- `browser`: automação de navegação usada por mídia/web.
+- `filesystem`: acesso somente a `src`, `test`, `docs` e `public\hud` do projeto; `.env` e dados locais ficam fora do escopo.
+- `pc`: Steam e Spotify, com instalação/desinstalação sujeitas a confirmação.
+- `voice`: fala em um canal Discord ativo.
+- `neon`: estado e cálculo local.
 
-### Utilidades
-- `lembra de <texto>` / `me lembra em X minutos de Y` (+ recorrências: `todo dia às 08:00`, `toda segunda às 07:30`)
-- `traduz <texto> pra <idioma>`, `fala <texto>` (TTS), `remove fundo da imagem`
-- `notifica <título> <msg>`, `começa a gravar` (OBS)
+As permissões de edição e terminal do OpenCode continuam configuradas para pedir aprovação. MCPs de celular, GitHub, Git e Yggdrasil, assim como integrações externas antigas, estão desativados.
 
-### Escola / Estudo
-- `boletim` / `notas`, `versala`, flashcards (`criar deck`, `estudar <deck>`)
-- `o que tem na agenda` / `cria evento` (Google Calendar)
-- `cria tarefa <texto>` (Google Tasks), `quais emails não li` (Gmail)
+## Estrutura principal
 
-### Gestão do servidor (dono/mod)
-- `protocolo lockdown @user [por N horas] [motivo]` / `unlockdown @user`
-- `protocolo emergência` (mata Chrome/Opera/Spotify)
-- `neon expulse <id>` (skill kick), `neon clipe` (último clipe do Medal)
-
-## Slash commands
-
-Registrados pela pasta `src/commands/` (auto-descobertos). Destaques:
-
-| Comando | Descrição |
-|---|---|
-| `/neon <msg>` | Conversar com a Neon |
-| `/google <ação>` | Calendar/Tasks/Gmail/Drive |
-| `/convidar` | Invite (guild ou perfil) |
-| `/blacklist` `/unblacklist` `/afinidade` `/mood` | Admin (requer master key) |
-| `/memoria` `/perfil` `/gostos` `/personalidade` | Perfil do usuário |
-| `/entrar` `/sair` `/voz` | Canal de voz Discord |
-
-> Admin via **DM**: envie a `MASTER_KEY` no PV da Neon para ativar o modo mestre.
-
-## API HTTP / HUD (YGGDRASIL)
-
-Servidor HTTP/HTTPS próprio (~70 endpoints), dashboard web em `/hud`, controle de gestos em `/gesture` e documentação OpenAPI em `/doc`.
-
-- `POST /api/chat` — conversa com a Neon
-- `/api/pc/*`, `/api/gesture`, `/api/terminal`, `/api/arquivos/*` — controle remoto
-- `/api/whatsapp/*` — envio/status do WhatsApp
-- `/api/discord/*` — enviar canais, DMs, canais de voz
-- `/api/celular/*`, `/api/braco/*`, `/api/watch/*` — hardware
-- `POST /api/discord/enviar_canal` — enviar mensagem/arquivos para canal (ex.: tabelas, GIFs)
-- `/api/visao` — análise de imagem por IA
-- `/global/event` — WebSocket/SSE de eventos
-
-Acesso remoto seguro via **Tailscale** (ex.: `https://100.x.y.z:3443/hud`). Nunca exponha em `0.0.0.0` fora da VPN.
-
-## Integrações
-
-Discord (API + UI do dono), WhatsApp, Google (Calendar/Tasks/Gmail/Drive), Notion, Spotify, YouTube, Steam, Medal.tv, Strava, OBS Studio, Blender, Tailscale, OpenCode (delegar código), termux/ADB, Neo Zero ARQUIMEDES, braço robótico, NeonWatch (relógio), HUD desktop, Poderes/lore do servidor RPG.
-
-## Voz
-
-TTS por Edge TTS (neural, PT-BR) e SAPI como fallback; STT local via Whisper. A Neon entra em canais de voz Discord, fala, escuta (`neon ...`) e responde. Emoções mudam tom/velocidade.
-
-## Monitoramento proativo
-
-- **Resumo diário** às 07:00 em DM (PC, clima, agenda de hoje, previsões)
-- Alertas de RAM/CPU/disco/temperatura >90%
-- Detecção de desligamento inesperado (Event ID 41)
-- Modo Jarvis: ciclo a cada 15 min decide se faz algo útil
-- **Pings no Discord**: quando alguém menciona o dono, a Neon resume e avisa (voz ou DM)
-
-## Lembretes e recorrências
-
-- `me lembra em 30 minutos de X`
-- `me lembra todo dia às 08:00 de X` — repete diariamente
-- `me lembra toda segunda às 07:30 de X` — semanal
-- `me lembra a cada 3 horas de X` — intervalo
-
-## Arquitetura
-
-```
-index.js                  Bootstrap (client, handlers, plugins)
-src/
-  ai.js                   askNeon() — multi-provedor + tool calling
-  actions.js              Motor de ações por linguagem natural (50+ categorias)
-  timers.js               Lembretes + recorrências
-  proativo.js             Modo Jarvis (decide ações a cada 15min)
-  monitor.js              Resumo diário + alertas de sistema
-  pings.js                Resumo de menções ao dono
-  voz.js / voice.js       Canal de voz Discord (falar/ouvir) e microfone local
-  tts.js / stt.js         Text-to-Speech e Speech-to-Text
-  pc.js                   Controle do PC (info, volume, teclado, energia)
-  celular.js              ADB/scrcpy (espelhar, tocar, abrir apps)
-  browser.js              Playwright (navegação, Spotify, YouTube)
-  api.js / api_publica.js APIs externas + servidor HTTP/HUD
-  google/                 Calendar, Tasks, Gmail, Drive (OAuth2)
-  events/messageCreate.js Roteamento central de mensagens
-  events/interactionCreate.js  Slash commands
-  commands/               Um arquivo por comando (auto-descoberto)
-plugins/                  Notion, WhatsApp, OpenCode, Tailscale, Strava, Medal
-skills/                   Skills invocáveis pela IA
-public/hud/               Dashboard YGGDRASIL (web)
-hud-app/                  App desktop (NeonHud.exe / WebView2)
-data/                     Dados persistentes (skills, lore, guests...)
+```text
+index.js                 Inicialização mínima e encerramento
+src/ai.js                Conversa, provedores e análise de anexos
+src/feature-policy.js    Lista de comandos e ações ativos
+src/api-policy.js        Lista de rotas HTTP ativas
+src/api_publica.js       API HTTP/HUD
+src/mcp-*.js             Servidores MCP locais
+src/tts.js / src/stt.js  Síntese e transcrição de áudio
+src/visao.js             Análise de imagens
+src/pc.js                Integrações Steam e Spotify selecionadas
+test/                    Testes de regressão
 ```
 
-### Fluxo de mensagens
+## Segurança e dados
 
-```
-Mensagem → messageCreate.js
-  ├── bot/blacklist → ignora
-  ├── chave mestra (DM) → ativa admin
-  ├── ping no dono → pings.js resume e avisa (voz/DM)
-  ├── ativou? (neon/@bot/reply/DM) → cooldown 3s + debounce 1.5s
-  │     └── askNeon() → resposta (com molde, arquivos, multi-parte)
-  └── senão → ignora (mas segue monitorando)
-```
-
-## Setup Google (1 vez)
-
-1. Credenciais OAuth2 em [Google Cloud Console](https://console.cloud.google.com/apis/credentials) → Desktop app
-2. Salve como `google_credentials.json` (raiz do projeto, gitignorado)
-3. `node google_oauth_setup.js` → autorize → token em `google_token.json`
-4. Reinicie e teste com `/google status` ou "o que tem hoje na agenda?"
-
-Escopos: `calendar`, `tasks`, `gmail.readonly`, `drive`.
-
-## Segurança
-
-- `MASTER_KEY` só em DM; blacklist antes de tudo
-- Input truncado em 2000 chars; cooldown de 3s por usuário
-- `.env`, certificados, tokens e bancos **nunca** vão pro git
-- API exposta apenas via Tailscale (sem `0.0.0.0` público)
-- Persistência em `db.write()` no SIGINT/SIGTERM
-
-## Manutenção
-
-- **Novo comando**: crie `src/commands/nome.js` (exporta `data` + `execute`) e rode `node deploy-commands.js`
-- **Nova ação**: adicione categoria/regex em `src/actions.js`
-- **Nova skill**: crie em `skills/` com `_manifest.json`
-- **Logs**: `[timestamp] [LEVEL] msg {meta}` em `logs/`
-
-## Licença
-
-ISC
+- `.env`, credenciais, memória, sessões e dados locais não devem ser commitados.
+- A API não deve ser exposta publicamente sem VPN e autenticação.
+- Acesso MCP ao sistema de arquivos fica restrito ao projeto Neon.
+- Funcionalidades fora da lista estão desativadas; seus módulos e dados legados não foram apagados nesta etapa.

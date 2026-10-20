@@ -4,28 +4,15 @@ try { dns.setDefaultResultOrder("ipv4first"); } catch {}
 
 const { client } = require("./src/client");
 const { db } = require("./src/db");
-const { TOKEN, PROATIVO } = require("./src/config");
+const { TOKEN } = require("./src/config");
 const { log, fechar: fecharLogger } = require("./src/logger");
 const { fechar: fecharBrowser } = require("./src/browser");
 const opencode = require("./plugins/opencode");
 const apiPublica = require("./src/api_publica");
-const monitor = require("./src/monitor");
-const economia = require("./src/economia");
-const proativo = require("./src/proativo");
-const agendados = require("./src/agendados");
-const alarmes = require("./src/lembrete_alarme");
-const plugins = require("./plugins/gerenciador");
-const skills = require("./src/skills");
 const health = require("./src/health_ai");
 async function desligar(sinal) {
   log("INFO", `Desconectando (${sinal})...`);
-  await plugins.parar();
-  agendados.parar();
-  proativo.parar();
-  monitor.parar();
-  economia.parar();
   opencode.parar();
-  alarmes.parar();
   try {
     await db.write();
   } catch (err) {
@@ -45,18 +32,7 @@ function iniciarAPI() {
 }
 
 function iniciarModulos() {
-  try { skills.iniciar(); } catch (err) { log("ERROR", "[SKILLS] Falha ao iniciar", { erro: err.message }); }
-  try { monitor.iniciar(client); } catch (err) { log("ERROR", "[MONITOR] Falha ao iniciar", { erro: err.message }); }
-  try { economia.iniciar(client); } catch (err) { log("ERROR", "[ECONOMIA] Falha ao iniciar", { erro: err.message }); }
-  if (PROATIVO) {
-    try { proativo.iniciar(client).catch(err => log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message })); } catch (err) { log("ERROR", "[PROATIVO] Falha ao iniciar", { erro: err.message }); }
-  } else {
-    log("INFO", "[PROATIVO] Modo autonomo desativado (PROATIVO=0)");
-  }
-  try { agendados.verificarCadaMinuto(); } catch (err) { log("ERROR", "[AGENDADOS] Falha ao iniciar", { erro: err.message }); }
-  try { alarmes.iniciar(); } catch (err) { log("ERROR", "[ALARME] Falha ao iniciar", { erro: err.message }); }
   try { opencode.iniciarServer().then(port => port ? log("INFO", "[OPENCODE] Pronto", { port }) : log("WARN", "[OPENCODE] Servidor nao iniciou")); } catch (err) { log("ERROR", "[OPENCODE] Falha ao iniciar", { erro: err.message }); }
-  try { plugins.iniciar(client); } catch (err) { log("ERROR", "[PLUGINS] Falha ao iniciar", { erro: err.message }); }
   try { health.iniciar(); } catch (err) { log("ERROR", "[SAUDE] Falha ao iniciar", { erro: err.message }); }
 }
 
@@ -65,10 +41,6 @@ client.once("ready", () => {
   iniciarModulos();
   // efeito sonoro de boot quando roda no PC local
   try { require("./src/som").tocar("online"); } catch {}
-  // gravador de call: so entra em canal de voz se /gravar ligar
-  try { require("./src/gravador").iniciar(client); } catch (err) {
-    log("ERROR", "[GRAVADOR] Falha ao iniciar", { erro: err.message });
-  }
 });
 
 iniciarAPI();

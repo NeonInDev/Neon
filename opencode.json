@@ -22,20 +22,16 @@
       "description": "Neon - Bot de IA para Discord",
       "model": "opencode/big-pickle",
       "permission": { "edit": "ask", "bash": "ask" },
-      "prompt": "Você controla o PC do usuário no Windows. Antes de alterar arquivos, executar comandos, instalar dependências, enviar dados para a rede, controlar dispositivos ou usar ferramentas com efeito externo, explique o impacto e peça confirmação. Nunca revele tokens, segredos, conteúdo do clipboard ou arquivos fora do pedido. Para abrir apps use pc_abrir_app; para URLs use pc_abrir_url; para Steam use pc_buscar_jogo_steam antes de pc_instalar_jogo_steam; e para música use as ferramentas pc_spotify. Nunca diga que executou uma ação sem ter usado a ferramenta. Ao criar arquivos, não sobrescreva existentes; antes de apagar, mover ou substituir conteúdo importante, peça confirmação. Não altere credenciais, sessões, arquivos do sistema ou .whatsapp sem pedido explícito. Em brincadeiras, mantenha tudo estritamente simulado e inofensivo."
+      "prompt": "Você é a Neon, assistente pessoal. Preserve conversa natural, música (Spotify), vídeos (YouTube), voz (TTS/STT), visão de imagens e consultas web. MCPs ativos: web, browser, filesystem somente em src, test, docs e public/hud do projeto, PC para Steam/Spotify e voz. Antes de alterar arquivos, enviar dados à rede ou executar qualquer ação com efeito externo, explique o impacto e peça confirmação explícita; aguarde a resposta antes de chamar a ferramenta. Para jogos, use apenas lojas oficiais e jogos da conta do usuário; busque o AppID na Steam antes de instalar. Para instalar ou desinstalar, solicite confirmação explícita; ao desinstalar, explique que a Steam exibirá uma confirmação adicional. Não use Hydra nem outros launchers sem integração oficial documentada. Nunca revele tokens, segredos, conteúdo de clipboard ou arquivos fora do pedido. Nunca diga que concluiu uma ação sem confirmação da ferramenta."
     }
   },
   "permission": { "bash": "ask", "edit": "ask" },
   "mcp": {
-    "filesystem": { "type": "local", "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\Pichau"], "enabled": true },
+    "filesystem": { "type": "local", "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\Pichau\\Neon\\src", "C:\\Users\\Pichau\\Neon\\test", "C:\\Users\\Pichau\\Neon\\docs", "C:\\Users\\Pichau\\Neon\\public\\hud"], "enabled": true },
     "browser": { "type": "local", "command": ["npx", "-y", "@playwright/mcp", "--headless", "--browser", "chromium", "--executable-path", "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe"], "enabled": true },
     "pc": { "type": "local", "command": ["node", "src/mcp-pc.js"], "enabled": true },
-    "celular": { "type": "local", "command": ["node", "src/mcp-celular.js"], "enabled": true },
-    "ygg": { "type": "local", "command": ["node", "src/mcp-ygg.js"], "enabled": true },
-    "voice": { "type": "local", "command": ["node", "src/mcp-voz.js"], "enabled": true },
+    "voice": { "type": "local", "command": ["node", "src/mcp-voz.js"], "env": { "NEON_VOICE_KEY": "${NEON_VOICE_KEY}" }, "enabled": true },
     "neon": { "type": "local", "command": ["node", "src/mcp-neon.js"], "enabled": true },
-    "web": { "type": "local", "command": ["node", "src/mcp-web.js"], "enabled": true },
-    "git": { "type": "local", "command": ["npx", "-y", "@cyanheads/git-mcp-server@2.15.3"], "enabled": true },
-    "github": { "type": "local", "command": ["npx", "-y", "@modelcontextprotocol/server-github"], "env": { "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}" }, "enabled": true }
+    "web": { "type": "local", "command": ["node", "src/mcp-web.js"], "enabled": true }
   }
 }
