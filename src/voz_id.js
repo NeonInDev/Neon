@@ -134,13 +134,25 @@ function similaridade(a, b) {
   return soma;
 }
 
-function registrar(rotulo, wavBuf) {
+async function registrar(rotulo, wavBuf) {
   const vetor = extrair(wavBuf);
   if (!db.data.vozes) db.data.vozes = {};
   db.data.vozes[rotulo] = vetor;
-  db.write();
+  await db.write();
   log("INFO", "[VOZ-ID] Padrao de voz registrado", { rotulo });
   return vetor;
+}
+
+async function apagar(rotulo) {
+  if (!db.data.vozes || !Object.prototype.hasOwnProperty.call(db.data.vozes, rotulo)) return false;
+  delete db.data.vozes[rotulo];
+  await db.write();
+  log("INFO", "[VOZ-ID] Perfil de voz removido", { rotulo });
+  return true;
+}
+
+function temPerfil(rotulo) {
+  return Boolean(db.data.vozes && Object.prototype.hasOwnProperty.call(db.data.vozes, rotulo));
 }
 
 function identificar(wavBuf) {
@@ -162,4 +174,4 @@ function identificar(wavBuf) {
   return melhor;
 }
 
-module.exports = { extrair, registrar, identificar };
+module.exports = { extrair, registrar, identificar, apagar, temPerfil };

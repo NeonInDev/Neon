@@ -1,13 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 const { log } = require('./logger');
-const { GROQ_API_KEY, OPENROUTER_API_KEY } = require('./config');
-const axios = require('axios');
 
 const MODEL_CACHE = new Map();
-const DEFAULT_MODEL = process.env.WHISPER_MODEL || 'Xenova/whisper-small';
+const APP_ROOT = path.resolve(__dirname, '..');
+const MODEL_CACHE_DIR = path.join(APP_ROOT, '.neon-opencode', 'models-cache');
+const DEFAULT_MODEL = process.env.NEON_STT_MODEL || 'Xenova/whisper-small';
 const DEFAULT_LANG = process.env.WHISPER_LANGUAGE || 'pt';
-const DEFAULT_TIMEOUT = parseInt(process.env.STT_TIMEOUT_MS, 10) || 30000;
+const DEFAULT_TIMEOUT = Math.max(120000, parseInt(process.env.STT_TIMEOUT_MS, 10) || 0);
 
 function lerWavSamples(wavBuf) {
   if (wavBuf.length < 44 || wavBuf.toString('ascii', 0, 4) !== 'RIFF' || wavBuf.toString('ascii', 8, 12) !== 'WAVE') {
@@ -34,17 +34,23 @@ function lerWavSamples(wavBuf) {
 async function loadWhisper(model) {
   model = model || DEFAULT_MODEL;
   if (MODEL_CACHE.has(model)) return MODEL_CACHE.get(model);
-  try {
-    log('INFO', '[STT] Carregando modelo Whisper', { modelo: model });
-    const { pipeline } = require('@xenova/transformers');
+  const loading = (async () => {
+    fs.mkdirSync(MODEL_CACHE_DIR, { recursive: true });
+    const { env, pipeline } = require('@xenova/transformers');
+    env.cacheDir = MODEL_CACHE_DIR;
+    env.allowLocalModels = true;
+    env.allowRemoteModels = false;
+    log('INFO', '[STT] Carregando modelo Whisper local/offline', { modelo: model });
     const p = await pipeline('automatic-speech-recognition', model, { quantized: true });
-    MODEL_CACHE.set(model, p);
-    log('INFO', '[STT] Modelo Whisper pronto', { modelo: model });
+    log('INFO', '[STT] Modelo Whisper local pronto', { modelo: model });
     return p;
-  } catch (err) {
-    log('WARN', '[STT] Falha carregando Whisper', { erro: err.message });
-    return null;
-  }
+  })().catch((err) => {
+    MODEL_CACHE.delete(model);
+    log('ERROR', '[STT] Modelo offline ausente ou inválido; execute npm run neon:stt:model', { erro: err.message?.slice(0, 200) });
+    throw err;
+  });
+  MODEL_CACHE.set(model, loading);
+  return loading;
 }
 
 function timeoutPromise(ms, message) {
@@ -71,94 +77,10 @@ async function transcribeWithWhisper(wavPath, opts = {}) {
   }
 }
 
-async function transcribeWithGroq(wavPath, opts = {}) {
-  if (!GROQ_API_KEY) return null;
-  try {
-    log('INFO', '[STT] Tentando Groq');
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), opts.timeout || DEFAULT_TIMEOUT);
-    const blob = new Blob([fs.readFileSync(wavPath)], { type: 'audio/wav' });
-    // Usa o FormData NATIVO (global do Node 18+), nao o pacote "form-data".
-    // O pacote npm chama source.on() no valor enviado, e um Blob nao tem .on:
-    // resultava em "source.on is not a function" e o Groq nunca funcionou.
-    // O fetch abaixo tambem e o nativo, entao os dois conversam direto.
-    const form = new FormData();
-    form.append('file', blob, 'audio.wav');
-    form.append('model', 'whisper-large-v3-turbo');
-    form.append('language', opts.language || DEFAULT_LANG);
-    form.append('response_format', 'json');
-    const resp = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
-      body: form,
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    if (!resp.ok) {
-      const errText = await resp.text().catch(() => '');
-      log('WARN', '[STT] Groq HTTP', { status: resp.status, erro: errText.slice(0, 200) });
-      return null;
-    }
-    const data = await resp.json();
-    const texto = data?.text?.trim();
-    if (texto) return { text: texto, provider: 'groq' };
-    return null;
-  } catch (err) {
-    log('WARN', '[STT] Groq falhou', { erro: err.message?.slice(0, 200) });
-    return null;
-  }
-}
-
-async function transcribeWithOpenAI(wavPath, opts = {}) {
-  const OPENAI_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || process.env.OPENAI_API;
-  if (!OPENAI_KEY) return null;
-  try {
-    log('INFO', '[STT] Tentando OpenAI');
-    const FormData = require('form-data');
-    const form = new FormData();
-    form.append('file', fs.createReadStream(wavPath));
-    form.append('model', 'whisper-1');
-    if (opts.language) form.append('language', opts.language);
-    const resp = await axios.post('https://api.openai.com/v1/audio/transcriptions', form, {
-      headers: { Authorization: `Bearer ${OPENAI_KEY}`, ...form.getHeaders() },
-      timeout: opts.timeout || DEFAULT_TIMEOUT,
-    });
-    const texto = resp?.data?.text?.trim();
-    if (texto) return { text: texto, provider: 'openai' };
-    return null;
-  } catch (err) {
-    log('WARN', '[STT] OpenAI falhou', { erro: err.message?.slice(0, 200) });
-    return null;
-  }
-}
-
 async function transcribeFile(wavPath, opts = {}) {
   const language = opts.language || DEFAULT_LANG;
   const timeout = opts.timeout || DEFAULT_TIMEOUT;
-  try {
-    // OBS: para MENOR LATÊNCIA, tenta o Groq (whisper-large-v3-turbo) PRIMEIRO —
-    // roda na nuvem e é muito mais rápido que o Whisper local na CPU.
-    // Se o Groq não responder, cai pro Whisper local (offline) e depois OpenAI.
-
-    // 1) Groq (fast, cloud)
-    const groq = await transcribeWithGroq(wavPath, { language, timeout });
-    if (groq && groq.text) return { text: groq.text, provider: groq.provider };
-
-    // 2) Outro provedor de nuvem antes de carregar/inferir o modelo local.
-    // Isso evita que uma falha do Groq obrigue a Neon a esperar o Whisper na CPU
-    // quando já existe uma chave de API disponível.
-    const openai = await transcribeWithOpenAI(wavPath, { language, timeout });
-    if (openai && openai.text) return { text: openai.text, provider: openai.provider };
-
-    // 3) Whisper local continua como fallback offline.
-    const local = await transcribeWithWhisper(wavPath, { language, model: opts.model, timeout });
-    if (local && local.text) return { text: local.text, provider: local.provider };
-
-    return null;
-  } catch (err) {
-    log('ERROR', '[STT] Erro na transcricao', { erro: err.message });
-    return null;
-  }
+  return transcribeWithWhisper(wavPath, { language, model: opts.model, timeout });
 }
 
-module.exports = { transcribeFile, loadWhisper };
+module.exports = { transcribeFile, transcribeWithWhisper, loadWhisper };

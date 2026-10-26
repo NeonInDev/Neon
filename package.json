@@ -7,7 +7,10 @@
     "start": "node index.js",
     "mcp": "opencode serve",
     "tui": "node tui.js",
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "neon:stt:model": "node scripts/download_neon_stt_model.js",
+    "neon:tts:model": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/download_neon_piper.ps1",
+    "neon:voice:models": "npm run neon:stt:model && npm run neon:tts:model"
   },
   "author": "Neon",
   "license": "ISC",

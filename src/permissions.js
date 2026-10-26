@@ -2,7 +2,7 @@ const fs = require("fs")
 const path = require("path")
 const { log } = require("./logger")
 
-const { OWNER } = require("./perm")
+const { isOwner, OWNER } = require("./perm")
 const OWNER_ID = OWNER
 const RATE_LIMIT = 5
 const RATE_WINDOW = 10000
@@ -16,7 +16,7 @@ try {
 } catch {}
 
 function permitido(userId) {
-  return userId === OWNER_ID
+  return isOwner(userId)
 }
 
 function verificarRateLimit(userId) {

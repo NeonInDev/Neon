@@ -1,15 +1,15 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "opencode/big-pickle",
-  "small_model": "opencode/big-pickle",
+  "model": "openrouter/cohere/north-mini-code:free",
+  "small_model": "openrouter/cohere/north-mini-code:free",
   "default_agent": "neon",
   "provider": {
     "openrouter": {
       "models": {
-        "google/gemma-4-31b-it:free": {
-          "name": "Gemma 4 31B IT (Free)",
+        "cohere/north-mini-code:free": {
+          "name": "Cohere North Mini Code (Free)",
           "tool_call": true,
-          "limit": { "context": 262144, "output": 32768 },
+          "limit": { "context": 256000, "output": 64000 },
           "cost": { "input": 0, "output": 0 }
         }
       }
@@ -20,7 +20,7 @@
     "neon": {
       "mode": "primary",
       "description": "Neon - Bot de IA para Discord",
-      "model": "opencode/big-pickle",
+      "model": "openrouter/cohere/north-mini-code:free",
       "permission": { "edit": "ask", "bash": "ask" },
       "prompt": "Você é a Neon, assistente pessoal. Preserve conversa natural, música (Spotify), vídeos (YouTube), voz (TTS/STT), visão de imagens e consultas web. MCPs ativos: web, browser, filesystem somente em src, test, docs e public/hud do projeto, PC para Steam/Spotify e voz. Antes de alterar arquivos, enviar dados à rede ou executar qualquer ação com efeito externo, explique o impacto e peça confirmação explícita; aguarde a resposta antes de chamar a ferramenta. Para jogos, use apenas lojas oficiais e jogos da conta do usuário; busque o AppID na Steam antes de instalar. Para instalar ou desinstalar, solicite confirmação explícita; ao desinstalar, explique que a Steam exibirá uma confirmação adicional. Não use Hydra nem outros launchers sem integração oficial documentada. Nunca revele tokens, segredos, conteúdo de clipboard ou arquivos fora do pedido. Nunca diga que concluiu uma ação sem confirmação da ferramenta."
     }

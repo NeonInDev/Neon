@@ -1,5 +1,6 @@
 node_modules
 .env
+.neon-opencode/
 neon-db.json
 memory.json
 .bash_history

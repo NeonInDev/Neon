@@ -24,31 +24,41 @@ let pagina = null;
 let browser = null;
 let ativo = false;
 let ownerId = null;
+let wakeOnly = false;
+let wakeLaunchPending = false;
+let lastWakeAt = 0;
 
 let readyResolve = null;
 
-const OPERA_PATH = "C:\\Users\\Pichau\\AppData\\Local\\Programs\\Opera GX\\opera.exe";
-const USER_DATA = "C:\\Users\\Pichau\\AppData\\Local\\neon_voice_profile";
+const EDGE_PATH = "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe";
+const USER_DATA = path.join(__dirname, "..", ".neon-opencode", "voice-profile");
 
-async function iniciar(id, username) {
+async function iniciar(id, username, options = {}) {
   if (ativo) { log("INFO", "[VOICE] Já ativo"); return false; }
   ownerId = id;
+  wakeOnly = options.wakeOnly === true;
   ativo = true;
 
   try {
     const { chromium } = require("playwright");
-    browser = await chromium.launch({
-      executablePath: OPERA_PATH,
+    fs.mkdirSync(USER_DATA, { recursive: true });
+    browser = await chromium.launchPersistentContext(USER_DATA, {
+      executablePath: EDGE_PATH,
       headless: false,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
-        `--user-data-dir=${USER_DATA}`,
         "--use-fake-ui-for-media-stream",
         "--allow-file-access-from-files",
-        "--window-position=-32000,0",
+        "--window-position=-32000,-32000",
         "--window-size=800,600",
       ],
+    });
+    browser.on("close", () => {
+      if (ativo) {
+        ativo = false;
+        log("WARN", "[VOICE-WAKE] Navegador do microfone desconectou; o ouvinte será reiniciado");
+      }
     });
 
     pagina = await browser.newPage();
@@ -58,7 +68,7 @@ async function iniciar(id, username) {
 
     const readyPromise = new Promise((resolve) => {
       readyResolve = resolve;
-      setTimeout(() => resolve(false), 12000);
+      setTimeout(() => resolve(false), 30000);
     });
 
     pagina.exposeFunction("__neonSpeechReady2", (ok, msg) => {
@@ -93,6 +103,19 @@ async function iniciar(id, username) {
         fs.writeFileSync(wavPath, pcmParaWav(buf, 16000));
         const { transcreverAudio } = require("./voz");
         const texto = await transcreverAudio(wavPath);
+        if (wakeOnly) {
+          if (ehFraseDeploy(texto)) {
+            await ativarNeon();
+            wakeOnly = false;
+            await falarLocal("Neon ligada. Pode falar comigo.");
+            log("INFO", "[VOICE] Modo de conversa por voz ativado");
+          } else {
+            log(texto ? "DEBUG" : "WARN", texto ? "[VOICE-WAKE] Fala transcrita sem a frase de ativação" : "[VOICE-WAKE] Não consegui transcrever o trecho de áudio", {
+              caracteres: String(texto || "").length,
+            });
+          }
+          return;
+        }
         log("INFO", "[VOICE] Transcricao", { texto: (texto || "").slice(0, 80) });
         if (!texto || texto.length < 2) return;
         const cmd = texto.replace(/^[Nn][Ee][Oo][Nn][,\s:!.\-–—]*\s*/, "").trim() || "oi";
@@ -134,6 +157,16 @@ async function iniciar(id, username) {
       }
     }
 
+    async function falarLocal(texto) {
+      const pc = require("./pc");
+      try { await pagina.evaluate(() => { window.__neonMuted = true; }); } catch {}
+      try {
+        await pc.tts(texto);
+      } finally {
+        try { await pagina.evaluate(() => { window.__neonMuted = false; }); } catch {}
+      }
+    }
+
     await pagina.goto(pagePath, { waitUntil: "domcontentloaded", timeout: 15000 });
 
     const ready = await readyPromise;
@@ -143,7 +176,7 @@ async function iniciar(id, username) {
       return false;
     }
 
-    log("INFO", "[VOICE] Microfone ativo (STT Groq whisper)");
+    log("INFO", wakeOnly ? "[VOICE-WAKE] Microfone de ativacao ativo" : "[VOICE] Microfone ativo (STT Groq whisper)");
     return true;
   } catch (err) {
     log("WARN", "[VOICE] Falha ao iniciar", { erro: err.message });
@@ -152,7 +185,36 @@ async function iniciar(id, username) {
   }
 }
 
+function ehFraseDeploy(texto) {
+  const normalizado = String(texto || "")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return /^(?:(?:hey|ei|oi|ola)\s+)?neon\s+de\s*ploy$/.test(normalizado);
+}
+
+async function ativarNeon() {
+  if (wakeLaunchPending || Date.now() - lastWakeAt < 30_000) return;
+  wakeLaunchPending = true;
+  lastWakeAt = Date.now();
+  try {
+    const { spawn } = require("child_process");
+    const root = path.resolve(__dirname, "..");
+    const script = path.join(root, "start_neon.ps1");
+    const child = spawn("powershell.exe", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script], {
+      cwd: root, detached: true, windowsHide: true, stdio: "ignore",
+    });
+    child.once("error", (err) => log("ERROR", "[VOICE-WAKE] Falha ao iniciar Neon", { erro: err.message }));
+    child.unref();
+    log("INFO", "[VOICE-WAKE] Frase Neon deploy reconhecida; iniciando bot");
+  } catch (err) {
+    log("ERROR", "[VOICE-WAKE] Falha ao iniciar Neon", { erro: err.message });
+  } finally {
+    setTimeout(() => { wakeLaunchPending = false; }, 10_000).unref?.();
+  }
+}
+
 async function parar() {
+  ativo = false;
   if (pagina) {
     try { await pagina.evaluate(() => { window.__neonListening = false; window.__neonMuted = false; }); } catch {}
   }
@@ -161,7 +223,7 @@ async function parar() {
   }
   pagina = null;
   browser = null;
-  ativo = false;
+  wakeOnly = false;
   log("INFO", "[VOICE] Microfone desativado");
   return true;
 }
@@ -170,4 +232,4 @@ function status() {
   return { ativo, ownerId };
 }
 
-module.exports = { iniciar, parar, status };
+module.exports = { iniciar, parar, status, ehFraseDeploy };

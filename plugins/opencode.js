@@ -28,7 +28,10 @@ const CONFIG_DIR = path.join(__dirname, "..");
 function envSeguro() {
   const e = { ...process.env };
   if (e.MASTER_KEY) e.NEON_VOICE_KEY = e.MASTER_KEY;
-  const allow = new Set(["OPENROUTER_API_KEY", "DEEPSEEK_API_KEY", "GROQ_API_KEY", "API_PORT", "NEON_VOICE_KEY"]);
+  const allow = new Set([
+    "OPENROUTER_API_KEY", "OPENROUTER_MODEL", "DEEPSEEK_API_KEY", "GROQ_API_KEY", "API_PORT", "NEON_VOICE_KEY",
+    "OPENCODE_MODEL", "OPENCODE_PORT", "OPENCODE_SERVER_USERNAME", "OPENCODE_SERVER_PASSWORD",
+  ]);
   for (const k of Object.keys(e)) {
     if (allow.has(k)) continue;
     if (/KEY|TOKEN|SECRET|PASS(WORD)?|AUTH|API/i.test(k)) delete e[k];

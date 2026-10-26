@@ -1,19 +1,21 @@
 const fs = require('fs')
 const path = require('path')
-const { exec: execCb } = require('child_process')
+const { exec: execCb, execFile: execFileCb, spawn } = require('child_process')
 const { promisify } = require('util')
 const execAsync = promisify(execCb)
+const execFileAsync = promisify(execFileCb)
 const { log } = require('./logger')
 
 const TMP = process.env.TEMP || 'C:\\Temp'
 const FFMPEG = require('ffmpeg-static') || 'ffmpeg'
+const APP_ROOT = path.resolve(__dirname, '..')
+const PIPER_DIR = path.join(APP_ROOT, '.neon-opencode', 'piper', 'runtime', 'piper')
+const PIPER_EXE = path.join(PIPER_DIR, 'piper.exe')
+const PIPER_MODEL = path.join(APP_ROOT, '.neon-opencode', 'piper', 'models', 'pt_BR-faber-medium.onnx')
+const PIPER_CONFIG = `${PIPER_MODEL}.json`
 const TTS_VOICE_DEFAULT = process.env.TTS_VOICE_DEFAULT || process.env.VOZ_NEON || 'pt-BR-FranciscaNeural'
 const TTS_VOICE_ULTRON = process.env.TTS_VOICE_ULTRON || 'pt-BR-AntonioNeural'
 const CACHE_SIZE = parseInt(process.env.TTS_CACHE_SIZE, 10) || 20
-const EDGE_TTS_TIMEOUT_MS = Math.max(3000, parseInt(process.env.EDGE_TTS_TIMEOUT_MS, 10) || 15000)
-
-let edgeTts = null
-try { edgeTts = require('edge-tts-universal') } catch (e) { log('INFO', '[TTS] edge-tts-universal nao instalado') }
 
 // Simple LRU cache using Map insertion order
 const CACHE = new Map()
@@ -37,63 +39,69 @@ function safeFilename(prefix) {
   return path.join(TMP, `${prefix}_${Date.now()}`)
 }
 
-// Converte velocidade (1.0 = normal) e tom (Hz, ex: +5) pros formatos do
-// edge-tts-universal: rate e pitch aceitam "+20%", "-10Hz", etc.
-function paraRate(velocidade) {
-  const v = Math.max(0.5, Math.min(2.0, Number(velocidade) || 1.0))
-  if (v === 1.0) return null
-  const pct = Math.round((v - 1.0) * 100)
-  return (pct >= 0 ? "+" : "") + pct + "%"
+function psQuote(value) {
+  return `'${String(value).replace(/'/g, "''")}'`
 }
-function paraPitch(tom) {
-  const hz = Math.max(-50, Math.min(50, Number(tom) || 0))
-  if (hz === 0) return null
-  return (hz >= 0 ? "+" : "") + hz + "Hz"
+
+function psCommand(script) {
+  return execFileAsync('powershell.exe', [
+    '-NoProfile', '-NonInteractive', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64'),
+  ], { timeout: 90000, windowsHide: true })
+}
+
+function sintetizarPiper(texto, wavFile, velocidade) {
+  return new Promise((resolve, reject) => {
+    const ritmo = Math.max(0.5, Math.min(2.0, Number(velocidade) || 1.0))
+    const child = spawn(PIPER_EXE, [
+      '--model', PIPER_MODEL,
+      '--config', PIPER_CONFIG,
+      '--output_file', wavFile,
+      '--length_scale', String(1 / ritmo),
+      '--quiet',
+    ], { cwd: PIPER_DIR, windowsHide: true, stdio: ['pipe', 'ignore', 'pipe'] })
+    let stderr = ''
+    let timer
+    child.stderr.on('data', (chunk) => { stderr = (stderr + chunk.toString()).slice(-2000) })
+    child.once('error', (err) => { clearTimeout(timer); reject(err) })
+    child.once('close', (code) => {
+      clearTimeout(timer)
+      if (code === 0 && fs.existsSync(wavFile)) resolve()
+      else reject(new Error(`Piper terminou com código ${code}: ${stderr.trim()}`))
+    })
+    timer = setTimeout(() => {
+      child.kill()
+      reject(new Error('Piper excedeu o tempo limite'))
+    }, 45000)
+    child.stdin.on('error', () => {})
+    child.stdin.end(`${texto}\n`)
+  })
+}
+
+async function sintetizarSapi(texto, wavFile) {
+  const script = `$ErrorActionPreference='Stop'; $v=New-Object -ComObject Sapi.SpVoice; $f=New-Object -ComObject Sapi.SpFileStream; $f.Open(${psQuote(wavFile)},3,$false); $v.AudioOutputStream=$f; [void]$v.Speak(${psQuote(texto)}); $f.Close()`
+  await psCommand(script)
 }
 
 async function gerarAudio(texto, voz = 'auto', velocidade = 1.0, tom = 0) {
   if (!texto) return null
   const t = String(texto).slice(0, 2000)
-  const voice = voz === 'auto' ? TTS_VOICE_DEFAULT : voz
-  const key = `${voice}|${velocidade}|${tom}|${t}`
+  const key = `${voz}|${velocidade}|${tom}|${t}`
   const cached = cacheGet(key)
   if (cached) return Buffer.from(cached)
 
-  // Try Edge TTS first
-  if (edgeTts) {
-    try {
-      const tts = new edgeTts.UniversalEdgeTTS(t, voice)
-      // Variação nativa de tom (pitch) e velocidade (rate) — sem perder qualidade
-      const rate = paraRate(velocidade)
-      const pitch = paraPitch(tom)
-      if (rate) tts.rate = rate
-      if (pitch) tts.pitch = pitch
-      let timer
-      const result = await Promise.race([
-        tts.synthesize(),
-        new Promise((_, reject) => {
-          timer = setTimeout(() => reject(new Error('Edge TTS excedeu o tempo limite')), EDGE_TTS_TIMEOUT_MS)
-        }),
-      ]).finally(() => clearTimeout(timer))
-      let buf = Buffer.from(await result.audio.arrayBuffer())
-
-      // Fallback p/ velocidade se o motor nativo não aplicar (muito marginal):
-      // mantemos o buffer tal qual; rate nativo já cobre a velocidade.
-
-      cacheSet(key, buf)
-      return Buffer.from(buf)
-    } catch (err) {
-      log('WARN', '[TTS] Edge TTS falhou', { erro: err.message?.slice(0, 200) })
-    }
-  }
-
-  // Fallback to SAPI (Windows) - produce WAV then convert to MP3
+  const wavFile = safeFilename('neon_tts') + '.wav'
+  const mp3File = wavFile.replace(/\.wav$/i, '.mp3')
   try {
-    const wavFile = safeFilename('neon_tts') + '.wav'
-    const safeText = t.replace(/'/g, "''").replace(/"/g, '""')
-    const cmd = `powershell -NoProfile -Command "$v = New-Object -ComObject Sapi.SpVoice; $f = New-Object -ComObject Sapi.SpFileStream; $f.Open('"${wavFile}"', 3, 0); $v.AudioOutputStream = $f; $v.Speak('${safeText}'); $f.Close()"`
-    await execAsync(cmd, { timeout: 20000, windowsHide: true })
-    const mp3File = wavFile.replace(/\.wav$/i, '.mp3')
+    if (fs.existsSync(PIPER_EXE) && fs.existsSync(PIPER_MODEL) && fs.existsSync(PIPER_CONFIG)) {
+      try {
+        await sintetizarPiper(t, wavFile, velocidade)
+      } catch (err) {
+        log('WARN', '[TTS] Piper offline falhou; usando SAPI local', { erro: err.message?.slice(0, 200) })
+        await sintetizarSapi(t, wavFile)
+      }
+    } else {
+      await sintetizarSapi(t, wavFile)
+    }
     await execAsync(`"${FFMPEG}" -y -i "${wavFile}" -b:a 128k "${mp3File}"`, { timeout: 20000, windowsHide: true })
     const buf = fs.readFileSync(mp3File)
     try { fs.unlinkSync(wavFile) } catch {}
@@ -101,7 +109,9 @@ async function gerarAudio(texto, voz = 'auto', velocidade = 1.0, tom = 0) {
     cacheSet(key, buf)
     return Buffer.from(buf)
   } catch (err) {
-    log('ERROR', '[TTS] Fallback SAPI falhou', { erro: err.message?.slice(0, 200) })
+    log('ERROR', '[TTS] TTS offline falhou', { erro: err.message?.slice(0, 200) })
+    try { fs.unlinkSync(wavFile) } catch {}
+    try { fs.unlinkSync(mp3File) } catch {}
     return null
   }
 }
@@ -137,10 +147,9 @@ async function falar(texto, voz = 'auto', velocidade = 1.0, tom = 0) {
 // Toca um MP3 direto usando a Windows Media Player (COM) em um processo.
 // Leve e rápido. Retorna true se conseguiu tocar.
 async function tocarMp3Direto(mp3File) {
-  const safe = String(mp3File).replace(/"/g, '\\"')
-  const cmd = `powershell -NoProfile -Command "$p = New-Object -ComObject WMPlayer.OCX; $p.settings.mute = 0; $p.URL = '${safe}'; do { Start-Sleep -Milliseconds 120 } while ($p.playState -eq 3 -and $p.currentMedia.duration -gt 0); Start-Sleep -Milliseconds 150; $p.close()"`
   try {
-    await execAsync(cmd, { timeout: 60000, windowsHide: true })
+    const script = `$ErrorActionPreference='Stop'; $p=New-Object -ComObject WMPlayer.OCX; $p.settings.mute=0; $p.URL=${psQuote(mp3File)}; $limite=(Get-Date).AddSeconds(5); while (($null -eq $p.currentMedia -or $p.currentMedia.duration -le 0) -and (Get-Date) -lt $limite) { Start-Sleep -Milliseconds 100 }; if ($null -eq $p.currentMedia -or $p.currentMedia.duration -le 0) { throw 'O player não carregou o áudio' }; $p.controls.play(); $duracao=[math]::Min(80,[math]::Max(1,$p.currentMedia.duration)); Start-Sleep -Milliseconds ([int](($duracao+0.7)*1000)); $p.close()`
+    await psCommand(script)
     return true
   } catch (err) {
     log('WARN', '[TTS] tocarMp3Direto falhou', { erro: err.message?.slice(0, 200) })
@@ -149,8 +158,9 @@ async function tocarMp3Direto(mp3File) {
 }
 
 async function testar() {
-  if (!edgeTts) return { ok: false, motivo: 'edge-tts-universal nao instalado' }
-  return { ok: true, metodo: `Edge TTS Neural (${TTS_VOICE_DEFAULT})` }
+  return fs.existsSync(PIPER_EXE) && fs.existsSync(PIPER_MODEL) && fs.existsSync(PIPER_CONFIG)
+    ? { ok: true, metodo: 'Piper pt-BR Faber (offline)' }
+    : { ok: true, metodo: 'SAPI local do Windows (offline)' }
 }
 
 // Mapeia uma emoção/contexto pra { velocidade, tom } de fala.

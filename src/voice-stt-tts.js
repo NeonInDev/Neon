@@ -32,7 +32,7 @@ async function processDiscordPCM(pcmBuffer, opts = {}) {
     const tts = require('./tts');
     const language = opts.language || process.env.WHISPER_LANGUAGE || 'pt';
 
-    const res = await stt.transcribeFile(wavPath, { language, timeout: parseInt(process.env.STT_TIMEOUT_MS, 10) || 30000 });
+    const res = await stt.transcribeFile(wavPath, { language, timeout: Math.max(120000, parseInt(process.env.STT_TIMEOUT_MS, 10) || 0) });
     if (!res || !res.text) {
       log('INFO', '[VOICE-STT-TTS] Sem transcricao');
       return { ok: false };
