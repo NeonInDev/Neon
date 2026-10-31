@@ -1190,7 +1190,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       "",
       "🎯 UTILIDADE:",
       "  protocolo emergência → Fecha tudo",
-      "  modo foco        → Fecha distrações, abre VS Code",
       "  lembra [texto]   → Anota lembrete",
       "  motivação        → Frase motivacional",
       "  status           → Info do sistema",
@@ -1352,25 +1351,6 @@ async function executarAcao(texto, usuarioMestre = false, userId = null, message
       "✅ Processos pesados finalizados",
       "✅ Memória liberada",
       "✅ Sistema estável",
-      "```",
-    ].join("\n");
-  }
-
-  // ─── Foco / Modo Foco ───
-  if (/^(?:modo\s+foco|foco|focar|concentrar|estudar)/i.test(lower)) {
-    if (!podePC) return "❌ Acesso negado.";
-    await tentar("taskkill /F /IM spotify.exe 2>nul");
-    await tentar("taskkill /F /IM opera.exe 2>nul");
-    const r1 = await tentar("start code");
-    return [
-      "```",
-      "🎯 MODO FOCO ATIVADO",
-      "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-      "",
-      "✅ Distrações fechadas",
-      "✅ VS Code aberto",
-      "",
-      "\"Foco é dizer não pra mil boas ideias\"",
       "```",
     ].join("\n");
   }
