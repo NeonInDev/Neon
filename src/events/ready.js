@@ -23,6 +23,13 @@ module.exports = {
       log("WARN", "Tools nao iniciaram", { erro: err.message });
     }
 
+    try {
+      // devolve sozinho os cargos guardados pelo protocolo Emilia
+      require("../protocolos").iniciar(c);
+    } catch (err) {
+      log("WARN", "[EMILIA] vigia não iniciou", { erro: err.message });
+    }
+
     log("INFO", "Client conectado", {
       tag: c.user.tag,
       guilds: c.guilds.cache.size,

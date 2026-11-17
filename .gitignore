@@ -57,6 +57,7 @@ AGENTS.md
 
 # Dados sensiveis de servidores/backups
 backups/
+data/protocolo_emilia.json
 logs/
 gravacoes/
 data/gravador.json

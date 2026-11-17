@@ -9,12 +9,13 @@ const COMMANDS_ATIVOS = new Set([
   "ping",
   "sair",
   "moderacao",
+  "protocolo",
 ]);
 
 // Comandos publicados só como comando de servidor: aparecem na hora, sem
 // esperar a propagação global do Discord. O deploy global ignora esses
 // pra não criar o mesmo comando duas vezes.
-const COMANDOS_SO_GUILD = new Set(["moderacao"]);
+const COMANDOS_SO_GUILD = new Set(["moderacao", "protocolo"]);
 
 const CATEGORIAS_ATIVAS = new Set([
   "voiceToggle",

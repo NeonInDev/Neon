@@ -5,6 +5,8 @@
 //
 // - quantidade: número máximo a apagar, da mais recente pra mais
 //   antiga. null = todas.
+// - opcoes.desdeMs: só olha mensagens mais novas que esse timestamp
+//   (usado pelo protocolo Thanos pra respeitar "últimos N dias").
 // - O Discord só aceita apagar em lote mensagens com menos de 14
 //   dias; as mais velhas vão uma por uma.
 // =============================================================
@@ -12,7 +14,8 @@
 const LIMITE_MS = 14 * 24 * 60 * 60 * 1000;
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function varrer(canal, alvos, quantidade = null) {
+async function varrer(canal, alvos, quantidade = null, opcoes = {}) {
+  const { desdeMs = null } = opcoes;
   const alvosSet = new Set(alvos.map(String));
   let achadas = [];
   let antes = null;
@@ -26,9 +29,17 @@ async function varrer(canal, alvos, quantidade = null) {
     }
     const lote = [...page.values()];
     if (!lote.length) break;
-    for (const m of lote) if (alvosSet.has(m.author?.id)) achadas.push(m);
+    // da mais nova pra mais antiga: ao cruzar o corte, para de procurar
+    let chegouNoCorte = false;
+    for (const m of lote) {
+      if (desdeMs && m.createdTimestamp < desdeMs) {
+        chegouNoCorte = true;
+        break;
+      }
+      if (alvosSet.has(m.author?.id)) achadas.push(m);
+    }
     antes = lote[lote.length - 1].id;
-    if (lote.length < 100) break;
+    if (chegouNoCorte || lote.length < 100) break;
     await dormir(400);
   }
 
