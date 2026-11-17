@@ -52,6 +52,25 @@ function isOwner(userId) {
   return userId === OWNER;
 }
 
+// Donos com poder de MODERAÇÃO no Discord (mute/ban/kick/cargo).
+// OWNER continua sendo o dono total da Neon (PC, backup, arquivos): os
+// demais IDs entram só aqui, sem herdar esse poder todo. Vem do .env
+// (DONO_IDS, separado por vírgula) e cai pra lista fixa se não existir.
+const DONOS_MODERACAO = [
+  ...new Set([
+    OWNER,
+    ...String(process.env.DONO_IDS || "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+    "1442928336329379925",
+  ]),
+];
+
+function isDonoModeracao(userId) {
+  return DONOS_MODERACAO.includes(userId);
+}
+
 function permitido(userId) {
   return ALLOWED_USERS.includes(userId) || isGuest(userId);
 }
@@ -66,4 +85,4 @@ function bloquear(message) {
   return false;
 }
 
-module.exports = { isOwner, isGuest, guests, guestRecords, salvarGuests, adicionarGuest, removerGuest, permitido, bloquear, ALLOWED_USERS, OWNER };
+module.exports = { isOwner, isDonoModeracao, DONOS_MODERACAO, isGuest, guests, guestRecords, salvarGuests, adicionarGuest, removerGuest, permitido, bloquear, ALLOWED_USERS, OWNER };
