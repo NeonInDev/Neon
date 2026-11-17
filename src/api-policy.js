@@ -17,6 +17,8 @@ const ROTAS_ATIVAS = new Set([
   "GET /api/jogos/steam/buscar",
   "POST /api/jogos/steam/instalar",
   "POST /api/jogos/steam/desinstalar",
+  "POST /api/protocolo/tony",
+  "GET /api/protocolo/tony",
 ]);
 
 function isRotaAtiva(method, url) {

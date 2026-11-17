@@ -96,7 +96,7 @@ async function thanos(guild, userId, { canalId = null, dias = 30, onProgress = n
     // aviso a cada 15s (evita estourar rate limit de editar mensagem)
     if (onProgress && Date.now() - ultimoAviso > 15000) {
       ultimoAviso = Date.now();
-      await onProgress({ canais: canais.length, feitos, apagadas, achadas }).catch(() => {});
+      await Promise.resolve(onProgress({ canais: canais.length, feitos, apagadas, achadas })).catch(() => {});
     }
   }
 
@@ -180,7 +180,9 @@ async function tony(guild, { canalId = null, limitePorCanal = 1000, onProgress =
 
     if (onProgress && Date.now() - ultimoAviso > 15000) {
       ultimoAviso = Date.now();
-      await onProgress({ canais: canais.length, feitos: backup.canais.length, total: backup.totalMensagens }).catch(() => {});
+      await Promise.resolve(
+        onProgress({ canais: canais.length, feitos: backup.canais.length, total: backup.totalMensagens })
+      ).catch(() => {});
     }
   }
 
@@ -198,6 +200,74 @@ async function tony(guild, { canalId = null, limitePorCanal = 1000, onProgress =
     canais: backup.canais.length,
     vazios: backup.canais.filter((c) => !c.mensagens.length).length,
   };
+}
+
+// -------------------------------------------------------------
+// TONY pela API — job em segundo plano
+// -------------------------------------------------------------
+// O /protocolo tony é interativo e some quando a interação expira. Pra
+// rodar um backup grande (servidor de cópia, 300+ canais) sem abrir um
+// segundo gateway, a API dispara o Tony aqui e consulta o status.
+// Só um job por vez: dois Tony juntos estouram rate limit e duplicam
+// arquivos.
+let jobTony = null;
+
+function statusTony() {
+  if (!jobTony) return { rodando: false };
+  return { rodando: jobTony.status === "rodando", ...jobTony };
+}
+
+function iniciarTonyApi({ guildId, canalId = null, limitePorCanal = 1000 } = {}) {
+  if (jobTony && jobTony.status === "rodando") {
+    return { ok: false, erro: "já tem um Tony rodando — espera terminar (GET /api/protocolo/tony)." };
+  }
+  if (!guildId) return { ok: false, erro: "guildId é obrigatório." };
+
+  let client;
+  try {
+    ({ client } = require("./client"));
+  } catch (err) {
+    return { ok: false, erro: `não consegui pegar a conexão do Discord: ${err.message}` };
+  }
+  if (!client?.isReady?.()) return { ok: false, erro: "o Discord ainda não conectou." };
+
+  const guild = client.guilds.cache.get(String(guildId));
+  if (!guild) return { ok: false, erro: `não estou no servidor ${guildId}.` };
+
+  jobTony = {
+    status: "rodando",
+    guildId: guild.id,
+    guildNome: guild.name,
+    canalId: canalId || null,
+    iniciadoEm: Date.now(),
+    progresso: null,
+    resultado: null,
+    erro: null,
+  };
+
+  tony(guild, {
+    canalId: canalId || null,
+    limitePorCanal,
+    onProgress: (p) => {
+      if (jobTony?.status === "rodando") jobTony.progresso = { ...p, em: Date.now() };
+    },
+  })
+    .then((r) => {
+      jobTony = {
+        ...jobTony,
+        status: r.ok ? "concluido" : "erro",
+        resultado: r,
+        erro: r.ok ? null : r.erro || "falhou",
+        terminadoEm: Date.now(),
+      };
+    })
+    .catch((err) => {
+      jobTony = { ...jobTony, status: "erro", erro: err.message, terminadoEm: Date.now() };
+      log("WARN", "[TONY] job da API falhou", { guild: guildId, erro: err.message });
+    });
+
+  log("INFO", "[TONY] job da API iniciado", { guild: guild.id, canal: canalId || "todos", limitePorCanal });
+  return { ok: true, job: statusTony() };
 }
 
 // -------------------------------------------------------------
@@ -434,6 +504,8 @@ module.exports = {
   restaurar,
   listarEmilia,
   iniciar,
+  iniciarTonyApi,
+  statusTony,
   verificarVencidos,
   canaisDeTexto,
   duracaoDe,

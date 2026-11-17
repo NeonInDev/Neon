@@ -1841,6 +1841,30 @@ function iniciar(port = 3000) {
       return;
     }
 
+    if (req.url.split("?")[0] === "/api/protocolo/tony" && req.method === "POST") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const corpo = await lerBody(req);
+        const protocolos = require("./protocolos");
+        const r = protocolos.iniciarTonyApi({
+          guildId: corpo && corpo.guildId ? String(corpo.guildId) : "",
+          canalId: corpo && corpo.canalId ? String(corpo.canalId) : null,
+          limitePorCanal: corpo && corpo.limitePorCanal ? Number(corpo.limitePorCanal) : 1000,
+        });
+        responder(res, r.ok ? 202 : 400, r);
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
+    if (req.url.split("?")[0] === "/api/protocolo/tony" && req.method === "GET") {
+      if (!exigeChave(req, res)) return;
+      try {
+        const protocolos = require("./protocolos");
+        responder(res, 200, { ok: true, ...protocolos.statusTony() });
+      } catch (err) { responder(res, 400, { erro: err.message }); }
+      return;
+    }
+
     if (req.url.split("?")[0] === "/api/whatsapp/documento" && req.method === "POST") {
       if (!exigeChave(req, res)) return;
       try {

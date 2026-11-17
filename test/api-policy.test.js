@@ -17,6 +17,12 @@ test("mantém apenas as rotas de jogo aprovadas na Steam", () => {
   assert.equal(isRotaAtiva("POST", "/api/jogos/hydra/instalar"), false);
 });
 
+test("libera o Tony (backup) pela API", () => {
+  assert.equal(isRotaAtiva("POST", "/api/protocolo/tony"), true);
+  assert.equal(isRotaAtiva("GET", "/api/protocolo/tony"), true);
+  assert.equal(isRotaAtiva("POST", "/api/protocolo/thanos"), false);
+});
+
 test("desativa superfícies de API fora do escopo solicitado", () => {
   assert.equal(isRotaAtiva("POST", "/api/whatsapp/enviar"), false);
   assert.equal(isRotaAtiva("POST", "/api/discord/clone"), false);
