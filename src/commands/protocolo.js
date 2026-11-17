@@ -82,7 +82,18 @@ module.exports = {
           o
             .setName("canal")
             .setDescription("Fazer backup só deste canal (padrão: todos)")
-            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement, ChannelType.GuildForum)
+        )
+        .addChannelOption((o) =>
+          o
+            .setName("categoria")
+            .setDescription("Fazer backup de uma categoria inteira")
+            .addChannelTypes(ChannelType.GuildCategory)
+        )
+        .addBooleanOption((o) =>
+          o
+            .setName("topicos")
+            .setDescription("Incluir tópicos de fórum e threads (padrão: sim quando é categoria)")
         )
     )
     .addSubcommand((sc) =>
@@ -174,21 +185,36 @@ module.exports = {
     // ---------- TONY ----------
     if (sub === "tony") {
       const canal = interaction.options.getChannel("canal");
+      const categoria = interaction.options.getChannel("categoria");
       const limite = interaction.options.getInteger("limite") || 1000;
+      const topicosOpt = interaction.options.getBoolean("topicos");
+
+      if (canal && categoria) {
+        return interaction.reply({
+          content: "❌ Escolhe um dos dois: `canal` ou `categoria`.",
+          ephemeral: true,
+        });
+      }
+      const incluirTopicos = topicosOpt == null ? !!categoria : topicosOpt;
+      const onde = categoria ? ` da categoria **${categoria.name}**` : canal ? ` de ${canal}` : " do servidor";
+
       await interaction.deferReply({ ephemeral: true });
       await avisar(
         interaction,
-        `🧡 **TONY** começou o backup${canal ? ` de ${canal}` : " do servidor"} (até ${limite} mensagens por canal)…`
+        `🧡 **TONY** começou o backup${onde} (até ${limite} mensagens por canal` +
+          `${incluirTopicos ? ", incluindo tópicos/threads" : ""})…`
       );
 
       const r = await protocolos
         .tony(guild, {
           canalId: canal?.id || null,
+          categoriaIds: categoria ? [categoria.id] : null,
+          incluirTopicos,
           limitePorCanal: limite,
           onProgress: (p) =>
             avisar(
               interaction,
-              `🧡 **TONY** em andamento…\nCanais: **${p.feitos}/${p.canais}** · mensagens salvas: **${p.total}**`
+              `🧡 **TONY** em andamento…\nCanais: **${p.feitos}/${p.canais}** · tópicos: **${p.topicos || 0}** · mensagens salvas: **${p.total}**`
             ),
         })
         .catch((err) => ({ ok: false, erro: err.message }));
@@ -197,8 +223,9 @@ module.exports = {
 
       return avisar(
         interaction,
-        `🧡 **TONY concluído**\n📦 **${r.total}** mensagem(ns) de **${r.canais}** canal(is)\n` +
-          `💾 Arquivo: \`${r.arquivo}\` (${kb(r.bytes)})` +
+        `🧡 **TONY concluído**\n📦 **${r.total}** mensagem(ns) de **${r.canais}** canal(is)` +
+          (r.totalTopicos ? ` + **${r.totalTopicos}** tópico(s) (${r.totalMensagensTopicos} msgs)` : "") +
+          `\n💾 Arquivo: \`${r.arquivo}\` (${kb(r.bytes)})` +
           (r.vazios ? `\nℹ️ ${r.vazios} canal(is) sem mensagem acessível.` : "")
       );
     }

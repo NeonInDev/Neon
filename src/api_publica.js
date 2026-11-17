@@ -1849,6 +1849,12 @@ function iniciar(port = 3000) {
         const r = protocolos.iniciarTonyApi({
           guildId: corpo && corpo.guildId ? String(corpo.guildId) : "",
           canalId: corpo && corpo.canalId ? String(corpo.canalId) : null,
+          categoriaIds: Array.isArray(corpo && corpo.categorias)
+            ? corpo.categorias
+            : Array.isArray(corpo && corpo.categoriaIds)
+              ? corpo.categoriaIds
+              : null,
+          incluirTopicos: corpo && typeof corpo.incluirTopicos === "boolean" ? corpo.incluirTopicos : null,
           limitePorCanal: corpo && corpo.limitePorCanal ? Number(corpo.limitePorCanal) : 1000,
         });
         responder(res, r.ok ? 202 : 400, r);

@@ -17,7 +17,7 @@
 // =============================================================
 const fs = require("fs");
 const path = require("path");
-const { PermissionFlagsBits } = require("discord.js");
+const { PermissionFlagsBits, ChannelType } = require("discord.js");
 const { log } = require("./logger");
 const { varrer } = require("./varredura");
 const { cargoPerigoso } = require("./mod-utils");
@@ -46,12 +46,38 @@ function tetoRestante(usado) {
 // -------------------------------------------------------------
 // canais que a Neon consegue ler (e, se pedir, apagar)
 // -------------------------------------------------------------
-function canaisDeTexto(guild, { precisaApagar = false, canalId = null } = {}) {
+const TIPOS_TEXTO = new Set([
+  ChannelType.GuildText,
+  ChannelType.GuildAnnouncement,
+  ChannelType.GuildForum,
+  ChannelType.GuildMedia,
+]);
+const TIPOS_FORUM = new Set([ChannelType.GuildForum, ChannelType.GuildMedia]);
+
+function nomeDoTipo(tipo) {
+  return (
+    {
+      [ChannelType.GuildText]: "texto",
+      [ChannelType.GuildAnnouncement]: "anuncio",
+      [ChannelType.GuildForum]: "forum",
+      [ChannelType.GuildMedia]: "midia",
+    }[tipo] || String(tipo)
+  );
+}
+
+function canaisDeTexto(
+  guild,
+  { precisaApagar = false, canalId = null, categoriaIds = null, incluirForuns = false } = {}
+) {
   const eu = guild.members.me;
+  const cats = Array.isArray(categoriaIds) ? new Set(categoriaIds.map(String)) : null;
   const lista = [];
   for (const canal of guild.channels.cache.values()) {
-    if (!canal?.isTextBased?.() || canal.isDMBased?.() || canal.isThread?.()) continue;
+    if (!canal || canal.isDMBased?.() || canal.isThread?.()) continue;
+    if (!TIPOS_TEXTO.has(canal.type)) continue;
     if (canalId && canal.id !== canalId) continue;
+    if (cats && !cats.has(String(canal.parentId || ""))) continue;
+    if (!incluirForuns && TIPOS_FORUM.has(canal.type)) continue;
     const perm = canal.permissionsFor(eu);
     if (!perm?.has(PermissionFlagsBits.ViewChannel)) continue;
     if (!perm.has(PermissionFlagsBits.ReadMessageHistory)) continue;
@@ -134,54 +160,156 @@ function resumirMensagem(m) {
   };
 }
 
-async function tony(guild, { canalId = null, limitePorCanal = 1000, onProgress = null } = {}) {
-  const canais = canaisDeTexto(guild, { canalId });
-  if (!canais.length) return { ok: false, erro: "não achei canal que eu consiga ler." };
+async function mensagensDoCanal(canal, limite) {
+  const mensagens = [];
+  let antes = null;
+
+  while (mensagens.length < limite) {
+    const quanto = Math.min(100, limite - mensagens.length);
+    let pagina;
+    try {
+      pagina = await canal.messages.fetch({ limit: quanto, before: antes, cache: false });
+    } catch (err) {
+      log("WARN", "[TONY] falha ao ler canal", { canal: canal.id, erro: err.message });
+      break;
+    }
+    if (!pagina.size) break;
+    for (const m of pagina.values()) mensagens.push(resumirMensagem(m));
+    antes = pagina.last()?.id || null;
+    if (pagina.size < quanto) break;
+    await dormir(PAUSA);
+  }
+  return mensagens;
+}
+
+// Tópicos = threads (fóruns) e threads soltas de canal de texto.
+// Junta as ativas (vêm do guild, não do canal) com as arquivadas.
+async function topicosDoCanal(canal, ativasPorPai) {
+  const lista = [];
+  const vistos = new Set();
+
+  for (const t of ativasPorPai.get(canal.id) || []) {
+    if (!t || vistos.has(t.id)) continue;
+    vistos.add(t.id);
+    lista.push({ thread: t, arquivada: false });
+  }
+
+  if (!canal.threads?.fetchArchived) return lista;
+
+  for (const tipo of ["public", "private"]) {
+    let antes = null;
+    for (;;) {
+      let pagina;
+      try {
+        pagina = await canal.threads.fetchArchived({
+          type: tipo,
+          limit: 100,
+          ...(antes ? { before: antes } : {}),
+        });
+      } catch {
+        break; // canal sem esse tipo de thread ou sem permissão
+      }
+      const novas = [...pagina.threads.values()].filter((t) => !vistos.has(t.id));
+      for (const t of novas) {
+        vistos.add(t.id);
+        lista.push({ thread: t, arquivada: true });
+      }
+      if (!pagina.hasMore || !novas.length) break;
+      const ultimo = novas[novas.length - 1];
+      antes = ultimo?.archivedAt ? ultimo.archivedAt.toISOString() : null;
+      if (!antes) break;
+      await dormir(PAUSA);
+    }
+  }
+
+  return lista;
+}
+
+async function tony(
+  guild,
+  { canalId = null, categoriaIds = null, incluirTopicos = null, limitePorCanal = 1000, onProgress = null } = {}
+) {
+  const cats = Array.isArray(categoriaIds) && categoriaIds.length ? categoriaIds.map(String) : null;
+  // categoria sem dizer nada = copia os tópicos junto (fórum é onde o texto mora)
+  const topicos = incluirTopicos == null ? !!cats : !!incluirTopicos;
+  const canais = canaisDeTexto(guild, { canalId, categoriaIds: cats, incluirForuns: true });
+  if (!canais.length) return { ok: false, erro: "não achei canal que eu consiga ler nesse escopo." };
 
   const limite = Math.min(Math.max(1, limitePorCanal), MAX_MSGS_TONY);
   const backup = {
     protocolo: "tony",
     geradoEm: new Date().toISOString(),
     guild: { id: guild.id, nome: guild.name },
+    escopo: cats ? { categorias: cats } : canalId ? { canal: canalId } : { servidor: true },
     limitePorCanal: limite,
+    incluirTopicos: topicos,
+    categorias: (cats || []).map((id) => ({
+      id,
+      nome: guild.channels.cache.get(id)?.name || null,
+    })),
     canais: [],
     totalMensagens: 0,
+    totalMensagensTopicos: 0,
+    totalTopicos: 0,
   };
+
+  // threads ativas vêm do servidor inteiro: uma chamada só
+  const ativasPorPai = new Map();
+  if (topicos) {
+    try {
+      const ativas = await guild.channels.fetchActiveThreads();
+      for (const t of ativas.threads.values()) {
+        const arr = ativasPorPai.get(t.parentId) || [];
+        arr.push(t);
+        ativasPorPai.set(t.parentId, arr);
+      }
+    } catch (err) {
+      log("WARN", "[TONY] threads ativas falharam", { guild: guild.id, erro: err.message });
+    }
+  }
 
   let ultimoAviso = 0;
 
   for (const canal of canais) {
-    const mensagens = [];
-    let antes = null;
-
-    while (mensagens.length < limite) {
-      const quanto = Math.min(100, limite - mensagens.length);
-      let pagina;
-      try {
-        pagina = await canal.messages.fetch({ limit: quanto, before: antes, cache: false });
-      } catch (err) {
-        log("WARN", "[TONY] falha ao ler canal", { canal: canal.id, erro: err.message });
-        break;
-      }
-      if (!pagina.size) break;
-      for (const m of pagina.values()) mensagens.push(resumirMensagem(m));
-      antes = pagina.last()?.id || null;
-      if (pagina.size < quanto) break;
-      await dormir(PAUSA);
-    }
-
-    backup.canais.push({
+    const mensagens = await mensagensDoCanal(canal, limite);
+    const entrada = {
       id: canal.id,
       nome: canal.name,
-      tipo: String(canal.type),
+      tipo: nomeDoTipo(canal.type),
+      categoriaId: canal.parentId || null,
       mensagens,
-    });
+    };
+
+    if (topicos) {
+      entrada.topicos = [];
+      const lista = await topicosDoCanal(canal, ativasPorPai);
+      for (const { thread, arquivada } of lista) {
+        const msgs = await mensagensDoCanal(thread, limite);
+        entrada.topicos.push({
+          id: thread.id,
+          nome: thread.name,
+          arquivada,
+          criadoEm: thread.createdAt ? thread.createdAt.toISOString() : null,
+          mensagens: msgs,
+        });
+        backup.totalMensagens += msgs.length;
+        backup.totalMensagensTopicos += msgs.length;
+        backup.totalTopicos++;
+      }
+    }
+
+    backup.canais.push(entrada);
     backup.totalMensagens += mensagens.length;
 
     if (onProgress && Date.now() - ultimoAviso > 15000) {
       ultimoAviso = Date.now();
       await Promise.resolve(
-        onProgress({ canais: canais.length, feitos: backup.canais.length, total: backup.totalMensagens })
+        onProgress({
+          canais: canais.length,
+          feitos: backup.canais.length,
+          total: backup.totalMensagens,
+          topicos: backup.totalTopicos,
+        })
       ).catch(() => {});
     }
   }
@@ -191,14 +319,26 @@ async function tony(guild, { canalId = null, limitePorCanal = 1000, onProgress =
   fs.writeFileSync(arquivo, JSON.stringify(backup, null, 2), "utf8");
   const bytes = fs.statSync(arquivo).size;
 
-  log("INFO", "[TONY] backup gerado", { guild: guild.id, arquivo, total: backup.totalMensagens, bytes });
+  const vazios = backup.canais.filter(
+    (c) => !c.mensagens.length && !(c.topicos || []).some((t) => t.mensagens.length)
+  ).length;
+
+  log("INFO", "[TONY] backup gerado", {
+    guild: guild.id,
+    arquivo,
+    total: backup.totalMensagens,
+    topicos: backup.totalTopicos,
+    bytes,
+  });
   return {
     ok: true,
     arquivo,
     bytes,
     total: backup.totalMensagens,
+    totalTopicos: backup.totalTopicos,
+    totalMensagensTopicos: backup.totalMensagensTopicos,
     canais: backup.canais.length,
-    vazios: backup.canais.filter((c) => !c.mensagens.length).length,
+    vazios,
   };
 }
 
@@ -217,7 +357,7 @@ function statusTony() {
   return { rodando: jobTony.status === "rodando", ...jobTony };
 }
 
-function iniciarTonyApi({ guildId, canalId = null, limitePorCanal = 1000 } = {}) {
+function iniciarTonyApi({ guildId, canalId = null, categoriaIds = null, incluirTopicos = null, limitePorCanal = 1000 } = {}) {
   if (jobTony && jobTony.status === "rodando") {
     return { ok: false, erro: "já tem um Tony rodando — espera terminar (GET /api/protocolo/tony)." };
   }
@@ -239,6 +379,7 @@ function iniciarTonyApi({ guildId, canalId = null, limitePorCanal = 1000 } = {})
     guildId: guild.id,
     guildNome: guild.name,
     canalId: canalId || null,
+    categoriaIds: Array.isArray(categoriaIds) ? categoriaIds.map(String) : null,
     iniciadoEm: Date.now(),
     progresso: null,
     resultado: null,
@@ -247,6 +388,8 @@ function iniciarTonyApi({ guildId, canalId = null, limitePorCanal = 1000 } = {})
 
   tony(guild, {
     canalId: canalId || null,
+    categoriaIds: Array.isArray(categoriaIds) && categoriaIds.length ? categoriaIds : null,
+    incluirTopicos,
     limitePorCanal,
     onProgress: (p) => {
       if (jobTony?.status === "rodando") jobTony.progresso = { ...p, em: Date.now() };
@@ -266,7 +409,13 @@ function iniciarTonyApi({ guildId, canalId = null, limitePorCanal = 1000 } = {})
       log("WARN", "[TONY] job da API falhou", { guild: guildId, erro: err.message });
     });
 
-  log("INFO", "[TONY] job da API iniciado", { guild: guild.id, canal: canalId || "todos", limitePorCanal });
+  log("INFO", "[TONY] job da API iniciado", {
+    guild: guild.id,
+    canal: canalId || "todos",
+    categorias: categoriaIds || null,
+    topicos: incluirTopicos,
+    limitePorCanal,
+  });
   return { ok: true, job: statusTony() };
 }
 

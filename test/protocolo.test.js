@@ -218,3 +218,64 @@ test("Tony salva as mensagens em JSON", async () => {
   assert.equal(backup.canais[0].mensagens[0].autorId, "u1");
   assert.ok(fs.existsSync(r.arquivo));
 });
+
+function topicoFalso(id, nome, paiId, autorId, arquivada = false) {
+  return {
+    id,
+    name: nome,
+    parentId: paiId,
+    type: 11,
+    createdAt: new Date(),
+    archivedAt: arquivada ? new Date() : null,
+    messages: { fetch: async () => paginaDe([mensagemFalsa(`t-${id}-1`, autorId)]) },
+  };
+}
+
+function forumFalso(id, nome, categoriaId, topicosArquivados) {
+  let chamadas = 0;
+  return {
+    id,
+    name: nome,
+    type: 15,
+    parentId: categoriaId,
+    rawPosition: 5,
+    permissionsFor: () => ({ has: () => true }),
+    messages: { fetch: async () => paginaDe([]) },
+    threads: {
+      fetchArchived: async () => {
+        chamadas++;
+        return { threads: paginaDe(chamadas === 1 ? topicosArquivados : []), hasMore: false };
+      },
+    },
+  };
+}
+
+test("Tony copia categoria inteira e os tópicos de fórum/threads", async () => {
+  const CAT = "cat1";
+  const texto = canalFalso([mensagemFalsa("m1", "u1"), mensagemFalsa("m2", "u2")]);
+  texto.parentId = CAT;
+
+  const forum = forumFalso("f1", "tabelas", CAT, [topicoFalso("t1", "ficha do bakugo", "f1", "u3", true)]);
+  const ativa = topicoFalso("t2", "duvida no sistema", texto.id, "u4");
+  ativa.archivedAt = null;
+
+  const guild = guildComCanais([texto, forum]);
+  guild.channels.fetchActiveThreads = async () => ({ threads: paginaDe([ativa]) });
+
+  const r = await protocolos.tony(guild, { categoriaIds: [CAT], limitePorCanal: 10 });
+  assert.equal(r.ok, true, r.erro);
+  assert.equal(r.canais, 2, "só os canais da categoria");
+  assert.equal(r.totalTopicos, 2, "uma thread ativa + um tópico arquivado");
+  assert.equal(r.total, 4, "2 do canal + 1 do tópico + 1 da thread");
+  assert.equal(r.totalMensagensTopicos, 2);
+
+  const backup = JSON.parse(fs.readFileSync(r.arquivo, "utf8"));
+  assert.deepEqual(backup.escopo.categorias, [CAT]);
+  assert.equal(backup.categorias[0].id, CAT);
+  const f = backup.canais.find((c) => c.id === "f1");
+  assert.equal(f.topicos.length, 1);
+  assert.equal(f.topicos[0].arquivada, true);
+  assert.equal(f.topicos[0].mensagens[0].autorId, "u3");
+  const t = backup.canais.find((c) => c.id === texto.id);
+  assert.equal(t.topicos[0].mensagens[0].autorId, "u4");
+});
